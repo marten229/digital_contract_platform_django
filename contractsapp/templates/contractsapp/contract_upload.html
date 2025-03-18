@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Vertrag hochladen</title>
+</head>
+<body>
+    <h1>Vertrag hochladen</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Hochladen</button>
+    </form>
+</body>
+</html>

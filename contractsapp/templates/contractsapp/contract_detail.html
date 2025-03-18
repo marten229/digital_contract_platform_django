@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ contract.title }}</title>
+    <style>
+        /* Einfaches Styling */
+        #signatureContainer { margin-top: 20px; }
+        #signaturePad { border: 1px solid #000; }
+    </style>
+</head>
+<body>
+    <h1>{{ contract.title }}</h1>
+    <p>Hochgeladen am: {{ contract.uploaded_at }}</p>
+    <!-- PDF im Browser anzeigen -->
+    <embed src="{{ contract.pdf_file.url }}" width="800" height="600" type="application/pdf">
+    <p><a href="{{ contract.pdf_file.url }}">PDF herunterladen</a></p>
+
+    <!-- Button zum Unterschrift hinzufügen -->
+    <button id="openSignature">Unterschrift hinzufügen</button>
+
+    <!-- Container für den Signature Pad -->
+    <div id="signatureContainer" style="display:none;">
+        <canvas id="signaturePad" width="400" height="200"></canvas>
+        <br>
+        <button id="clearSignature">Löschen</button>
+        <button id="saveSignature">Unterschrift speichern und PDF herunterladen</button>
+    </div>
+
+    <!-- Einbinden der Signature Pad Bibliothek (über CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script>
+        // Elemente holen
+        const openBtn = document.getElementById('openSignature');
+        const signatureContainer = document.getElementById('signatureContainer');
+        const clearBtn = document.getElementById('clearSignature');
+        const saveBtn = document.getElementById('saveSignature');
+        const canvas = document.getElementById('signaturePad');
+
+        // Signature Pad initialisieren
+        const signaturePad = new SignaturePad(canvas);
+
+        // Container einblenden, wenn Button geklickt wird
+        openBtn.addEventListener('click', function() {
+            signatureContainer.style.display = 'block';
+        });
+
+        // Canvas leeren
+        clearBtn.addEventListener('click', function() {
+            signaturePad.clear();
+        });
+
+        // Unterschrift speichern und an den Server senden
+        saveBtn.addEventListener('click', function() {
+            if (signaturePad.isEmpty()) {
+                alert("Bitte zuerst unterschreiben!");
+                return;
+            }
+            // Unterschrift als DataURL (Base64) erhalten
+            const dataURL = signaturePad.toDataURL();
+
+            // Sende die Unterschrift per POST an den Django-View
+            fetch("{% url 'add_signature' pk=contract.pk %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: new URLSearchParams({
+                    'signature': dataURL
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("Fehler beim Hinzufügen der Unterschrift");
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // Erstelle einen Downloadlink für die signierte PDF
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = 'signed_contract.pdf';
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                console.error("Fehler:", error);
+                alert("Beim Speichern der Unterschrift ist ein Fehler aufgetreten.");
+            });
+        });
+    </script>
+</body>
+</html>
