@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'contractsapp',
+    'rest_framework',
+    'authenticationapp',
 ]
 
 MIDDLEWARE = [
@@ -127,6 +129,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-DEBUG = True
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+AUTH_USER_MODEL = 'authenticationapp.Web3User'

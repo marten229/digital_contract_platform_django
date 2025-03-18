@@ -1,0 +1,206 @@
+/templates/authentication/login.html
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MetaMask Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 2.5rem;
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+        .metamask-logo {
+            width: 80px;
+            height: auto;
+            margin-bottom: 1.5rem;
+        }
+        .btn-metamask {
+            background-color: #F6851B;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            margin: 1.5rem auto;
+            transition: background-color 0.2s;
+        }
+        .btn-metamask:hover {
+            background-color: #E2761B;
+        }
+        .error-message {
+            color: #dc3545;
+            margin: 1rem 0;
+            display: none;
+        }
+        .success-message {
+            color: #28a745;
+            margin: 1rem 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask Logo" class="metamask-logo">
+        <h2 class="mb-4">Login mit MetaMask</h2>
+        <p class="text-muted mb-4">Melden Sie sich sicher mit Ihrer Ethereum-Wallet an, um auf Ihre digitalen Verträge zuzugreifen.</p>
+        
+        <button id="connectButton" class="btn-metamask">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M21.0095 3L12.8774 9.15636L14.4033 5.71745L21.0095 3Z" fill="white"/>
+                <path d="M3 3L9.5681 5.71745L11.0295 9.15636L3 3Z" fill="white"/>
+                <path d="M18.1356 16.2709L15.9702 19.6433L20.5038 20.986L21.8172 16.336L18.1356 16.2709Z" fill="white"/>
+                <path d="M2.19086 16.336L3.49629 20.986L8.02989 19.6433L5.87252 16.2709L2.19086 16.336Z" fill="white"/>
+                <path d="M7.7718 10.5909L6.44739 12.6055L10.9382 12.8059L10.7757 7.87273L7.7718 10.5909Z" fill="white"/>
+                <path d="M16.2362 10.5909L13.1895 7.80364L13.0677 12.8059L17.5585 12.6055L16.2362 10.5909Z" fill="white"/>
+                <path d="M8.02989 19.6433L10.6544 18.2596L8.39702 16.37L8.02989 19.6433Z" fill="white"/>
+                <path d="M13.3536 18.2596L15.9702 19.6433L15.603 16.37L13.3536 18.2596Z" fill="white"/>
+            </svg>
+            Mit MetaMask verbinden
+        </button>
+        
+        <div id="loginButton" style="display: none;" class="btn-metamask">
+            Mit MetaMask anmelden
+        </div>
+        
+        <div id="errorMessage" class="error-message">
+            MetaMask konnte nicht gefunden werden. Bitte installieren Sie die MetaMask-Erweiterung.
+        </div>
+        
+        <div id="successMessage" class="success-message">
+            Erfolgreich angemeldet! Sie werden weitergeleitet...
+        </div>
+        
+        <div id="walletInfo" class="mt-4" style="display: none;">
+            <p class="mb-1"><strong>Verbundene Wallet:</strong></p>
+            <p id="walletAddress" class="text-muted"></p>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const connectButton = document.getElementById('connectButton');
+            const loginButton = document.getElementById('loginButton');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+            const walletInfo = document.getElementById('walletInfo');
+            const walletAddress = document.getElementById('walletAddress');
+            
+            let currentAccount = null;
+            
+            // Check if MetaMask is installed
+            if (typeof window.ethereum === 'undefined') {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'MetaMask ist nicht installiert. Bitte installieren Sie die MetaMask-Erweiterung.';
+                connectButton.disabled = true;
+            }
+            
+            // Connect to MetaMask
+            connectButton.addEventListener('click', async function() {
+                if (typeof window.ethereum !== 'undefined') {
+                    try {
+                        // Request account access
+                        const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+                        currentAccount = accounts[0];
+                        
+                        // Show wallet info
+                        walletAddress.textContent = `${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
+                        walletInfo.style.display = 'block';
+                        
+                        // Hide connect button and show login button
+                        connectButton.style.display = 'none';
+                        loginButton.style.display = 'flex';
+                        
+                    } catch (error) {
+                        console.error('User denied account access:', error);
+                        errorMessage.style.display = 'block';
+                        errorMessage.textContent = 'Zugriff auf die Wallet verweigert. Bitte erlauben Sie den Zugriff auf MetaMask.';
+                    }
+                } else {
+                    errorMessage.style.display = 'block';
+                    errorMessage.textContent = 'MetaMask ist nicht installiert.';
+                }
+            });
+            
+            // Login with MetaMask
+            loginButton.addEventListener('click', async function() {
+                if (!currentAccount) return;
+                
+                try {
+                    // Get nonce from server
+                    const response = await fetch(`/auth/api/get_nonce/?address=${currentAccount}`);
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    const nonce = data.nonce;
+                    const message = `Sign this message to authenticate with our app: ${nonce}`;
+                    
+                    // Request signature from user
+                    const signature = await ethereum.request({
+                        method: 'personal_sign',
+                        params: [message, currentAccount]
+                    });
+                    
+                    // Verify signature with server
+                    const verifyResponse = await fetch('/auth/api/verify_signature/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            address: currentAccount,
+                            signature: signature
+                        })
+                    });
+                    
+                    const verifyData = await verifyResponse.json();
+                    
+                    if (verifyData.success) {
+                        // Show success message
+                        successMessage.style.display = 'block';
+                        errorMessage.style.display = 'none';
+                        loginButton.style.display = 'none';
+                        
+                        // Redirect to main page after 2 seconds
+                        setTimeout(() => {
+                            window.location.href = '/contractsapp/';
+                        }, 2000);
+                    } else {
+                        throw new Error(verifyData.error || 'Fehler bei der Verifikation');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error during login:', error);
+                    errorMessage.style.display = 'block';
+                    errorMessage.textContent = `Fehler beim Anmelden: ${error.message}`;
+                }
+            });
+        });
+    </script>
+</body>
+</html>
