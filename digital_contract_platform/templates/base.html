@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Digitale Vertragsplattform{% endblock %}</title>
+    
+    {% load static %}
+    
+    <!-- Core CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Base styles -->
+    {% block base_css %}
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    {% endblock %}
+    
+    <!-- Page specific CSS -->
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Toast Container for Messages -->
+    <div class="toast-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="toast toast-success align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    {% block header %}
+    <!-- Optional header/navigation block -->
+    {% endblock %}
+    
+    {% block hero %}
+    <!-- Optional hero section -->
+    {% endblock %}
+    
+    <main>
+        {% block content %}
+        <!-- Main content goes here -->
+        {% endblock %}
+    </main>
+    
+    {% block footer %}
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Digitale Vertragsplattform</h5>
+                    <p>Sichere Verträge mit Smart Contracts</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 Marten Schulz. Alle Rechte vorbehalten.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    {% endblock %}
+    
+    <!-- Core JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Common JavaScript -->
+    {% block base_js %}
+    <script>
+        // Show toasts on page load with a fade-in effect
+        document.addEventListener('DOMContentLoaded', function() {
+            const toasts = document.querySelectorAll('.toast');
+            
+            toasts.forEach((toast) => {
+                // Create Bootstrap Toast instance
+                const bsToast = new bootstrap.Toast(toast, {
+                    animation: true,
+                    autohide: true,
+                    delay: 5000
+                });
+                
+                // Show the toast
+                bsToast.show();
+            });
+        });
+    </script>
+    {% endblock %}
+    
+    <!-- Page specific JavaScript -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
