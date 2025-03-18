@@ -1,0 +1,35 @@
+/* Login page specific styles */
+.login-container {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    padding: 2.5rem;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    margin: 2rem auto;
+}
+
+.metamask-logo {
+    width: 80px;
+    height: auto;
+    margin-bottom: 1.5rem;
+}
+
+/* Override btn-metamask for the login context */
+.login-container .btn-metamask {
+    display: flex;
+    margin: 1.5rem auto;
+}
+
+.error-message {
+    color: #dc3545;
+    margin: 1rem 0;
+    display: none;
+}
+
+.success-message {
+    color: #28a745;
+    margin: 1rem 0;
+    display: none;
+}
