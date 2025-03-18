@@ -4,62 +4,445 @@
     <meta charset="UTF-8">
     <title>{{ contract.title }}</title>
     <style>
-        /* Einfaches Styling */
-        #signatureContainer { margin-top: 20px; }
-        #signaturePad { border: 1px solid #000; }
+        /* Styling */
+        #pdfContainer { position: relative; }
+        #pdfViewer { border: 1px solid #000; }
+        #overlayCanvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0;
+            /* Cursor will be changed to crosshair only when selection is active */
+            cursor: default; 
+        }
+        #signatureContainer { 
+            display: none;
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ccc; 
+            background: #f9f9f9;
+        }
+        #signaturePad { 
+            border: 1px solid #000;
+            background: #fff; 
+        }
+        #previewControls {
+            display: none;
+            margin-top: 10px;
+        }
+        .btn {
+            padding: 8px 15px;
+            margin: 5px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn:hover { background: #45a049; }
+        
+        /* Page navigation buttons styling */
+        #pageNavigation {
+            margin: 10px 0;
+            text-align: center;
+        }
+        #pageInfo {
+            display: inline-block;
+            margin: 0 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <h1>{{ contract.title }}</h1>
     <p>Hochgeladen am: {{ contract.uploaded_at }}</p>
-    <!-- PDF im Browser anzeigen -->
-    <embed src="{{ contract.pdf_file.url }}" width="800" height="600" type="application/pdf">
-    <p><a href="{{ contract.pdf_file.url }}">PDF herunterladen</a></p>
-
-    <!-- Button zum Unterschrift hinzufügen -->
-    <button id="openSignature">Unterschrift hinzufügen</button>
-
+    
+    <!-- PDF Container mit Canvas-Overlay -->
+    <div id="pdfContainer">
+        <canvas id="pdfViewer" width="800" height="600"></canvas>
+        <canvas id="overlayCanvas" width="800" height="600"></canvas>
+    </div>
+    
+    <!-- Page Navigation -->
+    <div id="pageNavigation">
+        <button id="prevPage" class="btn">Vorherige Seite</button>
+        <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+        <button id="nextPage" class="btn">Nächste Seite</button>
+    </div>
+    
+    <div id="documentControls">
+        <p><a href="{{ contract.pdf_file.url }}" class="btn">PDF herunterladen</a></p>
+        <button id="selectSignatureArea" class="btn">Unterschrift-Bereich auswählen</button>
+    </div>
+    
     <!-- Container für den Signature Pad -->
-    <div id="signatureContainer" style="display:none;">
+    <div id="signatureContainer">
+        <p>Bitte hier unterschreiben:</p>
         <canvas id="signaturePad" width="400" height="200"></canvas>
         <br>
-        <button id="clearSignature">Löschen</button>
-        <button id="saveSignature">Unterschrift speichern und PDF herunterladen</button>
+        <button id="clearSignature" class="btn">Löschen</button>
+        <button id="previewSignature" class="btn">Unterschrift Vorschau</button>
+        <button id="cancelSignature" class="btn">Abbrechen</button>
+    </div>
+    
+    <!-- Preview Controls - shown after signature preview -->
+    <div id="previewControls">
+        <button id="confirmSignature" class="btn">Unterschrift bestätigen und PDF herunterladen</button>
+        <button id="editSignature" class="btn">Unterschrift bearbeiten</button>
+        <button id="cancelPreview" class="btn">Abbrechen</button>
     </div>
 
-    <!-- Einbinden der Signature Pad Bibliothek (über CDN) -->
+    <!-- PDF.js Bibliothek -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <!-- Signature Pad Bibliothek -->
     <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    
     <script>
+        // PDF.js initialisieren
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        
         // Elemente holen
-        const openBtn = document.getElementById('openSignature');
+        const pdfViewer = document.getElementById('pdfViewer');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const selectAreaBtn = document.getElementById('selectSignatureArea');
         const signatureContainer = document.getElementById('signatureContainer');
         const clearBtn = document.getElementById('clearSignature');
-        const saveBtn = document.getElementById('saveSignature');
-        const canvas = document.getElementById('signaturePad');
-
+        const previewBtn = document.getElementById('previewSignature');
+        const cancelBtn = document.getElementById('cancelSignature');
+        const previewControls = document.getElementById('previewControls');
+        const confirmBtn = document.getElementById('confirmSignature');
+        const editBtn = document.getElementById('editSignature');
+        const cancelPreviewBtn = document.getElementById('cancelPreview');
+        const signatureCanvas = document.getElementById('signaturePad');
+        const prevPageBtn = document.getElementById('prevPage');
+        const nextPageBtn = document.getElementById('nextPage');
+        const currentPageNumSpan = document.getElementById('currentPageNum');
+        const totalPagesSpan = document.getElementById('totalPages');
+        
+        // Context für Overlay Canvas
+        const ctx = overlayCanvas.getContext('2d');
+        
         // Signature Pad initialisieren
-        const signaturePad = new SignaturePad(canvas);
-
-        // Container einblenden, wenn Button geklickt wird
-        openBtn.addEventListener('click', function() {
-            signatureContainer.style.display = 'block';
+        const signaturePad = new SignaturePad(signatureCanvas);
+        
+        // Application state
+        let selectionMode = false;
+        let previewMode = false;
+        let signatureDataURL = null;
+        
+        // PDF laden und anzeigen
+        let pdfDoc = null;
+        let currentPage = 1;
+        let pageRendering = false;
+        let currentViewport = null;  // Store the current viewport
+        let actualPdfWidth = 0;      // Actual PDF width
+        let actualPdfHeight = 0;     // Actual PDF height
+        let pageNumPending = null;
+        
+        // Update the renderPage function to properly handle page changes
+        const renderPage = (pageNum) => {
+            pageRendering = true;
+            
+            // Update the displayed page number
+            currentPageNumSpan.textContent = pageNum;
+            
+            // Clear any existing selection rectangle
+            clearOverlay();
+            
+            console.log(`Rendering page ${pageNum}`);
+            
+            // Get the page
+            pdfDoc.getPage(pageNum).then(page => {
+                console.log(`Got page ${pageNum}, rendering`);
+                
+                // Get actual PDF dimensions at scale 1.0
+                const originalViewport = page.getViewport({ scale: 1.0 });
+                actualPdfWidth = originalViewport.width;
+                actualPdfHeight = originalViewport.height;
+                
+                // Display viewport at desired scale
+                const viewport = page.getViewport({ scale: 1.5 });
+                currentViewport = viewport;  // Save viewport for coordinate conversion
+                
+                pdfViewer.width = viewport.width;
+                pdfViewer.height = viewport.height;
+                overlayCanvas.width = viewport.width;
+                overlayCanvas.height = viewport.height;
+                
+                const renderContext = {
+                    canvasContext: pdfViewer.getContext('2d'),
+                    viewport: viewport
+                };
+                
+                // Clear canvas before rendering new page
+                pdfViewer.getContext('2d').clearRect(0, 0, pdfViewer.width, pdfViewer.height);
+                
+                page.render(renderContext).promise.then(() => {
+                    pageRendering = false;
+                    
+                    // Redraw signature preview if in preview mode
+                    if (previewMode && signatureRect && signatureDataURL) {
+                        drawSignaturePreview();
+                    }
+                    
+                    // If there's a page pending to be rendered, do it now
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                }).catch(error => {
+                    console.error('Error rendering page:', error);
+                    pageRendering = false;
+                });
+            }).catch(error => {
+                console.error(`Error getting page ${pageNum}:`, error);
+                pageRendering = false;
+            });
+        };
+        
+        // Function to queue a page render
+        const queueRenderPage = (pageNum) => {
+            if (pageRendering) {
+                pageNumPending = pageNum;
+            } else {
+                renderPage(pageNum);
+            }
+        };
+        
+        // PDF laden with better error handling
+        pdfjsLib.getDocument('{{ contract.pdf_file.url }}').promise
+            .then(doc => {
+                console.log(`PDF loaded with ${doc.numPages} pages`);
+                pdfDoc = doc;
+                totalPagesSpan.textContent = doc.numPages;
+                renderPage(currentPage);
+                
+                // Enable/disable page navigation buttons based on page count
+                prevPageBtn.disabled = (currentPage <= 1);
+                nextPageBtn.disabled = (currentPage >= doc.numPages);
+            })
+            .catch(error => {
+                console.error('PDF laden fehlgeschlagen:', error);
+            });
+        
+        // Function to convert canvas coordinates to PDF coordinates
+        function canvasToPdfCoordinates(x, y, width, height) {
+            if (!currentViewport) return { x, y, width, height };
+            
+            // Calculate scale factor between display and actual PDF
+            const scaleX = actualPdfWidth / currentViewport.width;
+            const scaleY = actualPdfHeight / currentViewport.height;
+            
+            // Convert to PDF coordinates (origin at bottom-left)
+            // 1. Scale to actual PDF dimensions
+            // 2. Flip Y-coordinate (PDF origin is bottom-left)
+            const pdfX = x * scaleX;
+            const pdfY = actualPdfHeight - (y + height) * scaleY;
+            const pdfWidth = width * scaleX;
+            const pdfHeight = height * scaleY;
+            
+            console.log('Canvas coords:', {x, y, width, height});
+            console.log('PDF coords:', {x: pdfX, y: pdfY, width: pdfWidth, height: pdfHeight});
+            
+            return {
+                x: pdfX,
+                y: pdfY,
+                width: pdfWidth,
+                height: pdfHeight
+            };
+        }
+        
+        // Previous page navigation
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage <= 1) return;
+            currentPage--;
+            queueRenderPage(currentPage);
+            
+            // Update button states
+            prevPageBtn.disabled = (currentPage <= 1);
+            nextPageBtn.disabled = (currentPage >= pdfDoc.numPages);
         });
-
+        
+        // Next page navigation
+        nextPageBtn.addEventListener('click', () => {
+            if (currentPage >= pdfDoc.numPages) return;
+            currentPage++;
+            queueRenderPage(currentPage);
+            
+            // Update button states
+            prevPageBtn.disabled = (currentPage <= 1);
+            nextPageBtn.disabled = (currentPage >= pdfDoc.numPages);
+        });
+        
+        // Variablen für die Rechteck-Auswahl
+        let isDrawing = false;
+        let startX, startY;
+        let endX, endY;
+        let signatureRect = null;
+        
+        // Aktiviere Rechteck-Zeichnen
+        selectAreaBtn.addEventListener('click', function() {
+            selectionMode = true;
+            previewMode = false;
+            
+            // Change cursor to crosshair only when in selection mode
+            overlayCanvas.style.cursor = 'crosshair';
+            
+            isDrawing = false;
+            signatureRect = null;
+            clearOverlay();
+            
+            // Hide preview controls if visible
+            previewControls.style.display = 'none';
+        });
+        
+        // Overlay Canvas löschen
+        function clearOverlay() {
+            ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+        
+        // Rechteck zeichnen
+        function drawRect() {
+            clearOverlay();
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+            const width = endX - startX;
+            const height = endY - startY;
+            ctx.strokeRect(startX, startY, width, height);
+        }
+        
+        // Draw signature preview on overlay canvas
+        function drawSignaturePreview() {
+            if (!signatureRect || !signatureDataURL) return;
+            
+            const img = new Image();
+            img.onload = () => {
+                // Draw rectangle
+                ctx.strokeStyle = '#0000FF';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(signatureRect.x, signatureRect.y, signatureRect.width, signatureRect.height);
+                
+                // Draw signature
+                ctx.drawImage(
+                    img, 
+                    signatureRect.x, 
+                    signatureRect.y, 
+                    signatureRect.width, 
+                    signatureRect.height
+                );
+            };
+            img.src = signatureDataURL;
+        }
+        
+        // Maus-Events für Overlay Canvas (nur aktiv, wenn selectionMode true ist)
+        overlayCanvas.addEventListener('mousedown', function(e) {
+            if (!selectionMode) return;
+            
+            const rect = overlayCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+        });
+        
+        overlayCanvas.addEventListener('mousemove', function(e) {
+            if (!selectionMode || !isDrawing) return;
+            
+            const rect = overlayCanvas.getBoundingClientRect();
+            endX = e.clientX - rect.left;
+            endY = e.clientY - rect.top;
+            drawRect();
+        });
+        
+        overlayCanvas.addEventListener('mouseup', function(e) {
+            if (!selectionMode || !isDrawing) return;
+            isDrawing = false;
+            
+            // Rechteck speichern (normalisieren, damit Breite und Höhe positiv sind)
+            const x = Math.min(startX, endX);
+            const y = Math.min(startY, endY);
+            const width = Math.abs(endX - startX);
+            const height = Math.abs(endY - startY);
+            
+            // Nur speichern, wenn Größe sinnvoll ist
+            if (width > 20 && height > 20) {
+                signatureRect = { x, y, width, height };
+                signatureContainer.style.display = 'block';
+                
+                // Reset selection mode and cursor
+                selectionMode = false;
+                overlayCanvas.style.cursor = 'default';
+            } else {
+                alert('Bitte wählen Sie einen größeren Bereich aus.');
+                clearOverlay();
+            }
+        });
+        
         // Canvas leeren
         clearBtn.addEventListener('click', function() {
             signaturePad.clear();
         });
-
-        // Unterschrift speichern und an den Server senden
-        saveBtn.addEventListener('click', function() {
+        
+        // Abbrechen (Selection)
+        cancelBtn.addEventListener('click', function() {
+            signatureContainer.style.display = 'none';
+            clearOverlay();
+            selectionMode = false;
+            overlayCanvas.style.cursor = 'default';
+        });
+        
+        // Preview signature
+        previewBtn.addEventListener('click', function() {
             if (signaturePad.isEmpty()) {
                 alert("Bitte zuerst unterschreiben!");
                 return;
             }
-            // Unterschrift als DataURL (Base64) erhalten
-            const dataURL = signaturePad.toDataURL();
-
-            // Sende die Unterschrift per POST an den Django-View
+            
+            // Get signature data URL and store it
+            signatureDataURL = signaturePad.toDataURL();
+            
+            // Hide signature container and show preview controls
+            signatureContainer.style.display = 'none';
+            previewControls.style.display = 'block';
+            
+            // Set preview mode
+            previewMode = true;
+            selectionMode = false;
+            
+            // Draw signature preview
+            drawSignaturePreview();
+        });
+        
+        // Cancel preview
+        cancelPreviewBtn.addEventListener('click', function() {
+            previewMode = false;
+            previewControls.style.display = 'none';
+            clearOverlay();
+            overlayCanvas.style.cursor = 'default';
+        });
+        
+        // Edit signature - go back to signature pad
+        editBtn.addEventListener('click', function() {
+            previewMode = false;
+            previewControls.style.display = 'none';
+            signatureContainer.style.display = 'block';
+            clearOverlay();
+        });
+        
+        // Confirm and save signature
+        confirmBtn.addEventListener('click', function() {
+            if (!signatureRect || !signatureDataURL) {
+                alert("Fehler: Keine Unterschrift oder Position gefunden.");
+                return;
+            }
+            
+            // Convert canvas coordinates to PDF coordinates
+            const pdfCoords = canvasToPdfCoordinates(
+                signatureRect.x, 
+                signatureRect.y, 
+                signatureRect.width, 
+                signatureRect.height
+            );
+            
+            // Sende die Unterschrift und Koordinaten per POST an den Django-View
             fetch("{% url 'add_signature' pk=contract.pk %}", {
                 method: "POST",
                 headers: {
@@ -67,7 +450,12 @@
                     "X-CSRFToken": "{{ csrf_token }}"
                 },
                 body: new URLSearchParams({
-                    'signature': dataURL
+                    'signature': signatureDataURL,
+                    'x': pdfCoords.x,
+                    'y': pdfCoords.y,
+                    'width': pdfCoords.width,
+                    'height': pdfCoords.height,
+                    'page': currentPage
                 })
             })
             .then(response => {
@@ -86,6 +474,14 @@
                 document.body.appendChild(a);
                 a.click();
                 window.URL.revokeObjectURL(url);
+                
+                // UI zurücksetzen
+                previewMode = false;
+                previewControls.style.display = 'none';
+                clearOverlay();
+                signatureRect = null;
+                signatureDataURL = null;
+                overlayCanvas.style.cursor = 'default';
             })
             .catch(error => {
                 console.error("Fehler:", error);
