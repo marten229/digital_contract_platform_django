@@ -8,7 +8,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth import login, logout
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.contrib import messages
 from .models import Web3User
 
 def generate_nonce():
@@ -86,9 +87,10 @@ def verify_signature(request):
 
 @require_http_methods(["POST"])
 def logout_view(request):
-    """Logout the user"""
+    """Logout the user and redirect to homepage"""
     logout(request)
-    return JsonResponse({'success': True})
+    messages.success(request, "Sie wurden erfolgreich abgemeldet!")
+    return redirect('homepage')
 
 def login_page(request):
     """Render the login page"""

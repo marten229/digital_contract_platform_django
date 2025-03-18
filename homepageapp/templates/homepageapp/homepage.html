@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digitale Vertragsplattform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, #0d6efd, #0dcaf0);
+            color: white;
+            padding: 5rem 0;
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .hero-title {
+            font-size: 2.8rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.4rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .feature-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: transform 0.3s, box-shadow 0.3s;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: #0d6efd;
+        }
+        
+        .cta-section {
+            background-color: white;
+            padding: 4rem 0;
+            text-align: center;
+            margin-top: 2rem;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .btn-metamask {
+            background-color: #F6851B;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-metamask:hover {
+            background-color: #E2761B;
+            color: white;
+            text-decoration: none;
+        }
+        
+        footer {
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 2rem 0;
+            margin-top: auto;
+        }
+        
+        .user-info {
+            background-color: rgba(13, 110, 253, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .logout-btn {
+            color: #dc3545;
+            cursor: pointer;
+        }
+
+        /* Improved toast styling */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        
+        .toast {
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+        }
+        
+        .toast-success {
+            border-left: 4px solid #198754;
+        }
+    </style>
+</head>
+<body>
+    <!-- Toast Container for Messages -->
+    <div class="toast-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="toast toast-success align-items-center" role="alert" aria-live="assertive" aria-atomic="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">Digitale Vertragsplattform</h1>
+            <p class="hero-subtitle">Verwalten, signieren und teilen Sie Ihre Verträge sicher mit Blockchain-Technologie</p>
+            
+            {% if user.is_authenticated %}
+                <a href="{% url 'contract_upload' %}" class="btn btn-light btn-lg mt-3">
+                    <i class="bi bi-file-earmark-plus"></i> Vertrag hochladen
+                </a>
+            {% else %}
+                <a href="{% url 'login_page' %}" class="btn-metamask btn-lg">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21.0095 3L12.8774 9.15636L14.4033 5.71745L21.0095 3Z" fill="white"/>
+                        <path d="M3 3L9.5681 5.71745L11.0295 9.15636L3 3Z" fill="white"/>
+                        <path d="M18.1356 16.2709L15.9702 19.6433L20.5038 20.986L21.8172 16.336L18.1356 16.2709Z" fill="white"/>
+                        <path d="M2.19086 16.336L3.49629 20.986L8.02989 19.6433L5.87252 16.2709L2.19086 16.336Z" fill="white"/>
+                        <path d="M7.7718 10.5909L6.44739 12.6055L10.9382 12.8059L10.7757 7.87273L7.7718 10.5909Z" fill="white"/>
+                        <path d="M16.2362 10.5909L13.1895 7.80364L13.0677 12.8059L17.5585 12.6055L16.2362 10.5909Z" fill="white"/>
+                        <path d="M8.02989 19.6433L10.6544 18.2596L8.39702 16.37L8.02989 19.6433Z" fill="white"/>
+                        <path d="M13.3536 18.2596L15.9702 19.6433L15.603 16.37L13.3536 18.2596Z" fill="white"/>
+                    </svg>
+                    Mit MetaMask anmelden
+                </a>
+            {% endif %}
+        </div>
+    </section>
+    
+    <!-- Main Content -->
+    <div class="container">
+        {% if user.is_authenticated %}
+            <!-- User is logged in -->
+            <div class="user-info">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4>Willkommen zurück!</h4>
+                        <p class="mb-0">
+                            <strong>Ethereum Adresse:</strong> 
+                            <span class="text-monospace">{{ user.ethereum_address|slice:":6" }}...{{ user.ethereum_address|slice:"-4:" }}</span>
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <form id="logoutForm" method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <a href="#" class="logout-btn" onclick="document.getElementById('logoutForm').submit();">
+                                <i class="bi bi-box-arrow-right"></i> Abmelden
+                            </a>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <h2 class="mb-4">Ihre Vertragsverwaltung</h2>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Vertrag hochladen</h5>
+                            <p class="card-text">Laden Sie neue Verträge hoch, um sie zu signieren oder mit anderen zu teilen.</p>
+                            <a href="{% url 'contract_upload' %}" class="btn btn-primary">
+                                <i class="bi bi-upload"></i> Vertrag hochladen
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <!-- Hier könnte später eine Übersicht der Verträge des Benutzers folgen -->
+            </div>
+        {% else %}
+            <!-- User is not logged in -->
+            <h2 class="text-center mb-5">Unsere Vorteile</h2>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-shield-lock"></i>
+                        </div>
+                        <h3>Sichere Authentifizierung</h3>
+                        <p>Melden Sie sich sicher mit Ihrer Ethereum-Wallet an. Keine Passwörter, die vergessen oder gestohlen werden können.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-pen"></i>
+                        </div>
+                        <h3>Digitale Signierung</h3>
+                        <p>Signieren Sie Ihre Dokumente digital und behalten Sie die volle Kontrolle über Ihre Unterschrift.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-share"></i>
+                        </div>
+                        <h3>Einfaches Teilen</h3>
+                        <p>Teilen Sie Ihre Verträge sicher mit Geschäftspartnern und verfolgen Sie den Status.</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    {% if not user.is_authenticated %}
+        <!-- Call to Action Section -->
+        <section class="cta-section">
+            <div class="container">
+                <h2 class="mb-4">Bereit, loszulegen?</h2>
+                <p class="mb-4">Registrieren Sie sich noch heute und erleben Sie die Zukunft der digitalen Vertragsunterzeichnung.</p>
+                <a href="{% url 'login_page' %}" class="btn-metamask">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21.0095 3L12.8774 9.15636L14.4033 5.71745L21.0095 3Z" fill="white"/>
+                        <path d="M3 3L9.5681 5.71745L11.0295 9.15636L3 3Z" fill="white"/>
+                        <path d="M18.1356 16.2709L15.9702 19.6433L20.5038 20.986L21.8172 16.336L18.1356 16.2709Z" fill="white"/>
+                        <path d="M2.19086 16.336L3.49629 20.986L8.02989 19.6433L5.87252 16.2709L2.19086 16.336Z" fill="white"/>
+                        <path d="M7.7718 10.5909L6.44739 12.6055L10.9382 12.8059L10.7757 7.87273L7.7718 10.5909Z" fill="white"/>
+                        <path d="M16.2362 10.5909L13.1895 7.80364L13.0677 12.8059L17.5585 12.6055L16.2362 10.5909Z" fill="white"/>
+                        <path d="M8.02989 19.6433L10.6544 18.2596L8.39702 16.37L8.02989 19.6433Z" fill="white"/>
+                        <path d="M13.3536 18.2596L15.9702 19.6433L15.603 16.37L13.3536 18.2596Z" fill="white"/>
+                    </svg>
+                    Mit MetaMask anmelden
+                </a>
+            </div>
+        </section>
+    {% endif %}
+    
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Digitale Vertragsplattform</h5>
+                    <p>Sichere Verträge mit Smart Contracts</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 Marten Schulz. Alle Rechte vorbehalten.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Show toasts on page load with a fade-in effect
+        document.addEventListener('DOMContentLoaded', function() {
+            const toasts = document.querySelectorAll('.toast');
+            
+            toasts.forEach((toast) => {
+                // Create Bootstrap Toast instance
+                const bsToast = new bootstrap.Toast(toast, {
+                    animation: true,
+                    autohide: true,
+                    delay: 5000
+                });
+                
+                // Show the toast
+                bsToast.show();
+            });
+        });
+    </script>
+</body>
+</html>

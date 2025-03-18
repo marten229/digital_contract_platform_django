@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'contractsapp',
     'rest_framework',
     'authenticationapp',
+    'homepageapp',
 ]
 
 MIDDLEWARE = [
