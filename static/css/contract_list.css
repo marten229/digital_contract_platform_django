@@ -1,0 +1,64 @@
+.contract-section {
+    margin-bottom: 2rem;
+}
+.contract-card {
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    background-color: #fff;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: all 0.3s ease;
+}
+.contract-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    transform: translateY(-2px);
+}
+.status-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+}
+.status-pending {
+    background-color: #ffc107;
+    color: #212529;
+}
+.status-accepted {
+    background-color: #0d6efd;
+    color: #fff;
+}
+.status-completed {
+    background-color: #198754;
+    color: #fff;
+}
+.status-rejected {
+    background-color: #dc3545;
+    color: #fff;
+}
+.section-header {
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #dee2e6;
+}
+.contract-actions {
+    margin-top: 1rem;
+}
+.contract-meta {
+    color: #6c757d;
+    font-size: 0.875rem;
+}
+.upload-btn {
+    margin-bottom: 2rem;
+}
+.empty-state {
+    padding: 2rem;
+    text-align: center;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+}

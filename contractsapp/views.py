@@ -22,6 +22,30 @@ from .models import Contract
 
 
 @login_required
+def contract_list(request):
+    """
+    Zeigt eine Liste aller Verträge an, die vom aktuellen Benutzer erstellt wurden.
+    Die Verträge werden nach Status gruppiert angezeigt.
+    """
+    # Holen Sie die Verträge des aktuellen Benutzers
+    user_contracts = Contract.objects.filter(creator_address=request.user.ethereum_address)
+    
+    # Verträge nach Status gruppieren
+    pending_contracts = user_contracts.filter(status='pending')
+    accepted_contracts = user_contracts.filter(status='accepted')
+    completed_contracts = user_contracts.filter(status='completed')
+    
+    context = {
+        'pending_contracts': pending_contracts,
+        'accepted_contracts': accepted_contracts,
+        'completed_contracts': completed_contracts,
+        'all_contracts': user_contracts,
+    }
+    
+    return render(request, 'contractsapp/contract_list.html', context)
+
+
+@login_required
 def contract_upload(request):
     if request.method == 'POST':
         form = ContractForm(request.POST, request.FILES)
