@@ -14,17 +14,10 @@
     <p class="text-muted mb-4">Melden Sie sich sicher mit Ihrer Ethereum-Wallet an, um auf Ihre digitalen Verträge zuzugreifen.</p>
     
     <button id="connectButton" class="btn-metamask">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M21.0095 3L12.8774 9.15636L14.4033 5.71745L21.0095 3Z" fill="white"/>
-            <path d="M3 3L9.5681 5.71745L11.0295 9.15636L3 3Z" fill="white"/>
-            <path d="M18.1356 16.2709L15.9702 19.6433L20.5038 20.986L21.8172 16.336L18.1356 16.2709Z" fill="white"/>
-            <path d="M2.19086 16.336L3.49629 20.986L8.02989 19.6433L5.87252 16.2709L2.19086 16.336Z" fill="white"/>
-            <path d="M7.7718 10.5909L6.44739 12.6055L10.9382 12.8059L10.7757 7.87273L7.7718 10.5909Z" fill="white"/>
-            <path d="M16.2362 10.5909L13.1895 7.80364L13.0677 12.8059L17.5585 12.6055L16.2362 10.5909Z" fill="white"/>
-            <path d="M8.02989 19.6433L10.6544 18.2596L8.39702 16.37L8.02989 19.6433Z" fill="white"/>
-            <path d="M13.3536 18.2596L15.9702 19.6433L15.603 16.37L13.3536 18.2596Z" fill="white"/>
-        </svg>
-        Mit MetaMask verbinden
+        <span style="display: flex; align-items: center; justify-content: center;">
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 20px; height: 20px; margin-right: 5px;">
+            Mit MetaMask verbinden
+        </span>
     </button>
     
     <div id="loginButton" style="display: none;" class="btn-metamask">

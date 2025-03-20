@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'authenticationapp',
     'homepageapp',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [

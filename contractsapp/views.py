@@ -6,6 +6,8 @@ import os
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
@@ -19,18 +21,21 @@ from .forms import ContractForm
 from .models import Contract
 
 
+@login_required
 def contract_upload(request):
-    """
-    Zeigt ein Formular zum Hochladen eines Vertrags (PDF) an und speichert diesen.
-    Nach erfolgreichem Upload wird zur Detailseite weitergeleitet.
-    """
     if request.method == 'POST':
         form = ContractForm(request.POST, request.FILES)
         if form.is_valid():
-            contract = form.save()
-            return redirect('contract_detail', pk=contract.pk)
+            contract = form.save(commit=False)
+            # Set the creator's address from the authenticated user
+            contract.creator_address = request.user.ethereum_address
+            contract.save()
+            messages.success(request, 'Vertrag wurde hochgeladen und Ihr Partner wurde eingeladen.')
+            return redirect('contract_list')  # Redirect to contract list page
     else:
-        form = ContractForm()
+        # Pre-fill the creator's address with the user's ethereum address
+        form = ContractForm(initial={'creator_address': request.user.ethereum_address})
+    
     return render(request, 'contractsapp/contract_upload.html', {'form': form})
 
 

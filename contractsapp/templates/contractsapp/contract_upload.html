@@ -1,15 +1,92 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>Vertrag hochladen</title>
-</head>
-<body>
-    <h1>Vertrag hochladen</h1>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Hochladen</button>
-    </form>
-</body>
-</html>
+{% extends 'base.html' %}
+
+{% load static %}
+{% load widget_tweaks %}
+
+{% block title %}Vertrag hochladen | Digitale Vertragsplattform{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_upload.css' %}">
+{% endblock %}
+
+{% block hero %}
+<section class="hero-section">
+    <div class="container">
+        <h1 class="hero-title">Vertrag hochladen</h1>
+        <p class="hero-subtitle">Laden Sie einen Vertrag hoch und laden Sie einen Partner zur Unterzeichnung ein</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="form-container">
+                <div class="upload-instructions mb-4">
+                    <h4><i class="bi bi-info-circle-fill text-primary me-2"></i>So funktioniert's:</h4>
+                    <ol>
+                        <li>Laden Sie Ihr Vertragsdokument als PDF hoch</li>
+                        <li>Laden Sie Ihren Vertragspartner über dessen Ethereum-Adresse ein</li>
+                        <li>Nach dem Hochladen erhält Ihr Partner eine Vertragsanfrage</li>
+                        <li>Sobald Ihr Partner den Vertrag akzeptiert, kann dieser digital unterzeichnet werden</li>
+                    </ol>
+                </div>
+
+                <form method="post" enctype="multipart/form-data" class="contract-form">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.title.id_for_label }}" class="form-label">Vertragstitel</label>
+                        {{ form.title|add_class:"form-control" }}
+                        {% if form.title.errors %}
+                            <div class="form-text text-danger">{{ form.title.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.pdf_file.id_for_label }}" class="form-label">Vertragsdokument (PDF)</label>
+                        <div class="pdf-upload-container">
+                            {{ form.pdf_file|add_class:"form-control" }}
+                        </div>
+                        {% if form.pdf_file.errors %}
+                            <div class="form-text text-danger">{{ form.pdf_file.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Hidden field for creator's address -->
+                    {{ form.creator_address|attr:"type:hidden" }}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Ihre Ethereum-Adresse</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-wallet2"></i></span>
+                            <input type="text" class="form-control" value="{{ user.ethereum_address }}" readonly aria-label="Ethereum-Adresse">
+                        </div>
+                        {% if form.creator_address.errors %}
+                            <div class="form-text text-danger">{{ form.creator_address.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="{{ form.partner_address.id_for_label }}" class="form-label">Ethereum-Adresse des Vertragspartners</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
+                            {{ form.partner_address }}
+                        </div>
+                        {% if form.partner_address.errors %}
+                            <div class="form-text text-danger">{{ form.partner_address.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-cloud-arrow-up-fill me-2"></i>Vertrag hochladen und Partner einladen
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
