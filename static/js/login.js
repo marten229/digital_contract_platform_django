@@ -5,7 +5,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const successMessage = document.getElementById('successMessage');
     const walletInfo = document.getElementById('walletInfo');
     const walletAddress = document.getElementById('walletAddress');
+    const accountSelectionContainer = document.getElementById('accountSelectionContainer');
+    const accountsList = document.getElementById('accountsList');
     
+    let accounts = [];
     let currentAccount = null;
     
     // Check if MetaMask is installed
@@ -20,16 +23,17 @@ document.addEventListener('DOMContentLoaded', function() {
         if (typeof window.ethereum !== 'undefined') {
             try {
                 // Request account access
-                const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
-                currentAccount = accounts[0];
+                accounts = await ethereum.request({ method: 'eth_requestAccounts' });
                 
-                // Show wallet info
-                walletAddress.textContent = `${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
-                walletInfo.style.display = 'block';
-                
-                // Hide connect button and show login button
-                connectButton.style.display = 'none';
-                loginButton.style.display = 'flex';
+                if (accounts.length === 1) {
+                    // If there's only one account, select it automatically
+                    selectAccount(accounts[0]);
+                    connectButton.style.display = 'none';
+                } else {
+                    // Display accounts for selection
+                    displayAccounts();
+                    connectButton.style.display = 'none';
+                }
                 
             } catch (error) {
                 console.error('User denied account access:', error);
@@ -41,6 +45,41 @@ document.addEventListener('DOMContentLoaded', function() {
             errorMessage.textContent = 'MetaMask ist nicht installiert.';
         }
     });
+    
+    // Function to display accounts for selection
+    function displayAccounts() {
+        accountsList.innerHTML = '';
+        accounts.forEach(account => {
+            const accountItem = document.createElement('div');
+            accountItem.className = 'account-item';
+            accountItem.innerHTML = `
+                <input type="radio" name="account" id="account-${account}" value="${account}">
+                <label for="account-${account}">
+                    ${account.substring(0, 6)}...${account.substring(38)}
+                </label>
+            `;
+            accountsList.appendChild(accountItem);
+        });
+        
+        accountSelectionContainer.style.display = 'block';
+    }
+    
+    // Handle account selection
+    accountsList.addEventListener('click', function(event) {
+        const radioInput = event.target.closest('.account-item').querySelector('input[type="radio"]');
+        if (radioInput) {
+            radioInput.checked = true;
+            selectAccount(radioInput.value);
+        }
+    });
+    
+    // Function to select an account
+    function selectAccount(account) {
+        currentAccount = account;
+        walletAddress.textContent = `${account.substring(0, 6)}...${account.substring(38)}`;
+        walletInfo.style.display = 'block';
+        loginButton.style.display = 'flex';
+    }
     
     // Login with MetaMask
     loginButton.addEventListener('click', async function() {

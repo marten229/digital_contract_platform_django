@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ contract.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_signing.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="contract-header">
+    <div class="container">
+        <h1 class="h3">{{ contract.title }}</h1>
+        <p class="text-muted">Hochgeladen am: {{ contract.uploaded_at|date:"d.m.Y H:i" }}</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Workflow indicator -->
+    <div class="workflow-steps" id="workflowSteps">
+        <div class="workflow-step active" id="step1">1. Dokument ansehen</div>
+        <div class="workflow-step" id="step2">2. Unterschriftbereich auswählen</div>
+        <div class="workflow-step" id="step3">3. Unterschreiben</div>
+        <div class="workflow-step" id="step4">4. Vorschau & Bestätigung</div>
+    </div>
+
+    <!-- PDF Container mit Canvas-Overlay -->
+    <div id="pdfContainer">
+        <canvas id="pdfViewer"></canvas>
+        <canvas id="overlayCanvas"></canvas>
+    </div>
+    
+    <!-- Page Navigation -->
+    <div id="pageNavigation" class="mt-3">
+        <button id="prevPage" class="btn btn-outline-primary">
+            <i class="bi bi-chevron-left"></i> Vorherige Seite
+        </button>
+        <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+        <button id="nextPage" class="btn btn-outline-primary">
+            Nächste Seite <i class="bi bi-chevron-right"></i>
+        </button>
+    </div>
+    
+    <div class="document-controls" id="documentControls">
+        <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download"></i> PDF herunterladen
+        </a>
+        <button id="selectSignatureArea" class="btn btn-primary">
+            <i class="bi bi-pencil-square"></i> Unterschrift-Bereich auswählen
+        </button>
+        <span id="selectionHint" class="d-none text-muted mt-2">
+            <i class="bi bi-info-circle"></i> Klicken und ziehen Sie, um den Bereich für Ihre Unterschrift auszuwählen
+        </span>
+    </div>
+    
+    <!-- Container für den Signature Pad -->
+    <div id="signatureContainer">
+        <h4>Unterschrift hinzufügen</h4>
+        <p class="signature-instructions">
+            <i class="bi bi-info-circle"></i> Bitte unterschreiben Sie im Feld unten mit der Maus oder per Touchscreen
+        </p>
+        <canvas id="signaturePad" height="200"></canvas>
+        
+        <div class="signature-actions">
+            <button id="clearSignature" class="btn btn-outline-secondary btn-signature">
+                <i class="bi bi-x-lg"></i> Löschen
+            </button>
+            <button id="previewSignature" class="btn btn-primary btn-signature">
+                <i class="bi bi-eye"></i> Vorschau anzeigen
+            </button>
+            <button id="cancelSignature" class="btn btn-outline-danger btn-signature">
+                <i class="bi bi-arrow-left"></i> Zurück
+            </button>
+        </div>
+    </div>
+    
+    <!-- Preview Controls - shown after signature preview -->
+    <div id="previewControls">
+        <h4>Unterschrift bestätigen</h4>
+        <p class="signature-instructions">
+            <i class="bi bi-info-circle"></i> Überprüfen Sie Ihre Unterschrift auf dem Dokument und bestätigen Sie oder nehmen Sie Änderungen vor
+        </p>
+        <div class="signature-actions">
+            <button id="confirmSignature" class="btn btn-success btn-signature">
+                <i class="bi bi-check-lg"></i> Unterschrift bestätigen
+            </button>
+            <button id="editSignature" class="btn btn-outline-primary btn-signature">
+                <i class="bi bi-pencil"></i> Unterschrift bearbeiten
+            </button>
+            <button id="cancelPreview" class="btn btn-outline-secondary btn-signature">
+                <i class="bi bi-arrow-left"></i> Abbrechen
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border text-primary loading-spinner" role="status"></div>
+    <p id="loadingMessage">Wird geladen...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- PDF.js Bibliothek -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<!-- Signature Pad Bibliothek -->
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<!-- Contract Detail JS -->
+<script src="{% static 'js/contract_signing.js' %}"></script>
+<script>
+    // Initialize the contract detail functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        initContractDetail(
+            '{{ contract.pdf_file.url }}',
+            "{% url 'add_signature' pk=contract.pk %}",
+            "{{ csrf_token }}"
+        );
+    });
+</script>
+{% endblock %}

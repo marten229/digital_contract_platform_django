@@ -71,6 +71,9 @@ def contract_detail(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
     return render(request, 'contractsapp/contract_detail.html', {'contract': contract})
 
+def contract_signing(request, pk):
+    contract = get_object_or_404(Contract, pk=pk)
+    return render(request, 'contractsapp/contract_signing.html', {'contract': contract})
 
 def add_signature(request, pk):
     """
