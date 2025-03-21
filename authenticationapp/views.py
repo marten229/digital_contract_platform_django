@@ -69,6 +69,8 @@ def verify_signature(request):
             user.nonce = generate_nonce()
             user.save()
             
+            messages.success(request, "Sie wurden erfolgreich angemeldet!")
+            
             return JsonResponse({
                 'success': True,
                 'user': {
@@ -94,4 +96,4 @@ def logout_view(request):
 
 def login_page(request):
     """Render the login page"""
-    return render(request, 'authenticationapp/login.html')
+    return render(request, 'authenticationapp/login.html', {'show_menu': False})

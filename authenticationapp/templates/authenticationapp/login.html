@@ -9,13 +9,13 @@
 
 {% block content %}
 <div class="login-container">
-    <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask Logo" class="metamask-logo">
+    <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo">
     <h2 class="mb-4">Login mit MetaMask</h2>
-    <p class="text-muted mb-4">Melden Sie sich sicher mit Ihrer Ethereum-Wallet an, um auf Ihre digitalen Verträge zuzugreifen.</p>
+    <p class="text-muted mb-4">Melden Sie sich sicher mit Ihrer MetaMask-Wallet an, um auf Ihre Verträge zuzugreifen.</p>
     
     <button id="connectButton" class="btn-metamask">
-        <span style="display: flex; align-items: center; justify-content: center;">
-            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 20px; height: 20px; margin-right: 5px;">
+        <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 20px; height: 20px; margin: 0;">
             Mit MetaMask verbinden
         </span>
     </button>

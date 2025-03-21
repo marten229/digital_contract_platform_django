@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Redirect to main page after 2 seconds
                 setTimeout(() => {
-                    window.location.href = '/';
+                    window.location.href = '/dashboard/';
                 }, 2000);
             } else {
                 throw new Error(verifyData.error || 'Fehler bei der Verifikation');

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Dashboard - Digitale Vertragsplattform{% endblock %}
+{% block title %}Dashboard - DigiContract{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/homepage.css' %}">
@@ -12,7 +12,7 @@
 <section class="hero-section hero-section-small">
     <div class="container">
         <h1 class="hero-title">Dashboard</h1>
-        <p class="hero-subtitle">Verwalten Sie Ihre Verträge sicher mit Blockchain-Technologie</p>
+        <p class="hero-subtitle">Verwalten Sie Ihre Verträge sicher mit Smart Contracts</p>
         <a href="{% url 'contract_upload' %}" class="btn btn-light btn-lg mt-3">
             <i class="bi bi-file-earmark-plus"></i> Vertrag hochladen
         </a>
@@ -44,7 +44,6 @@
         </div>
     </div>
     
-    <h2 class="mb-4">Ihre Vertragsverwaltung</h2>
     <div class="row">
         <div class="col-md-6">
             <div class="card mb-4">
@@ -62,7 +61,7 @@
                 <div class="card-body">
                     <h5 class="card-title">Meine Verträge</h5>
                     <p class="card-text">Sehen Sie alle Ihre Verträge und deren Status ein.</p>
-                    <a href="#" class="btn btn-primary">
+                    <a href="{% url 'contract_list' %}" class="btn btn-primary">
                         <i class="bi bi-file-earmark-text"></i> Verträge anzeigen
                     </a>
                 </div>

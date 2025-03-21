@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Digitale Vertragsplattform{% endblock %}
+{% block title %}DigiContract{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/homepage.css' %}">
@@ -11,13 +11,18 @@
 <!-- Hero Section -->
 <section class="hero-section">
     <div class="container">
-        <h1 class="hero-title">Digitale Vertragsplattform</h1>
+        <h1 class="hero-title">DigiContract</h1>
         <p class="hero-subtitle">Verwalten, signieren und teilen Sie Ihre Verträge sicher mit Blockchain-Technologie</p>
-        
+        {% if user.is_authenticated %}
+        <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-speedometer2"></i> Zu ihrem Dashboard!
+        </a>
+        {% else %}
         <a href="{% url 'login_page' %}" class="btn-metamask btn-lg">
             <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 30px; height: 30px;">
             Mit MetaMask anmelden
         </a>
+        {% endif %}
     </div>
 </section>
 {% endblock %}
@@ -63,20 +68,18 @@
 <section class="cta-section">
     <div class="container">
         <h2 class="mb-4">Bereit, loszulegen?</h2>
+        {% if user.is_authenticated %}
+        <p class="mb-4">Legen sie noch heute ihren Vertrag auf der Blockchain an und erleben Sie die Zukunft der digitalen Vertragsunterzeichnung!</p>
+        <a href="{% url 'contract_list' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-file-earmark-plus"></i> Meine Verträge
+        </a>
+        {% else %}
         <p class="mb-4">Registrieren Sie sich noch heute und erleben Sie die Zukunft der digitalen Vertragsunterzeichnung.</p>
         <a href="{% url 'login_page' %}" class="btn-metamask">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M21.0095 3L12.8774 9.15636L14.4033 5.71745L21.0095 3Z" fill="white"/>
-                <path d="M3 3L9.5681 5.71745L11.0295 9.15636L3 3Z" fill="white"/>
-                <path d="M18.1356 16.2709L15.9702 19.6433L20.5038 20.986L21.8172 16.336L18.1356 16.2709Z" fill="white"/>
-                <path d="M2.19086 16.336L3.49629 20.986L8.02989 19.6433L5.87252 16.2709L2.19086 16.336Z" fill="white"/>
-                <path d="M7.7718 10.5909L6.44739 12.6055L10.9382 12.8059L10.7757 7.87273L7.7718 10.5909Z" fill="white"/>
-                <path d="M16.2362 10.5909L13.1895 7.80364L13.0677 12.8059L17.5585 12.6055L16.2362 10.5909Z" fill="white"/>
-                <path d="M8.02989 19.6433L10.6544 18.2596L8.39702 16.37L8.02989 19.6433Z" fill="white"/>
-                <path d="M13.3536 18.2596L15.9702 19.6433L15.603 16.37L13.3536 18.2596Z" fill="white"/>
-            </svg>
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 30px; height: 30px;">
             Mit MetaMask anmelden
         </a>
+        {% endif %}
     </div>
 </section>
 {% endblock %}
