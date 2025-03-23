@@ -68,14 +68,25 @@
                         {% endif %}
                     </div>
                     
-                    <div class="mb-4">
-                        <label for="{{ form.partner_address.id_for_label }}" class="form-label">Ethereum-Adresse des Vertragspartners</label>
+                    <div class="mb-3">
+                        <label for="{{ form.partner_name.id_for_label }}" class="form-label">Name des Vertragspartners</label>
                         <div class="input-group">
                             <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                            {{ form.partner_address }}
+                            {{ form.partner_name }}
                         </div>
-                        {% if form.partner_address.errors %}
-                            <div class="form-text text-danger">{{ form.partner_address.errors }}</div>
+                        {% if form.partner_name.errors %}
+                            <div class="form-text text-danger">{{ form.partner_name.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="{{ form.partner_email.id_for_label }}" class="form-label">E-Mail des Vertragspartners</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-envelope-fill"></i></span>
+                            {{ form.partner_email }}
+                        </div>
+                        {% if form.partner_email.errors %}
+                            <div class="form-text text-danger">{{ form.partner_email.errors }}</div>
                         {% endif %}
                     </div>
                     
