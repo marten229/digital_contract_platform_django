@@ -155,3 +155,37 @@
         width: 100%;
     }
 }
+
+.signature-type-toggle {
+    margin-bottom: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.signature-selection-hint {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #e8f4ff;
+    border-radius: 6px;
+    border-left: 4px solid #0d6efd;
+}
+
+.btn-finish-configuration {
+    margin-top: 2rem;
+}
+
+.controls-sidebar {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    position: sticky;
+    top: 20px;
+}
+
+@media (max-width: 767.98px) {
+    .controls-sidebar {
+        position: static;
+        margin-top: 1.5rem;
+    }
+}

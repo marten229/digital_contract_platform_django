@@ -5,26 +5,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/contract_signing.css' %}">
-<style>
-    .signature-type-toggle {
-        margin-bottom: 1.5rem;
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 1rem;
-    }
-    
-    .signature-selection-hint {
-        margin-top: 1rem;
-        padding: 0.75rem;
-        background-color: #e8f4ff;
-        border-radius: 6px;
-        border-left: 4px solid #0d6efd;
-    }
-    
-    .btn-finish-configuration {
-        margin-top: 2rem;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -49,95 +29,105 @@
         <p class="mb-0">Bevor der Vertrag an den Partner gesendet wird, legen Sie bitte fest, wo die Unterschriften platziert werden sollen. Wählen Sie nacheinander die Bereiche für Ihre eigene Unterschrift und die Ihres Partners aus.</p>
     </div>
 
-    <!-- Signature type toggle -->
-    <div class="signature-type-toggle">
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="signatureType" id="creatorSignature" value="creator" checked>
-            <label class="form-check-label" for="creatorSignature">Ihre Unterschrift</label>
+    <!-- Two-column layout -->
+    <div class="row">
+        <!-- Left column - PDF display -->
+        <div class="col-md-8">
+            <!-- PDF Container mit Canvas-Overlay -->
+            <div id="pdfContainer">
+                <canvas id="pdfViewer"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
+            
+            <!-- Page Navigation -->
+            <div id="pageNavigation" class="mt-3">
+                <button id="prevPage" class="btn btn-outline-primary">
+                    <i class="bi bi-chevron-left"></i> Vorherige Seite
+                </button>
+                <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+                <button id="nextPage" class="btn btn-outline-primary">
+                    Nächste Seite <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div id="selectionHint" class="signature-selection-hint d-none mt-3">
+                <p class="mb-1"><strong><span id="currentSignatureTypeText">Ihre</span> Unterschrift:</strong></p>
+                <p class="mb-0">Klicken und ziehen Sie mit der Maus, um den Bereich für die Unterschrift festzulegen</p>
+            </div>
         </div>
-        <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="signatureType" id="partnerSignature" value="partner">
-            <label class="form-check-label" for="partnerSignature">Unterschrift des Partners</label>
-        </div>
-    </div>
-
-    <!-- PDF Container mit Canvas-Overlay -->
-    <div id="pdfContainer">
-        <canvas id="pdfViewer"></canvas>
-        <canvas id="overlayCanvas"></canvas>
-    </div>
-    
-    <!-- Page Navigation -->
-    <div id="pageNavigation" class="mt-3">
-        <button id="prevPage" class="btn btn-outline-primary">
-            <i class="bi bi-chevron-left"></i> Vorherige Seite
-        </button>
-        <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
-        <button id="nextPage" class="btn btn-outline-primary">
-            Nächste Seite <i class="bi bi-chevron-right"></i>
-        </button>
-    </div>
-    
-    <div class="document-controls" id="documentControls">
-        <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary">
-            <i class="bi bi-download"></i> PDF herunterladen
-        </a>
-        <button id="selectSignatureArea" class="btn btn-primary">
-            <i class="bi bi-pencil-square"></i> Unterschriftsbereich festlegen
-        </button>
-    </div>
-    
-    <div id="selectionHint" class="signature-selection-hint d-none">
-        <p class="mb-1"><strong><span id="currentSignatureTypeText">Ihre</span> Unterschrift:</strong></p>
-        <p class="mb-0">Klicken und ziehen Sie mit der Maus, um den Bereich für die Unterschrift festzulegen</p>
-    </div>
-    
-    <!-- Signature status -->
-    <div class="row mt-4">
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-person-fill me-2"></i>Ihre Unterschrift</h5>
-                    <p class="card-text" id="creatorSignatureStatus">Noch nicht festgelegt</p>
-                    <button id="resetCreatorSignature" class="btn btn-sm btn-outline-secondary d-none">
-                        <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+        
+        <!-- Right column - Controls -->
+        <div class="col-md-4">
+            <div class="controls-sidebar">
+                <!-- Signature type toggle -->
+                <div class="signature-type-toggle mb-4">
+                    <h5 class="mb-3">Unterschriftstyp auswählen:</h5>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="signatureType" id="creatorSignature" value="creator" checked>
+                        <label class="form-check-label" for="creatorSignature">Ihre Unterschrift</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="signatureType" id="partnerSignature" value="partner">
+                        <label class="form-check-label" for="partnerSignature">Unterschrift des Partners</label>
+                    </div>
+                </div>
+                
+                <!-- Action button -->
+                <div class="mb-4">
+                    <button id="selectSignatureArea" class="btn btn-primary w-100">
+                        <i class="bi bi-pencil-square"></i> Unterschriftsbereich festlegen
                     </button>
+                    <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary w-100 mt-2">
+                        <i class="bi bi-download"></i> PDF herunterladen
+                    </a>
+                </div>
+                
+                <!-- Signature status -->
+                <div class="mb-4">
+                    <h5>Unterschriftsstatus:</h5>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-person-fill me-2"></i>Ihre Unterschrift</h6>
+                            <p class="card-text" id="creatorSignatureStatus">Noch nicht festgelegt</p>
+                            <button id="resetCreatorSignature" class="btn btn-sm btn-outline-secondary d-none">
+                                <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-person me-2"></i>Unterschrift des Partners</h6>
+                            <p class="card-text" id="partnerSignatureStatus">Noch nicht festgelegt</p>
+                            <button id="resetPartnerSignature" class="btn btn-sm btn-outline-secondary d-none">
+                                <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Final action -->
+                <div class="mt-4">
+                    <form method="post" action="{% url 'finish_contract_configuration' pk=contract.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" id="creatorSignatureX" name="creator_signature_x">
+                        <input type="hidden" id="creatorSignatureY" name="creator_signature_y">
+                        <input type="hidden" id="creatorSignatureWidth" name="creator_signature_width">
+                        <input type="hidden" id="creatorSignatureHeight" name="creator_signature_height">
+                        <input type="hidden" id="creatorSignaturePage" name="creator_signature_page">
+                        
+                        <input type="hidden" id="partnerSignatureX" name="partner_signature_x">
+                        <input type="hidden" id="partnerSignatureY" name="partner_signature_y">
+                        <input type="hidden" id="partnerSignatureWidth" name="partner_signature_width">
+                        <input type="hidden" id="partnerSignatureHeight" name="partner_signature_height">
+                        <input type="hidden" id="partnerSignaturePage" name="partner_signature_page">
+                        
+                        <button type="submit" id="finishConfiguration" class="btn btn-lg btn-success w-100" disabled>
+                            <i class="bi bi-check-circle"></i> Vertrag finalisieren
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title"><i class="bi bi-person me-2"></i>Unterschrift des Partners</h5>
-                    <p class="card-text" id="partnerSignatureStatus">Noch nicht festgelegt</p>
-                    <button id="resetPartnerSignature" class="btn btn-sm btn-outline-secondary d-none">
-                        <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Final action -->
-    <div class="text-center btn-finish-configuration">
-        <form method="post" action="{% url 'finish_contract_configuration' pk=contract.pk %}">
-            {% csrf_token %}
-            <input type="hidden" id="creatorSignatureX" name="creator_signature_x">
-            <input type="hidden" id="creatorSignatureY" name="creator_signature_y">
-            <input type="hidden" id="creatorSignatureWidth" name="creator_signature_width">
-            <input type="hidden" id="creatorSignatureHeight" name="creator_signature_height">
-            <input type="hidden" id="creatorSignaturePage" name="creator_signature_page">
-            
-            <input type="hidden" id="partnerSignatureX" name="partner_signature_x">
-            <input type="hidden" id="partnerSignatureY" name="partner_signature_y">
-            <input type="hidden" id="partnerSignatureWidth" name="partner_signature_width">
-            <input type="hidden" id="partnerSignatureHeight" name="partner_signature_height">
-            <input type="hidden" id="partnerSignaturePage" name="partner_signature_page">
-            
-            <button type="submit" id="finishConfiguration" class="btn btn-lg btn-success" disabled>
-                <i class="bi bi-check-circle"></i> Vertrag finalisieren und Partner benachrichtigen
-            </button>
-        </form>
     </div>
 </div>
 
