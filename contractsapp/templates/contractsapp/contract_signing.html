@@ -137,16 +137,42 @@
 <script>
     // Initialize the contract detail functionality
     document.addEventListener('DOMContentLoaded', function() {
-        // Pass the partner signature position to the function
+        // Determine if this is the creator or partner signing
+        const isCreator = {% if is_creator %}true{% else %}false{% endif %};
+        
+        // Get the appropriate signature position based on the signer
+        let signatureX, signatureY, signatureWidth, signatureHeight, signaturePage;
+        
+        if (isCreator) {
+            signatureX = {% if contract.creator_signature_x %}{{ contract.creator_signature_x }}{% else %}null{% endif %};
+            signatureY = {% if contract.creator_signature_y %}{{ contract.creator_signature_y }}{% else %}null{% endif %};
+            signatureWidth = {% if contract.creator_signature_width %}{{ contract.creator_signature_width }}{% else %}null{% endif %};
+            signatureHeight = {% if contract.creator_signature_height %}{{ contract.creator_signature_height }}{% else %}null{% endif %};
+            signaturePage = {% if contract.creator_signature_page %}{{ contract.creator_signature_page }}{% else %}null{% endif %};
+        } else {
+            signatureX = {% if contract.partner_signature_x %}{{ contract.partner_signature_x }}{% else %}null{% endif %};
+            signatureY = {% if contract.partner_signature_y %}{{ contract.partner_signature_y }}{% else %}null{% endif %};
+            signatureWidth = {% if contract.partner_signature_width %}{{ contract.partner_signature_width }}{% else %}null{% endif %};
+            signatureHeight = {% if contract.partner_signature_height %}{{ contract.partner_signature_height }}{% else %}null{% endif %};
+            signaturePage = {% if contract.partner_signature_page %}{{ contract.partner_signature_page }}{% else %}null{% endif %};
+        }
+        
+        // Pass the appropriate signature URL - different endpoints for creator and partner
+        const signatureUrl = isCreator ? 
+            "{% url 'add_signature' pk=contract.pk %}" : 
+            "{% url 'add_signature' pk=contract.pk %}";
+        
+        // Initialize with the correct parameters
         initContractDetail(
             '{{ contract.pdf_file.url }}',
-            "{% url 'add_signature' pk=contract.pk %}",
+            signatureUrl,
             "{{ csrf_token }}",
-            {% if contract.partner_signature_x %}{{ contract.partner_signature_x }}{% else %}null{% endif %},
-            {% if contract.partner_signature_y %}{{ contract.partner_signature_y }}{% else %}null{% endif %},
-            {% if contract.partner_signature_width %}{{ contract.partner_signature_width }}{% else %}null{% endif %},
-            {% if contract.partner_signature_height %}{{ contract.partner_signature_height }}{% else %}null{% endif %},
-            {% if contract.partner_signature_page %}{{ contract.partner_signature_page }}{% else %}null{% endif %}
+            signatureX,
+            signatureY,
+            signatureWidth,
+            signatureHeight,
+            signaturePage,
+            isCreator
         );
     });
 </script>

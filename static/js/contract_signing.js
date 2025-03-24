@@ -511,12 +511,21 @@ function saveSignature(url, csrfToken) {
 }
 
 // Initialize function to set up everything
-function initContractDetail(pdfUrl, signatureUrl, csrfToken, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage) {
+function initContractDetail(pdfUrl, signatureUrl, csrfToken, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage, isCreator) {
     // Load PDF with the configured signature position
     loadPdf(pdfUrl, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage);
     
     // Initialize by showing step 1 as active
     updateWorkflowStep(1);
+    
+    // Update UI text based on who is signing
+    if (isCreator) {
+        // Update any role-specific text
+        const instructionsCard = document.querySelector('.card-title');
+        if (instructionsCard) {
+            instructionsCard.innerHTML = '<i class="bi bi-info-circle me-2"></i>Hinweise (Ersteller)';
+        }
+    }
     
     // Setup confirm button
     confirmBtn.addEventListener('click', function() {

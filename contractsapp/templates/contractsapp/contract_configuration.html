@@ -107,7 +107,7 @@
                 
                 <!-- Final action -->
                 <div class="mt-4">
-                    <form method="post" action="{% url 'finish_contract_configuration' pk=contract.pk %}">
+                    <form id="configurationForm" method="post" action="{% url 'finish_contract_configuration' pk=contract.pk %}">
                         {% csrf_token %}
                         <input type="hidden" id="creatorSignatureX" name="creator_signature_x">
                         <input type="hidden" id="creatorSignatureY" name="creator_signature_y">
@@ -121,11 +121,32 @@
                         <input type="hidden" id="partnerSignatureHeight" name="partner_signature_height">
                         <input type="hidden" id="partnerSignaturePage" name="partner_signature_page">
                         
-                        <button type="submit" id="finishConfiguration" class="btn btn-lg btn-success w-100" disabled>
+                        <button type="button" id="finishConfiguration" class="btn btn-lg btn-success w-100" disabled>
                             <i class="bi bi-check-circle"></i> Vertrag finalisieren
                         </button>
                     </form>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for asking if the creator wants to sign the contract -->
+<div class="modal fade" id="creatorSigningModal" tabindex="-1" aria-labelledby="creatorSigningModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="creatorSigningModalLabel">Vertrag unterschreiben?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <p>Der Vertrag wurde erfolgreich konfiguriert. Möchten Sie den Vertrag jetzt direkt unterschreiben?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="skipSigningBtn">Später unterschreiben</button>
+                <a href="{% url 'contract_signing' pk=contract.pk %}" class="btn btn-primary">
+                    <i class="bi bi-pen"></i> Jetzt unterschreiben
+                </a>
             </div>
         </div>
     </div>

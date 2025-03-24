@@ -376,6 +376,11 @@ function redrawSignatures(pageNum) {
     }
 }
 
+// Get the modal elements
+const creatorSigningModal = document.getElementById('creatorSigningModal');
+const skipSigningBtn = document.getElementById('skipSigningBtn');
+const configurationForm = document.getElementById('configurationForm');
+
 // Update the finish button state based on signatures
 function updateFinishButtonState() {
     // Enable only if both signatures are defined
@@ -384,6 +389,41 @@ function updateFinishButtonState() {
         updateWorkflowStep(3);
     } else {
         finishConfigurationBtn.disabled = true;
+    }
+}
+
+// Set up event listener for the finish configuration button
+finishConfigurationBtn.addEventListener('click', function() {
+    // Show the modal asking if the creator wants to sign
+    const modal = new bootstrap.Modal(creatorSigningModal);
+    modal.show();
+    
+    // Set up the skip signing button to submit the form
+    skipSigningBtn.addEventListener('click', function() {
+        configurationForm.submit();
+    });
+});
+
+// Update the finish button state based on signatures
+function updateFinishButtonState() {
+    // Enable only if both signatures are defined
+    if (creatorSignature && partnerSignature) {
+        finishConfigurationBtn.disabled = false;
+        updateWorkflowStep(3);
+        
+        // Show the creator signing option
+        const creatorSigningOption = document.getElementById('creatorSigningOption');
+        if (creatorSigningOption) {
+            creatorSigningOption.classList.remove('d-none');
+        }
+    } else {
+        finishConfigurationBtn.disabled = true;
+        
+        // Hide the creator signing option
+        const creatorSigningOption = document.getElementById('creatorSigningOption');
+        if (creatorSigningOption) {
+            creatorSigningOption.classList.add('d-none');
+        }
     }
 }
 
