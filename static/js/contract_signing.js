@@ -81,6 +81,7 @@ let currentViewport = null;  // Store the current viewport
 let actualPdfWidth = 0;      // Actual PDF width
 let actualPdfHeight = 0;     // Actual PDF height
 let pageNumPending = null;
+let configuredSignatureRect = null; // Store the configured signature position
 
 // Update the renderPage function to properly handle page changes
 const renderPage = (pageNum) => {
@@ -129,6 +130,16 @@ const renderPage = (pageNum) => {
             pageRendering = false;
             hideLoading();
             
+            // Show "Select Signature" button if this is the page with the configured signature area
+            if (configuredSignatureRect && configuredSignatureRect.page === pageNum) {
+                selectAreaBtn.style.display = 'block';
+                
+                // Draw the configured signature area
+                drawConfiguredSignatureArea();
+            } else {
+                selectAreaBtn.style.display = 'none';
+            }
+            
             // Redraw signature preview if in preview mode
             if (previewMode && signatureRect && signatureDataURL) {
                 drawSignaturePreview();
@@ -163,7 +174,16 @@ const queueRenderPage = (pageNum) => {
 };
 
 // Function to load PDF
-function loadPdf(pdfUrl) {
+function loadPdf(pdfUrl, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage) {
+    // Store the configured signature rectangle (in PDF coordinates)
+    configuredSignatureRect = {
+        x: signatureX,
+        y: signatureY,
+        width: signatureWidth, 
+        height: signatureHeight,
+        page: signaturePage
+    };
+    
     // Show loading before PDF load starts
     showLoading('PDF wird geladen...');
     
@@ -173,6 +193,12 @@ function loadPdf(pdfUrl) {
             console.log(`PDF loaded with ${doc.numPages} pages`);
             pdfDoc = doc;
             totalPagesSpan.textContent = doc.numPages;
+            
+            // If we have a configured signature page, start on that page
+            if (configuredSignatureRect && configuredSignatureRect.page) {
+                currentPage = configuredSignatureRect.page;
+            }
+            
             renderPage(currentPage);
             
             // Enable/disable page navigation buttons based on page count
@@ -184,6 +210,23 @@ function loadPdf(pdfUrl) {
             hideLoading();
             alert('Dokument konnte nicht geladen werden. Bitte versuchen Sie es später erneut.');
         });
+}
+
+// Function to convert PDF coordinates to canvas coordinates
+function pdfToCanvasCoordinates(pdfX, pdfY, pdfWidth, pdfHeight) {
+    if (!currentViewport) return { x: pdfX, y: pdfY, width: pdfWidth, height: pdfHeight };
+    
+    // Calculate scale factor between actual PDF and display
+    const scaleX = currentViewport.width / actualPdfWidth;
+    const scaleY = currentViewport.height / actualPdfHeight;
+    
+    // Convert from PDF coordinates (origin at bottom-left) to canvas coordinates (origin at top-left)
+    const x = pdfX * scaleX;
+    const y = currentViewport.height - (pdfY + pdfHeight) * scaleY;
+    const width = pdfWidth * scaleX;
+    const height = pdfHeight * scaleY;
+    
+    return { x, y, width, height };
 }
 
 // Function to convert canvas coordinates to PDF coordinates
@@ -211,6 +254,36 @@ function canvasToPdfCoordinates(x, y, width, height) {
         width: pdfWidth,
         height: pdfHeight
     };
+}
+
+// Draw the configured signature area on the canvas
+function drawConfiguredSignatureArea() {
+    if (!configuredSignatureRect || configuredSignatureRect.page !== currentPage) return;
+    
+    // Convert PDF coordinates to canvas coordinates
+    const canvasCoords = pdfToCanvasCoordinates(
+        configuredSignatureRect.x,
+        configuredSignatureRect.y,
+        configuredSignatureRect.width,
+        configuredSignatureRect.height
+    );
+    
+    // Draw a rectangle around the signature area
+    ctx.strokeStyle = '#2196F3';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(canvasCoords.x, canvasCoords.y, canvasCoords.width, canvasCoords.height);
+    
+    // Add semi-transparent fill
+    ctx.fillStyle = 'rgba(33, 150, 243, 0.1)';
+    ctx.fillRect(canvasCoords.x, canvasCoords.y, canvasCoords.width, canvasCoords.height);
+    
+    // Add text label
+    ctx.fillStyle = '#2196F3';
+    ctx.font = '14px Arial';
+    ctx.fillText('Hier unterschreiben', canvasCoords.x, canvasCoords.y - 5);
+    
+    // Store the canvas coordinates for later use
+    signatureRect = canvasCoords;
 }
 
 // Previous page navigation
@@ -241,24 +314,20 @@ let startX, startY;
 let endX, endY;
 let signatureRect = null;
 
-// Aktiviere Rechteck-Zeichnen
+// Aktiviere Signature-Pad
 selectAreaBtn.addEventListener('click', function() {
-    selectionMode = true;
+    selectionMode = false; // No need for selection mode with preconfigured areas
     previewMode = false;
     updateWorkflowStep(2);
     
-    // Show selection instructions
-    selectionHint.classList.remove('d-none');
+    // Show the signature container directly
+    signatureContainer.style.display = 'block';
     
-    // Change cursor to crosshair only when in selection mode
-    overlayCanvas.style.cursor = 'crosshair';
+    // Hide selection instructions
+    selectionHint.classList.add('d-none');
     
-    isDrawing = false;
-    signatureRect = null;
-    clearOverlay();
-    
-    // Hide preview controls if visible
-    previewControls.style.display = 'none';
+    // Make sure signature pad is properly sized
+    resizeSignaturePad();
 });
 
 // Overlay Canvas löschen
@@ -303,54 +372,6 @@ function drawSignaturePreview() {
     img.src = signatureDataURL;
 }
 
-// Maus-Events für Overlay Canvas (nur aktiv, wenn selectionMode true ist)
-overlayCanvas.addEventListener('mousedown', function(e) {
-    if (!selectionMode) return;
-    
-    const rect = overlayCanvas.getBoundingClientRect();
-    startX = e.clientX - rect.left;
-    startY = e.clientY - rect.top;
-    isDrawing = true;
-});
-
-overlayCanvas.addEventListener('mousemove', function(e) {
-    if (!selectionMode || !isDrawing) return;
-    
-    const rect = overlayCanvas.getBoundingClientRect();
-    endX = e.clientX - rect.left;
-    endY = e.clientY - rect.top;
-    drawRect();
-});
-
-overlayCanvas.addEventListener('mouseup', function(e) {
-    if (!selectionMode || !isDrawing) return;
-    isDrawing = false;
-    
-    // Rechteck speichern (normalisieren, damit Breite und Höhe positiv sind)
-    const x = Math.min(startX, endX);
-    const y = Math.min(startY, endY);
-    const width = Math.abs(endX - startX);
-    const height = Math.abs(endY - startY);
-    
-    // Nur speichern, wenn Größe sinnvoll ist
-    if (width > 20 && height > 20) {
-        signatureRect = { x, y, width, height };
-        signatureContainer.style.display = 'block';
-        updateWorkflowStep(3);
-        resizeSignaturePad(); // Make sure signature pad is properly sized
-        
-        // Hide selection instructions
-        selectionHint.classList.add('d-none');
-        
-        // Reset selection mode and cursor
-        selectionMode = false;
-        overlayCanvas.style.cursor = 'default';
-    } else {
-        alert('Bitte wählen Sie einen größeren Bereich für Ihre Unterschrift aus.');
-        clearOverlay();
-    }
-});
-
 // Canvas leeren
 clearBtn.addEventListener('click', function() {
     signaturePad.clear();
@@ -362,6 +383,10 @@ cancelBtn.addEventListener('click', function() {
     clearOverlay();
     selectionMode = false;
     overlayCanvas.style.cursor = 'default';
+    
+    // Draw the configured signature area again
+    drawConfiguredSignatureArea();
+    
     updateWorkflowStep(1);
 });
 
@@ -382,7 +407,7 @@ previewBtn.addEventListener('click', function() {
     // Set preview mode
     previewMode = true;
     selectionMode = false;
-    updateWorkflowStep(4);
+    updateWorkflowStep(3);
     
     // Draw signature preview
     drawSignaturePreview();
@@ -394,6 +419,10 @@ cancelPreviewBtn.addEventListener('click', function() {
     previewControls.style.display = 'none';
     clearOverlay();
     overlayCanvas.style.cursor = 'default';
+    
+    // Draw the configured signature area again
+    drawConfiguredSignatureArea();
+    
     updateWorkflowStep(1);
 });
 
@@ -403,7 +432,11 @@ editBtn.addEventListener('click', function() {
     previewControls.style.display = 'none';
     signatureContainer.style.display = 'block';
     clearOverlay();
-    updateWorkflowStep(3);
+    
+    // Draw the configured signature area in the background
+    drawConfiguredSignatureArea();
+    
+    updateWorkflowStep(2);
 });
 
 // Confirm and save signature
@@ -478,9 +511,9 @@ function saveSignature(url, csrfToken) {
 }
 
 // Initialize function to set up everything
-function initContractDetail(pdfUrl, signatureUrl, csrfToken) {
-    // Load PDF
-    loadPdf(pdfUrl);
+function initContractDetail(pdfUrl, signatureUrl, csrfToken, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage) {
+    // Load PDF with the configured signature position
+    loadPdf(pdfUrl, signatureX, signatureY, signatureWidth, signatureHeight, signaturePage);
     
     // Initialize by showing step 1 as active
     updateWorkflowStep(1);

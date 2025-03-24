@@ -21,6 +21,22 @@ class Contract(models.Model):
     partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Vertragspartners", 
                                       blank=True, null=True, default=None)
     
+    # Fields for signature positions
+    creator_signature_x = models.FloatField(null=True, blank=True)
+    creator_signature_y = models.FloatField(null=True, blank=True)
+    creator_signature_width = models.FloatField(null=True, blank=True)
+    creator_signature_height = models.FloatField(null=True, blank=True)
+    creator_signature_page = models.IntegerField(null=True, blank=True)
+    
+    partner_signature_x = models.FloatField(null=True, blank=True)
+    partner_signature_y = models.FloatField(null=True, blank=True)
+    partner_signature_width = models.FloatField(null=True, blank=True)
+    partner_signature_height = models.FloatField(null=True, blank=True)
+    partner_signature_page = models.IntegerField(null=True, blank=True)
+    
+    # Flag to track if the contract is in configuration state (uploaded but not yet finalized)
+    is_configured = models.BooleanField(default=False)
+    
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
 
     def __str__(self):
