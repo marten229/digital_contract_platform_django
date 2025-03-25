@@ -144,9 +144,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="skipSigningBtn">Später unterschreiben</button>
-                <a href="{% url 'contract_signing' pk=contract.pk %}" class="btn btn-primary">
+                <button type="button" class="btn btn-primary" id="signNowBtn">
                     <i class="bi bi-pen"></i> Jetzt unterschreiben
-                </a>
+                </button>
             </div>
         </div>
     </div>

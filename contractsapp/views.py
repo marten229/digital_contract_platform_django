@@ -144,6 +144,10 @@ def finish_contract_configuration(request, pk):
         messages.warning(request, f'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden. Fehler: {str(e)}')
         print(f"E-Mail-Fehler: {e}")
     
+    # Check if we should redirect to signing page
+    if request.POST.get('redirect_to_signing') == 'true':
+        return redirect('contract_signing', pk=contract.pk)
+    
     return redirect('contract_list')
 
 

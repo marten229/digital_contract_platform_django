@@ -379,6 +379,7 @@ function redrawSignatures(pageNum) {
 // Get the modal elements
 const creatorSigningModal = document.getElementById('creatorSigningModal');
 const skipSigningBtn = document.getElementById('skipSigningBtn');
+const signNowBtn = document.getElementById('signNowBtn');
 const configurationForm = document.getElementById('configurationForm');
 
 // Update the finish button state based on signatures
@@ -400,6 +401,19 @@ finishConfigurationBtn.addEventListener('click', function() {
     
     // Set up the skip signing button to submit the form
     skipSigningBtn.addEventListener('click', function() {
+        configurationForm.submit();
+    });
+    
+    // Set up the sign now button to submit the form and redirect
+    signNowBtn.addEventListener('click', function() {
+        // Add a hidden field to indicate redirect to signing page
+        let redirectInput = document.createElement('input');
+        redirectInput.type = 'hidden';
+        redirectInput.name = 'redirect_to_signing';
+        redirectInput.value = 'true';
+        configurationForm.appendChild(redirectInput);
+        
+        // Submit the form
         configurationForm.submit();
     });
 });
