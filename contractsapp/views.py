@@ -1,14 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
-from django.core.mail import send_mail
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.urls import reverse
 from django.conf import settings
-from django.core.mail import get_connection
-from django.core.mail import EmailMultiAlternatives
 
 import base64
 from io import BytesIO
@@ -21,6 +18,7 @@ from django.core.files.base import ContentFile
 
 from .forms import ContractForm
 from .models import Contract
+from .services import MailjetService
 
 
 @login_required
@@ -107,7 +105,7 @@ def finish_contract_configuration(request, pk):
     contract.is_configured = True
     contract.save()
     
-    # Now send email to partner
+    # Now send email to partner using Mailjet
     try:
         contract_url = request.build_absolute_uri(
             reverse('contract_signing', args=[contract.pk])
@@ -121,25 +119,18 @@ def finish_contract_configuration(request, pk):
             'site_name': 'DigiContract'
         }
         
-        html_message = render_to_string('contractsapp/email/contract_invitation.html', context)
-        plain_message = strip_tags(html_message)
-        
-        connection = get_connection(fail_silently=False)
-        connection.open()
-        
-        email = EmailMultiAlternatives(
+        email_sent = MailjetService.send_email(
+            to_email=contract.partner_email,
+            to_name=contract.partner_name,
             subject=f'Einladung zur Vertragsunterzeichnung: {contract.title}',
-            body=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[contract.partner_email],
-            connection=connection
+            template_name='contractsapp/email/contract_invitation.html',
+            context=context
         )
-        email.attach_alternative(html_message, "text/html")
-        email.send()
         
-        connection.close()
-        
-        messages.success(request, 'Vertrag wurde erfolgreich konfiguriert und Ihr Partner wurde per E-Mail eingeladen.')
+        if email_sent:
+            messages.success(request, 'Vertrag wurde erfolgreich konfiguriert und Ihr Partner wurde per E-Mail eingeladen.')
+        else:
+            messages.warning(request, 'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden.')
     except Exception as e:
         messages.warning(request, f'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden. Fehler: {str(e)}')
         print(f"E-Mail-Fehler: {e}")
@@ -158,7 +149,14 @@ def contract_detail(request, pk):
 
 def contract_signing(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
-    return render(request, 'contractsapp/contract_signing.html', {'contract': contract})
+    
+    # Überprüfen, ob der aktuelle Benutzer der Ersteller des Vertrags ist
+    is_creator = request.user.is_authenticated and request.user.ethereum_address == contract.creator_address
+    
+    return render(request, 'contractsapp/contract_signing.html', {
+        'contract': contract,
+        'is_creator': is_creator
+    })
 
 
 def add_signature(request, pk):
@@ -259,3 +257,42 @@ def add_signature(request, pk):
                 return HttpResponse(f"Fehler bei der Signaturverarbeitung: {str(e)}", status=400)
 
     return HttpResponse("Fehler beim Hinzufügen der Unterschrift.", status=400)
+
+
+def verify_partner(request, pk):
+    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
+    
+    contract = get_object_or_404(Contract, pk=pk)
+    
+    if contract.partner_address:
+        return JsonResponse({'success': True})
+    
+    partner_name = request.POST.get('partner_name', '').strip()
+    partner_email = request.POST.get('partner_email', '').strip()
+    partner_address = request.POST.get('partner_address', '').strip()
+    
+    errors = {}
+    
+    if not partner_name:
+        errors['name'] = 'Bitte geben Sie Ihren Namen ein.'
+    elif partner_name != contract.partner_name:
+        errors['name'] = 'Der Name stimmt nicht mit dem hinterlegten Namen überein.'
+        
+    if not partner_email:
+        errors['email'] = 'Bitte geben Sie Ihre E-Mail-Adresse ein.'
+    elif partner_email != contract.partner_email:
+        errors['email'] = 'Die E-Mail-Adresse stimmt nicht mit der hinterlegten Adresse überein.'
+         
+    if not partner_address:
+        errors['address'] = 'Bitte geben Sie Ihre Ethereum Wallet-Adresse ein.'
+    elif not partner_address.startswith('0x') or len(partner_address) != 42:
+        errors['address'] = 'Bitte geben Sie eine gültige Ethereum-Adresse ein (beginnt mit 0x und hat 42 Zeichen).'
+    
+    if errors:
+        return JsonResponse({'success': False, 'errors': errors})
+    
+    contract.partner_address = partner_address
+    contract.save()
+    
+    return JsonResponse({'success': True})
