@@ -76,8 +76,42 @@
                     <h5 class="mb-0">Letzte Aktivitäten</h5>
                 </div>
                 <div class="card-body">
-                    <!-- This could be populated dynamically based on user activity -->
-                    <p>Noch keine Aktivitäten vorhanden. Laden Sie Ihren ersten Vertrag hoch!</p>
+                    {% if has_activities %}
+                        <div class="activity-list">
+                            {% for activity in recent_activities %}
+                                <div class="activity-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="user-role-{{ activity.user_role }}">
+                                            {% if activity.user_role == 'creator' %}
+                                                <i class="bi bi-person-fill"></i> Ersteller
+                                            {% elif activity.user_role == 'partner' %}
+                                                <i class="bi bi-people-fill"></i> Partner
+                                            {% else %}
+                                                <i class="bi bi-gear-fill"></i> System
+                                            {% endif %}
+                                        </span>
+                                        <span class="activity-time">{{ activity.timestamp|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    <div class="activity-content">
+                                        <a href="{% url 'contract_detail' activity.contract.pk %}">
+                                            <strong>{{ activity.contract.title|truncatechars:35 }}</strong>
+                                        </a>
+                                        <div>{{ activity.get_action_display }}</div>
+                                        {% if activity.details %}
+                                            <small>{{ activity.details|truncatechars:60 }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-3 text-end">
+                            <a href="{% url 'contract_list' %}" class="btn btn-outline-primary btn-sm">
+                                Alle Verträge anzeigen <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    {% else %}
+                        <p>Noch keine Aktivitäten vorhanden. Laden Sie Ihren ersten Vertrag hoch!</p>
+                    {% endif %}
                 </div>
             </div>
         </div>

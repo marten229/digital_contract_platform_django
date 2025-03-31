@@ -5,62 +5,6 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/contract_signing.css' %}">
-<style>
-    /* Popup-Styles */
-    .verification-modal-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-        z-index: 1050;
-        display: none;
-    }
-    
-    .verification-modal {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        width: 100%;
-        max-width: 600px;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        z-index: 1051;
-        padding: 2rem;
-        display: none;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-    
-    .verification-header {
-        text-align: center;
-        margin-bottom: 1.5rem;
-    }
-    
-    .verification-header h2 {
-        color: #0d6efd;
-        margin-bottom: 0.5rem;
-    }
-    
-    .verification-notice {
-        background-color: #e9f5ff;
-        border-radius: 8px;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-    }
-    
-    .verification-notice i {
-        color: #0d6efd;
-    }
-    
-    .verification-footer {
-        margin-top: 1.5rem;
-        text-align: center;
-    }
-</style>
 {% endblock %}
 
 {% block content %}
