@@ -6,6 +6,7 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.urls import reverse
 from django.conf import settings
+from django.db.models import Q
 
 import base64
 from io import BytesIO
@@ -17,23 +18,58 @@ from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
 
 from .forms import ContractForm
-from .models import Contract
+from .models import Contract, ContractActivity
 from .services import MailjetService
 
 
 @login_required
 def contract_list(request):
-    user_contracts = Contract.objects.filter(creator_address=request.user.ethereum_address)
+    # Alle Verträge, bei denen der Benutzer der Ersteller ist
+    creator_contracts = Contract.objects.filter(creator_address=request.user.ethereum_address)
     
-    pending_contracts = user_contracts.filter(status='pending')
-    accepted_contracts = user_contracts.filter(status='accepted')
-    completed_contracts = user_contracts.filter(status='completed')
+    # Alle Verträge, bei denen der Benutzer der Partner ist
+    partner_contracts = Contract.objects.filter(partner_address=request.user.ethereum_address)
+    
+    # Kategorisieren der Verträge nach Status
+    pending_contracts = creator_contracts.filter(
+        Q(status='uploaded') | 
+        Q(status='configured') | 
+        Q(status='invitation_sent') |
+        Q(status='viewed_by_partner') |
+        Q(status='partner_verified')
+    )
+    
+    in_progress_contracts = creator_contracts.filter(
+        Q(status='signed_by_creator') | 
+        Q(status='signed_by_partner')
+    )
+    
+    completed_contracts = creator_contracts.filter(status='completed')
+    rejected_contracts = creator_contracts.filter(status='rejected')
+    
+    # Verträge, bei denen der Benutzer der Partner ist
+    pending_partner_contracts = partner_contracts.filter(
+        ~Q(status='completed') & 
+        ~Q(status='rejected')
+    )
+    
+    completed_partner_contracts = partner_contracts.filter(status='completed')
+    
+    # Aktivitäten für die Dashboard-Anzeige - beschränkt auf die letzten 10
+    all_user_contracts = creator_contracts | partner_contracts
+    recent_activities = ContractActivity.objects.filter(
+        contract__in=all_user_contracts
+    ).order_by('-timestamp')[:10]
     
     context = {
         'pending_contracts': pending_contracts,
-        'accepted_contracts': accepted_contracts,
+        'in_progress_contracts': in_progress_contracts,
         'completed_contracts': completed_contracts,
-        'all_contracts': user_contracts,
+        'rejected_contracts': rejected_contracts,
+        'all_contracts': creator_contracts,
+        'pending_partner_contracts': pending_partner_contracts,
+        'completed_partner_contracts': completed_partner_contracts,
+        'recent_activities': recent_activities,
     }
     
     return render(request, 'contractsapp/contract_list.html', context)
@@ -46,9 +82,19 @@ def contract_upload(request):
         if form.is_valid():
             contract = form.save(commit=False)
             contract.creator_address = request.user.ethereum_address
-            # Save the contract first, but mark it as not configured
+            # Status korrekt setzen
+            contract.status = 'uploaded'
             contract.is_configured = False
             contract.save()
+            
+            # Aktivität protokollieren
+            ContractActivity.log(
+                contract=contract,
+                action='upload',
+                user=request.user,
+                user_role='creator',
+                details=f"Vertrag '{contract.title}' wurde hochgeladen"
+            )
             
             # Redirect to the configuration page instead of sending email immediately
             return redirect('contract_configuration', pk=contract.pk)
@@ -67,6 +113,16 @@ def contract_configuration(request, pk):
     if contract.is_configured:
         messages.info(request, 'Dieser Vertrag wurde bereits konfiguriert.')
         return redirect('contract_detail', pk=contract.pk)
+    
+    # Aktivität protokollieren, wenn die Konfigurationsseite zum ersten Mal geöffnet wird
+    if contract.status == 'uploaded':
+        ContractActivity.log(
+            contract=contract,
+            action='configure',
+            user=request.user,
+            user_role='creator',
+            details="Konfiguration des Vertrags begonnen"
+        )
     
     return render(request, 'contractsapp/contract_configuration.html', {'contract': contract})
 
@@ -101,9 +157,19 @@ def finish_contract_configuration(request, pk):
         messages.error(request, 'Ungültige Signaturpositionen. Bitte versuchen Sie es erneut.')
         return redirect('contract_configuration', pk=pk)
     
-    # Mark contract as configured
+    # Mark contract as configured and update status
     contract.is_configured = True
+    contract.status = 'configured'
     contract.save()
+    
+    # Aktivität protokollieren
+    ContractActivity.log(
+        contract=contract,
+        action='configure',
+        user=request.user,
+        user_role='creator',
+        details="Vertragskonfiguration abgeschlossen"
+    )
     
     # Now send email to partner using Mailjet
     try:
@@ -128,6 +194,19 @@ def finish_contract_configuration(request, pk):
         )
         
         if email_sent:
+            # Status aktualisieren
+            contract.status = 'invitation_sent'
+            contract.save()
+            
+            # Aktivität protokollieren
+            ContractActivity.log(
+                contract=contract,
+                action='send_invitation',
+                user=request.user,
+                user_role='creator',
+                details=f"Einladung an {contract.partner_email} gesendet"
+            )
+            
             messages.success(request, 'Vertrag wurde erfolgreich konfiguriert und Ihr Partner wurde per E-Mail eingeladen.')
         else:
             messages.warning(request, 'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden.')
@@ -144,7 +223,33 @@ def finish_contract_configuration(request, pk):
 
 def contract_detail(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
-    return render(request, 'contractsapp/contract_detail.html', {'contract': contract})
+    
+    # Aktivitäten dieses Vertrags für die Detailansicht laden
+    activities = contract.activities.all()[:20]  # Die letzten 20 Aktivitäten
+    
+    # Wenn der Benutzer angemeldet ist und nicht der Ersteller, protokolliere die Ansicht
+    if (request.user.is_authenticated and 
+        hasattr(request.user, 'ethereum_address') and 
+        request.user.ethereum_address != contract.creator_address):
+        
+        # Status von viewed_by_partner nur setzen, wenn der Partner den Vertrag zum ersten Mal ansieht
+        is_partner = contract.partner_address == request.user.ethereum_address
+        if is_partner and contract.status == 'invitation_sent':
+            contract.status = 'viewed_by_partner'
+            contract.save()
+            
+            # Aktivität protokollieren
+            ContractActivity.log(
+                contract=contract,
+                action='view',
+                user=request.user,
+                details="Partner hat den Vertrag angesehen"
+            )
+    
+    return render(request, 'contractsapp/contract_detail.html', {
+        'contract': contract,
+        'activities': activities
+    })
 
 
 def contract_signing(request, pk):
@@ -152,10 +257,36 @@ def contract_signing(request, pk):
     
     # Überprüfen, ob der aktuelle Benutzer der Ersteller des Vertrags ist
     is_creator = request.user.is_authenticated and request.user.ethereum_address == contract.creator_address
+    is_partner = request.user.is_authenticated and request.user.ethereum_address == contract.partner_address
+    
+    # Aktivität protokollieren
+    if request.user.is_authenticated:
+        if is_creator:
+            ContractActivity.log(
+                contract=contract,
+                action='view',
+                user=request.user,
+                user_role='creator',
+                details="Ersteller hat die Signierseite geöffnet"
+            )
+        elif is_partner:
+            # Wenn der Partner die Signierseite besucht, aktualisieren wir den Status
+            if contract.status in ['invitation_sent', 'viewed_by_partner']:
+                contract.status = 'viewed_by_partner'
+                contract.save()
+                
+                ContractActivity.log(
+                    contract=contract,
+                    action='view',
+                    user=request.user,
+                    user_role='partner',
+                    details="Partner hat die Signierseite geöffnet"
+                )
     
     return render(request, 'contractsapp/contract_signing.html', {
         'contract': contract,
-        'is_creator': is_creator
+        'is_creator': is_creator,
+        'is_partner': is_partner
     })
 
 
@@ -230,6 +361,35 @@ def add_signature(request, pk):
                 output.write(output_stream)
                 output_stream.seek(0)
                 
+                # Bestimmen, ob der Vertrag vom Ersteller oder vom Partner signiert wird
+                is_creator = (request.user.is_authenticated and 
+                               request.user.ethereum_address == contract.creator_address)
+                is_partner = (request.user.is_authenticated and 
+                               request.user.ethereum_address == contract.partner_address)
+                
+                # Je nach unterzeichnender Partei den Status aktualisieren
+                if is_creator:
+                    if contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
+                        contract.status = 'signed_by_creator'
+                        action_type = 'sign_creator'
+                        details = "Vertrag vom Ersteller unterzeichnet"
+                    elif contract.status == 'signed_by_partner':
+                        contract.status = 'completed'
+                        action_type = 'complete'
+                        details = "Vertrag vollständig unterzeichnet (Ersteller-Signatur)"
+                elif is_partner:
+                    if contract.status in ['invitation_sent', 'viewed_by_partner', 'partner_verified']:
+                        contract.status = 'signed_by_partner'
+                        action_type = 'sign_partner'
+                        details = "Vertrag vom Partner unterzeichnet"
+                    elif contract.status == 'signed_by_creator':
+                        contract.status = 'completed'
+                        action_type = 'complete'
+                        details = "Vertrag vollständig unterzeichnet (Partner-Signatur)"
+                else:
+                    action_type = 'other'
+                    details = "Unbekannte Partei hat den Vertrag unterzeichnet"
+                
                 try:
                     # Die PDF-Datei mit der Vertrags-ID benennen
                     from .storage import ContractStorage
@@ -244,7 +404,16 @@ def add_signature(request, pk):
                     
                     # Update des Dateinamens im Contract-Objekt
                     contract.pdf_file.name = file_path
-                    contract.save(update_fields=['pdf_file'])
+                    contract.save()
+                    
+                    # Aktivität protokollieren
+                    if request.user.is_authenticated:
+                        ContractActivity.log(
+                            contract=contract,
+                            action=action_type,
+                            user=request.user,
+                            details=details
+                        )
                     
                     print(f"Signierte PDF für Vertrag {contract.pk} gespeichert als: {file_path}")
                 except Exception as e:
@@ -301,7 +470,19 @@ def verify_partner(request, pk):
     if errors:
         return JsonResponse({'success': False, 'errors': errors})
     
+    # Partner-Adresse speichern und Status aktualisieren
     contract.partner_address = partner_address
+    contract.status = 'partner_verified'
     contract.save()
+    
+    # Aktivität protokollieren
+    if request.user.is_authenticated:
+        ContractActivity.log(
+            contract=contract,
+            action='verify_partner',
+            user=request.user,
+            user_role='partner',
+            details=f"Partner hat sich verifiziert: {partner_address}"
+        )
     
     return JsonResponse({'success': True})

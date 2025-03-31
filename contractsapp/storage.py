@@ -17,7 +17,6 @@ class ContractStorage(FileSystemStorage):
         Überschreibt existierende Dateien mit dem gleichen Namen,
         anstatt einen neuen Namen zu generieren.
         """
-        # Wenn die Datei existiert, löschen wir sie, damit sie überschrieben wird
         self.delete(name)
         return name
     

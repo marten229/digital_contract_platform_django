@@ -5,6 +5,65 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/contract_detail.css' %}">
+<style>
+    .status-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+    
+    .status-draft { background-color: #e2e3e5; color: #41464b; }
+    .status-uploaded { background-color: #e2e3e5; color: #41464b; }
+    .status-configured { background-color: #cff4fc; color: #055160; }
+    .status-invitation { background-color: #d1e7dd; color: #0f5132; }
+    .status-viewed { background-color: #fff3cd; color: #664d03; }
+    .status-verified { background-color: #cfe2ff; color: #084298; }
+    .status-signed-creator { background-color: #f8d7da; color: #842029; }
+    .status-signed-partner { background-color: #f8d7da; color: #842029; }
+    .status-completed { background-color: #d1e7dd; color: #0f5132; }
+    .status-rejected { background-color: #f8d7da; color: #842029; }
+    
+    .activity-timeline {
+        margin-top: 2rem;
+        border-left: 2px solid #ccc;
+        padding-left: 1.5rem;
+    }
+    
+    .activity-item {
+        position: relative;
+        margin-bottom: 1.5rem;
+    }
+    
+    .activity-item:before {
+        content: "";
+        position: absolute;
+        left: -1.75rem;
+        top: 0.4rem;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #0d6efd;
+    }
+    
+    .activity-item .activity-time {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    
+    .activity-item .activity-content {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        margin-top: 0.5rem;
+    }
+    
+    .user-role-creator { color: #0d6efd; }
+    .user-role-partner { color: #198754; }
+    .user-role-system { color: #6c757d; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -12,35 +71,106 @@
     <div class="container">
         <h1 class="h3">{{ contract.title }}</h1>
         <p class="text-muted">Hochgeladen am: {{ contract.uploaded_at|date:"d.m.Y H:i" }}</p>
+        <div class="status-badge {{ contract.get_status_class }}">
+            Status: {{ contract.get_status_display_german }}
+        </div>
     </div>
 </div>
 
 <div class="container">
-    <!-- Simplified viewing workflow -->
-    <div class="document-heading">
-        <h4>Vertragsdetails</h4>
-    </div>
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Simplified viewing workflow -->
+            <div class="document-heading">
+                <h4>Vertragsdetails</h4>
+            </div>
 
-    <!-- PDF Container -->
-    <div id="pdfContainer">
-        <canvas id="pdfViewer"></canvas>
-    </div>
-    
-    <!-- Page Navigation -->
-    <div id="pageNavigation" class="mt-3">
-        <button id="prevPage" class="btn btn-outline-primary">
-            <i class="bi bi-chevron-left"></i> Vorherige Seite
-        </button>
-        <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
-        <button id="nextPage" class="btn btn-outline-primary">
-            Nächste Seite <i class="bi bi-chevron-right"></i>
-        </button>
-    </div>
-    
-    <div class="document-controls" id="documentControls">
-        <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary">
-            <i class="bi bi-download"></i> PDF herunterladen
-        </a>
+            <!-- PDF Container -->
+            <div id="pdfContainer">
+                <canvas id="pdfViewer"></canvas>
+            </div>
+            
+            <!-- Page Navigation -->
+            <div id="pageNavigation" class="mt-3">
+                <button id="prevPage" class="btn btn-outline-primary">
+                    <i class="bi bi-chevron-left"></i> Vorherige Seite
+                </button>
+                <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+                <button id="nextPage" class="btn btn-outline-primary">
+                    Nächste Seite <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div class="document-controls" id="documentControls">
+                <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> PDF herunterladen
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Vertragsaktivitäten</h5>
+                </div>
+                <div class="card-body">
+                    {% if activities %}
+                        <div class="activity-timeline">
+                            {% for activity in activities %}
+                                <div class="activity-item">
+                                    <div class="d-flex align-items-center">
+                                        <span class="user-role-{{ activity.user_role }}">
+                                            {% if activity.user_role == 'creator' %}
+                                                <i class="bi bi-person-fill"></i> Ersteller
+                                            {% elif activity.user_role == 'partner' %}
+                                                <i class="bi bi-people-fill"></i> Partner
+                                            {% else %}
+                                                <i class="bi bi-gear-fill"></i> System
+                                            {% endif %}
+                                        </span>
+                                        <span class="activity-time ms-auto">{{ activity.timestamp|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    <div class="activity-content">
+                                        <strong>{{ activity.get_action_display }}</strong>
+                                        {% if activity.details %}
+                                            <p class="mb-0 mt-1">{{ activity.details }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">Keine Aktivitäten vorhanden.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Vertragsinformationen</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Ersteller:</dt>
+                        <dd class="col-sm-7">{{ contract.creator_address|truncatechars:15 }}</dd>
+                        
+                        <dt class="col-sm-5">Partner:</dt>
+                        <dd class="col-sm-7">{{ contract.partner_name }}</dd>
+                        
+                        <dt class="col-sm-5">Partner E-Mail:</dt>
+                        <dd class="col-sm-7">{{ contract.partner_email }}</dd>
+                        
+                        {% if contract.partner_address %}
+                            <dt class="col-sm-5">Partner Adresse:</dt>
+                            <dd class="col-sm-7">{{ contract.partner_address|truncatechars:15 }}</dd>
+                        {% endif %}
+                        
+                        <dt class="col-sm-5">Letzte Änderung:</dt>
+                        <dd class="col-sm-7">{{ contract.last_updated|date:"d.m.Y H:i" }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
