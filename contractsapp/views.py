@@ -231,17 +231,26 @@ def add_signature(request, pk):
                 output_stream.seek(0)
                 
                 try:
-                    file_name = os.path.basename(contract.pdf_file.name)
-                    file_path = os.path.join('contracts', f"signed_{file_name}")
+                    # Die PDF-Datei mit der Vertrags-ID benennen
+                    from .storage import ContractStorage
+                    contract_storage = ContractStorage()
                     
-                    from django.core.files.storage import default_storage
+                    # Direkt unsere spezielle Storage-Klasse verwenden
+                    file_path = contract_storage.save_contract_file(
+                        contract.pk, 
+                        ContentFile(output_stream.getvalue()), 
+                        is_signed=True
+                    )
                     
-                    default_storage.save(file_path, ContentFile(output_stream.getvalue()))
-                    
+                    # Update des Dateinamens im Contract-Objekt
                     contract.pdf_file.name = file_path
-                    contract.save()
+                    contract.save(update_fields=['pdf_file'])
+                    
+                    print(f"Signierte PDF für Vertrag {contract.pk} gespeichert als: {file_path}")
                 except Exception as e:
                     print(f"Error saving file to storage: {e}")
+                    import traceback
+                    print(traceback.format_exc())
                     pass
                 
                 output_stream.seek(0)
