@@ -1,0 +1,269 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Smart Contract bereitstellen | DigiContract{% endblock %}
+
+{% block extra_css %}
+<style>
+    .contract-deploy-section {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 30px;
+        margin-bottom: 30px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    
+    .contract-address {
+        font-family: monospace;
+        word-break: break-all;
+        padding: 10px;
+        background: #e9ecef;
+        border-radius: 4px;
+        border-left: 4px solid #007bff;
+    }
+    
+    .deployment-steps {
+        counter-reset: step-counter;
+        margin-left: 0;
+        padding-left: 0;
+    }
+    
+    .deployment-steps li {
+        counter-increment: step-counter;
+        margin-bottom: 15px;
+        padding-left: 50px;
+        position: relative;
+        list-style-type: none;
+    }
+    
+    .deployment-steps li::before {
+        content: counter(step-counter);
+        background-color: #007bff;
+        color: white;
+        font-weight: bold;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        left: 0;
+        top: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-4">Smart Contract bereitstellen</h1>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Auf dieser Seite können Sie den Smart Contract auf der Blockchain bereitstellen, der für die Verwaltung von Verträgen auf dieser Plattform verwendet wird.
+        Nach der Bereitstellung wird die Vertragsadresse automatisch für alle zukünftigen Blockchain-Transaktionen verwendet.
+    </div>
+    
+    {% if current_address %}
+    <div class="contract-deploy-section">
+        <h3>Aktueller Smart Contract</h3>
+        <p>Der Smart Contract ist bereits auf der Blockchain bereitgestellt:</p>
+        <div class="contract-address mb-3">
+            {{ current_address }}
+        </div>
+        <p>Sie können bei Bedarf einen neuen Smart Contract bereitstellen, zum Beispiel nach einem Upgrade des Vertragscodes.</p>
+    </div>
+    {% endif %}
+    
+    <div class="contract-deploy-section">
+        <h3>Neuen Smart Contract bereitstellen</h3>
+        
+        {% if transaction %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Der Smart Contract ist bereit zur Bereitstellung. Bitte verwenden Sie Ihre Ethereum Wallet (z.B. MetaMask), um die folgende Transaktion zu signieren und zu senden.
+        </div>
+        
+        <div id="deployment-area">
+            <p>Adresse des Bereitstellers: <strong>{{ deployer_address }}</strong></p>
+            <button id="deploy-button" class="btn btn-primary btn-lg mb-3">
+                <i class="bi bi-send-fill me-2"></i>Smart Contract bereitstellen
+            </button>
+            
+            <div id="deployment-status" class="alert alert-info" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-3" role="status">
+                        <span class="visually-hidden">Wird bereitgestellt...</span>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading">Bereitstellung läuft...</h5>
+                        <p class="mb-0">Bitte warten Sie, während der Smart Contract auf der Blockchain bereitgestellt wird.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="deployment-success" class="alert alert-success" style="display: none;">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <h5 class="alert-heading">Bereitstellung erfolgreich!</h5>
+                <p>Der Smart Contract wurde erfolgreich bereitgestellt unter:</p>
+                <div class="contract-address" id="new-contract-address"></div>
+            </div>
+            
+            <div id="deployment-error" class="alert alert-danger" style="display: none;">
+                <i class="bi bi-x-circle-fill me-2"></i>
+                <h5 class="alert-heading">Fehler bei der Bereitstellung</h5>
+                <p id="error-message">Ein Fehler ist aufgetreten.</p>
+            </div>
+        </div>
+        {% else %}
+        <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="deployer_address" class="form-label">Ihre Ethereum-Adresse</label>
+                <input type="text" class="form-control" id="deployer_address" name="deployer_address" 
+                       placeholder="0x..." required pattern="0x[a-fA-F0-9]{40}">
+                <div class="form-text">Geben Sie die Ethereum-Adresse ein, die für die Bereitstellung des Smart Contracts verwendet werden soll.</div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-file-earmark-code me-2"></i>Bereitstellung vorbereiten
+            </button>
+        </form>
+        
+        <div class="mt-5">
+            <h4>Bereitstellungsanleitung</h4>
+            <ol class="deployment-steps">
+                <li>
+                    <p><strong>Vorbereitung:</strong> Geben Sie Ihre Ethereum-Adresse ein und klicken Sie auf "Bereitstellung vorbereiten".</p>
+                </li>
+                <li>
+                    <p><strong>MetaMask verbinden:</strong> Stellen Sie sicher, dass Ihre MetaMask-Wallet mit der gleichen Adresse verbunden ist und über ausreichend ETH verfügt.</p>
+                </li>
+                <li>
+                    <p><strong>Transaktion signieren:</strong> Klicken Sie auf "Smart Contract bereitstellen" und bestätigen Sie die Transaktion in Ihrer Wallet.</p>
+                </li>
+                <li>
+                    <p><strong>Bestätigung abwarten:</strong> Warten Sie auf die Bestätigung der Transaktion in der Blockchain.</p>
+                </li>
+                <li>
+                    <p><strong>Adresse speichern:</strong> Nach erfolgreicher Bereitstellung wird die Vertragsadresse automatisch für Ihre Plattform konfiguriert.</p>
+                </li>
+            </ol>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if transaction %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Speichere die Transaktionsdaten
+        const txData = {{ transaction|safe }};
+        const deployerAddress = "{{ deployer_address }}";
+        
+        async function deployContract() {
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            try {
+                // Status anzeigen
+                document.getElementById('deploy-button').disabled = true;
+                document.getElementById('deployment-status').style.display = 'block';
+                
+                // Mit MetaMask verbinden
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Netzwerk-ID überprüfen
+                const networkId = await web3.eth.net.getId();
+                console.log(`Aktuelles Netzwerk: ${networkId}`);
+                
+                // Überprüfen, ob die aktuelle Adresse mit der Bereitsteller-Adresse übereinstimmt
+                const accounts = await web3.eth.getAccounts();
+                if (accounts[0].toLowerCase() !== deployerAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse ${deployerAddress}`);
+                    return;
+                }
+                
+                // Transaktion senden
+                web3.eth.sendTransaction(txData)
+                    .on('transactionHash', (hash) => {
+                        console.log(`Transaktions-Hash: ${hash}`);
+                    })
+                    .on('receipt', async (receipt) => {
+                        console.log('Vertrag bereitgestellt:', receipt);
+                        // Erfolg anzeigen
+                        document.getElementById('deployment-status').style.display = 'none';
+                        document.getElementById('deployment-success').style.display = 'block';
+                        
+                        // Vertragsadresse anzeigen
+                        const contractAddress = receipt.contractAddress;
+                        document.getElementById('new-contract-address').textContent = contractAddress;
+                        
+                        // Adresse an den Server senden
+                        await updateContractAddress(contractAddress);
+                    })
+                    .on('error', (error) => {
+                        console.error('Fehler bei der Bereitstellung:', error);
+                        showError(error.message || 'Unbekannter Fehler bei der Bereitstellung des Vertrags');
+                    });
+            } catch (error) {
+                console.error('Fehler:', error);
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        async function updateContractAddress(address) {
+            try {
+                const response = await fetch('{% url "update_contract_address" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `contract_address=${address}`
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Fehler beim Aktualisieren der Adresse:', data.message);
+                }
+            } catch (error) {
+                console.error('Fehler beim Senden der Adresse an den Server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('deployment-status').style.display = 'none';
+            document.getElementById('deployment-error').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('deploy-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Event-Listener für den Deploy-Button
+        document.getElementById('deploy-button').addEventListener('click', deployContract);
+    });
+</script>
+{% endif %}
+{% endblock %}

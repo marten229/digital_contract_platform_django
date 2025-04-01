@@ -61,6 +61,13 @@ class Contract(models.Model):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     last_updated = models.DateTimeField(auto_now=True)
+    
+    # New blockchain-related fields
+    blockchain_contract_id = models.BigIntegerField(null=True, blank=True, verbose_name="Blockchain-Vertrags-ID")
+    pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
+    blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
+    contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
+    transaction_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="Transaktions-Hash")
 
     def __str__(self):
         return self.title
@@ -96,8 +103,15 @@ class Contract(models.Model):
                         # PDF-Dateinamen im Modell aktualisieren
                         self.pdf_file.name = file_path
                         
+                        # If the PDF file has changed, recalculate its hash
+                        if hasattr(self.pdf_file, 'file') and hasattr(self.pdf_file.file, 'read'):
+                            # Import here to avoid circular imports
+                            from .blockchain import BlockchainService
+                            blockchain_service = BlockchainService()
+                            self.pdf_hash = blockchain_service.calculate_pdf_hash(self.pdf_file)
+                        
                         # Speichern ohne rekursiven Aufruf der save-Methode
-                        super().save(update_fields=['pdf_file'])
+                        super().save(update_fields=['pdf_file', 'pdf_hash'])
                     
                     # Protokollieren für Debugging
                     print(f"Vertrag {self.pk} gespeichert: {self.pdf_file.name}")
@@ -127,6 +141,22 @@ class Contract(models.Model):
             'rejected': 'status-rejected',
         }
         return status_classes.get(self.status, 'status-default')
+        
+    def update_blockchain_status(self):
+        """Updates the blockchain status for this contract"""
+        if self.blockchain_contract_id:
+            try:
+                from .blockchain import BlockchainService
+                blockchain_service = BlockchainService()
+                
+                # Get the current status from the blockchain
+                self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
+                self.save(update_fields=['blockchain_status'])
+                return True
+            except Exception as e:
+                print(f"Error updating blockchain status: {e}")
+                return False
+        return False
 
 
 class ContractActivity(models.Model):

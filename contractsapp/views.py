@@ -16,10 +16,12 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
+import json
 
 from .forms import ContractForm
 from .models import Contract, ContractActivity
 from .services import MailjetService
+from .blockchain import BlockchainService
 
 
 @login_required
@@ -61,6 +63,11 @@ def contract_list(request):
         contract__in=all_user_contracts
     ).order_by('-timestamp')[:10]
     
+    # Update blockchain status for contracts with blockchain_contract_id
+    for contract in all_user_contracts:
+        if contract.blockchain_contract_id:
+            contract.update_blockchain_status()
+    
     context = {
         'pending_contracts': pending_contracts,
         'in_progress_contracts': in_progress_contracts,
@@ -85,7 +92,18 @@ def contract_upload(request):
             # Status korrekt setzen
             contract.status = 'uploaded'
             contract.is_configured = False
+            
+            # Save contract to generate ID and store file
             contract.save()
+            
+            # Calculate PDF hash for blockchain
+            blockchain_service = BlockchainService()
+            if contract.pdf_file:
+                try:
+                    contract.pdf_hash = blockchain_service.calculate_pdf_hash(contract.pdf_file)
+                    contract.save(update_fields=['pdf_hash'])
+                except Exception as e:
+                    messages.warning(request, f"Fehler beim Berechnen des PDF-Hashes: {e}")
             
             # Aktivität protokollieren
             ContractActivity.log(
@@ -246,6 +264,10 @@ def contract_detail(request, pk):
                 details="Partner hat den Vertrag angesehen"
             )
     
+    # Update blockchain status if applicable
+    if contract.blockchain_contract_id:
+        contract.update_blockchain_status()
+    
     return render(request, 'contractsapp/contract_detail.html', {
         'contract': contract,
         'activities': activities
@@ -283,10 +305,48 @@ def contract_signing(request, pk):
                     details="Partner hat die Signierseite geöffnet"
                 )
     
+    # Prepare blockchain data if needed
+    blockchain_data = {}
+    if contract.pdf_hash and contract.contract_amount:
+        if is_creator and contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
+            # Creator preparing to sign - create blockchain transaction
+            if contract.partner_address:
+                blockchain_service = BlockchainService()
+                try:
+                    tx = blockchain_service.create_contract(
+                        creator_address=contract.creator_address,
+                        counterparty_address=contract.partner_address,
+                        contract_hash=contract.pdf_hash,
+                        amount_wei=contract.contract_amount
+                    )
+                    blockchain_data = {
+                        'transaction': json.dumps(dict(tx)),
+                        'contract_hash': contract.pdf_hash,
+                        'amount_wei': contract.contract_amount
+                    }
+                except Exception as e:
+                    messages.error(request, f"Fehler bei der Blockchain-Transaktion: {e}")
+        elif is_partner and contract.status in ['viewed_by_partner', 'partner_verified']:
+            # Partner viewing - if contract is on blockchain, show sign button
+            if contract.blockchain_contract_id:
+                blockchain_service = BlockchainService()
+                try:
+                    tx = blockchain_service.sign_contract(
+                        partner_address=contract.partner_address,
+                        contract_id=contract.blockchain_contract_id
+                    )
+                    blockchain_data = {
+                        'transaction': json.dumps(dict(tx)),
+                        'contract_id': contract.blockchain_contract_id
+                    }
+                except Exception as e:
+                    messages.error(request, f"Fehler bei der Blockchain-Transaktion: {e}")
+    
     return render(request, 'contractsapp/contract_signing.html', {
         'contract': contract,
         'is_creator': is_creator,
-        'is_partner': is_partner
+        'is_partner': is_partner,
+        'blockchain_data': blockchain_data
     })
 
 
@@ -404,6 +464,13 @@ def add_signature(request, pk):
                     
                     # Update des Dateinamens im Contract-Objekt
                     contract.pdf_file.name = file_path
+                    
+                    # Recalculate the PDF hash as the file has changed
+                    blockchain_service = BlockchainService()
+                    contract.pdf_hash = blockchain_service.calculate_pdf_hash(
+                        ContentFile(output_stream.getvalue())
+                    )
+                    
                     contract.save()
                     
                     # Aktivität protokollieren
@@ -413,6 +480,24 @@ def add_signature(request, pk):
                             action=action_type,
                             user=request.user,
                             details=details
+                        )
+                    
+                    # Handle blockchain transaction data if provided
+                    blockchain_tx_hash = request.POST.get('blockchain_tx_hash')
+                    blockchain_contract_id = request.POST.get('blockchain_contract_id')
+                    
+                    if blockchain_tx_hash:
+                        contract.transaction_hash = blockchain_tx_hash
+                        if blockchain_contract_id:
+                            contract.blockchain_contract_id = int(blockchain_contract_id)
+                        contract.save(update_fields=['transaction_hash', 'blockchain_contract_id'])
+                        
+                        # Log blockchain activity
+                        ContractActivity.log(
+                            contract=contract,
+                            action='other',
+                            user=request.user,
+                            details=f"Vertrag auf der Blockchain registriert: TX {blockchain_tx_hash[:10]}..."
                         )
                     
                     print(f"Signierte PDF für Vertrag {contract.pk} gespeichert als: {file_path}")
@@ -486,3 +571,219 @@ def verify_partner(request, pk):
         )
     
     return JsonResponse({'success': True})
+
+
+@login_required
+def update_blockchain_status(request, pk):
+    """API endpoint to update blockchain status from frontend"""
+    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
+    
+    contract = get_object_or_404(Contract, pk=pk)
+    
+    # Verify user is associated with the contract
+    is_creator = request.user.ethereum_address == contract.creator_address
+    is_partner = request.user.ethereum_address == contract.partner_address
+    
+    if not (is_creator or is_partner):
+        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
+    
+    blockchain_tx_hash = request.POST.get('tx_hash')
+    blockchain_contract_id = request.POST.get('contract_id')
+    
+    if blockchain_tx_hash:
+        contract.transaction_hash = blockchain_tx_hash
+        
+        if blockchain_contract_id:
+            contract.blockchain_contract_id = int(blockchain_contract_id)
+        
+        contract.save(update_fields=['transaction_hash', 'blockchain_contract_id'])
+        
+        # Update blockchain status
+        contract.update_blockchain_status()
+        
+        # Log activity
+        ContractActivity.log(
+            contract=contract,
+            action='other',
+            user=request.user,
+            details=f"Blockchain-Status aktualisiert: {contract.blockchain_status}"
+        )
+        
+        return JsonResponse({
+            'success': True, 
+            'contract_id': contract.blockchain_contract_id,
+            'status': contract.blockchain_status
+        })
+    
+    return JsonResponse({'success': False, 'message': 'Keine Transaktionsdaten erhalten'})
+
+
+@login_required
+def withdraw_funds(request, pk):
+    """API endpoint to withdraw funds from a completed contract"""
+    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
+    
+    contract = get_object_or_404(Contract, pk=pk)
+    
+    # Verify the user is the partner
+    if request.user.ethereum_address != contract.partner_address:
+        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
+    
+    # Verify contract is completed on the blockchain
+    if contract.blockchain_status != 'Completed':
+        return JsonResponse({'success': False, 'message': 'Vertrag ist nicht abgeschlossen'})
+    
+    blockchain_service = BlockchainService()
+    try:
+        tx = blockchain_service.withdrawFunds(request.user.ethereum_address)
+        return JsonResponse({'success': True, 'transaction': json.dumps(dict(tx))})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Fehler: {str(e)}'})
+
+
+@login_required
+def deploy_contract(request):
+    """View to deploy the smart contract to the blockchain"""
+    # Nur Administratoren können den Vertrag bereitstellen
+    if not request.user.is_superuser:
+        messages.error(request, "Nur Administratoren können den Smart Contract bereitstellen.")
+        return redirect('contract_list')
+    
+    # Blockchain-Service initialisieren
+    blockchain_service = BlockchainService()
+    
+    if request.method == 'POST':
+        deployer_address = request.POST.get('deployer_address')
+        
+        if not deployer_address or not deployer_address.startswith('0x'):
+            messages.error(request, "Bitte geben Sie eine gültige Ethereum-Adresse ein.")
+            return render(request, 'contractsapp/deploy_contract.html')
+        
+        try:
+            # Transaktion für die Bereitstellung vorbereiten
+            tx = blockchain_service.deploy_contract(deployer_address)
+            
+            # Konvertiere alle Byte-Objekte in Hex-Strings für JSON-Serialisierung
+            tx_dict = dict(tx)
+            
+            # data Feld kann ein Bytes-Objekt sein, das in einen Hex-String konvertiert werden muss
+            if 'data' in tx_dict and isinstance(tx_dict['data'], bytes):
+                tx_dict['data'] = tx_dict['data'].hex()
+                
+            # Andere mögliche Bytes-Felder
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    tx_dict[key] = value.hex()
+            
+            # Transaktion an das Frontend zurückgeben für die Signatur
+            return render(request, 'contractsapp/deploy_contract.html', {
+                'transaction': json.dumps(tx_dict),
+                'deployer_address': deployer_address
+            })
+        except Exception as e:
+            messages.error(request, f"Fehler bei der Vorbereitung der Bereitstellung: {str(e)}")
+    
+    # Aktuelle Contract-Adresse anzeigen, falls vorhanden
+    current_address = blockchain_service.get_contract_address()
+    
+    return render(request, 'contractsapp/deploy_contract.html', {
+        'current_address': current_address
+    })
+
+
+@login_required
+def update_contract_address(request):
+    """API endpoint to update the contract address after deployment"""
+    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
+    
+    # Nur Administratoren können die Vertragsadresse aktualisieren
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
+    
+    contract_address = request.POST.get('contract_address')
+    if not contract_address or not contract_address.startswith('0x'):
+        return JsonResponse({'success': False, 'message': 'Ungültige Vertragsadresse'})
+    
+    try:
+        blockchain_service = BlockchainService()
+        result = blockchain_service.set_contract_address(contract_address)
+        
+        if result:
+            # Speichern Sie die Adresse in einer Datenbanktabelle oder einer anderen persistenten Speichermethode
+            # Hier könnten Sie auch die settings.py dynamisch aktualisieren, das ist aber nicht empfohlen
+            
+            return JsonResponse({
+                'success': True, 
+                'message': 'Vertragsadresse erfolgreich aktualisiert',
+                'address': contract_address
+            })
+        else:
+            return JsonResponse({'success': False, 'message': 'Fehler beim Initialisieren des Vertrags'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Fehler: {str(e)}'})
+
+
+@login_required
+def submit_to_blockchain(request, pk):
+    """Submit a fully signed contract to the blockchain"""
+    contract = get_object_or_404(Contract, pk=pk, creator_address=request.user.ethereum_address)
+    
+    # Prüfen, ob der Vertrag vollständig unterschrieben ist
+    if contract.status != 'completed':
+        messages.error(request, "Nur vollständig unterschriebene Verträge können an die Blockchain übermittelt werden.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Prüfen, ob der Vertrag bereits an die Blockchain übermittelt wurde
+    if contract.blockchain_contract_id:
+        messages.info(request, "Dieser Vertrag wurde bereits an die Blockchain übermittelt.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Prüfen, ob der Benutzer ein Vertragsbetrag angegeben hat
+    if request.method == 'POST':
+        contract_amount = request.POST.get('contract_amount')
+        try:
+            # Umwandeln in Wei (1 ETH = 10^18 Wei)
+            amount_wei = int(float(contract_amount) * 10**18)
+            contract.contract_amount = amount_wei
+            contract.save(update_fields=['contract_amount'])
+        except (ValueError, TypeError):
+            messages.error(request, "Bitte geben Sie einen gültigen Betrag ein.")
+            return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})
+        
+        # Blockchain-Transaktion vorbereiten
+        blockchain_service = BlockchainService()
+        try:
+            # Stellen Sie sicher, dass ein Partner festgelegt ist
+            if not contract.partner_address:
+                messages.error(request, "Der Vertragspartner muss eine Ethereum-Adresse haben.")
+                return redirect('contract_detail', pk=pk)
+                
+            tx = blockchain_service.create_contract(
+                creator_address=contract.creator_address,
+                counterparty_address=contract.partner_address,
+                contract_hash=contract.pdf_hash,
+                amount_wei=contract.contract_amount
+            )
+            
+            # Für die JavaScript-Verarbeitung vorbereiten
+            tx_dict = dict(tx)
+            
+            # Alle Bytes-Objekte in Hex-Strings konvertieren
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    tx_dict[key] = value.hex()
+            
+            return render(request, 'contractsapp/submit_to_blockchain.html', {
+                'contract': contract,
+                'transaction': json.dumps(tx_dict),
+                'is_submission': True
+            })
+        except Exception as e:
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Transaktion: {str(e)}")
+            return redirect('contract_detail', pk=pk)
+    
+    # GET-Anfrage: Formular für den Vertragsbetrag anzeigen
+    return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})
