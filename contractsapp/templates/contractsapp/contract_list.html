@@ -40,9 +40,11 @@
                                             <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
                                         </div>
                                         <div class="contract-actions">
-                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
                                             {% if not contract.is_configured %}
+                                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
                                                 <a href="{% url 'contract_configuration' contract.pk %}" class="btn btn-outline-secondary btn-sm">Konfigurieren</a>
+                                            {% else %}
+                                                <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-primary btn-sm">Vertrag signieren</a>
                                             {% endif %}
                                         </div>
                                     </div>
