@@ -9,8 +9,13 @@ class BlockchainService:
     
     def __init__(self):
         # Connect to an Ethereum node - replace with your actual provider URL
-        # For development, you might use Ganache, Infura, or Alchemy
-        self.web3 = Web3(Web3.HTTPProvider(getattr(settings, 'ETHEREUM_NODE_URL', 'http://localhost:8545')))
+        ethereum_node_url = getattr(settings, 'ETHEREUM_NODE_URL', 'http://localhost:8545')
+        
+        # Stelle sicher, dass die URL korrekt formatiert ist (mit http/https Präfix)
+        if not ethereum_node_url.startswith('http'):
+            ethereum_node_url = 'https://' + ethereum_node_url
+            
+        self.web3 = Web3(Web3.HTTPProvider(ethereum_node_url))
         
         # Load contract ABI and address from settings or environment variables
         self.contract_abi = self._load_contract_abi()
@@ -19,19 +24,35 @@ class BlockchainService:
         # Von den Einstellungen laden, falls verfügbar
         self.contract_address = getattr(settings, 'CONTRACT_ADDRESS', None)
         
+        # DEBUG: Print connection and contract status for troubleshooting
+        print(f"Verbindung zu Ethereum-Node: {self.web3.is_connected()}")
+        print(f"Contract-Adresse: {self.contract_address}")
+        
         # Contract-Instanz initialisieren, falls eine Adresse verfügbar ist
         self.contract = None
-        if self.contract_address and self.web3.is_address(self.contract_address):
-            self._initialize_contract()
+        if self.contract_address:
+            # Stelle sicher, dass die Adresse das korrekte Format hat (mit 0x Präfix)
+            if not self.contract_address.startswith('0x'):
+                self.contract_address = '0x' + self.contract_address
+                
+            if self.web3.is_address(self.contract_address):
+                self._initialize_contract()
+            else:
+                print(f"Warnung: Ungültige Ethereum-Adresse: {self.contract_address}")
     
     def _initialize_contract(self):
         """Initialisiert den Smart Contract mit der aktuellen Adresse"""
         if self.contract_address and self.contract_abi:
-            self.contract = self.web3.eth.contract(
-                address=self.contract_address,
-                abi=self.contract_abi
-            )
-            return True
+            try:
+                self.contract = self.web3.eth.contract(
+                    address=self.contract_address,
+                    abi=self.contract_abi
+                )
+                print(f"Smart Contract erfolgreich initialisiert: {self.contract_address}")
+                return True
+            except Exception as e:
+                print(f"Fehler bei der Contract-Initialisierung: {str(e)}")
+                return False
         return False
     
     def _load_contract_abi(self):
@@ -171,7 +192,8 @@ class BlockchainService:
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
         
-        # Prepare the transaction
+        # Prepare the transaction to confirm completion - this will set the contract as completed
+        # in the Contract Manager
         tx = self.contract.functions.confirmCompletion(contract_id).build_transaction({
             'from': creator_address,
             'nonce': self.web3.eth.get_transaction_count(creator_address),
@@ -218,3 +240,22 @@ class BlockchainService:
         
         # Return the transaction for signing in the frontend
         return tx
+        
+    def get_contract_details(self, contract_id):
+        """Get all details for a specific contract from the Contract Manager"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+            
+        contract_details = self.contract.functions.contracts(contract_id).call()
+        
+        # Format the contract details based on the Solidity contract structure
+        formatted_details = {
+            'id': contract_details[0],
+            'amount': contract_details[1],
+            'creator': contract_details[2],
+            'counterparty': contract_details[3],
+            'status': self.get_contract_status(contract_id),
+            'hash': contract_details[5]
+        }
+        
+        return formatted_details

@@ -3,6 +3,7 @@ import os
 from django.conf import settings
 from .storage import ContractStorage
 from django.utils import timezone
+from web3 import Web3
 
 def contract_pdf_file_path(instance, filename):
     # Dateiendung (.pdf) vom Dateinamen extrahieren
@@ -73,6 +74,23 @@ class Contract(models.Model):
         return self.title
         
     def save(self, *args, **kwargs):
+        # Stelle sicher, dass Ethereum-Adressen im Checksum-Format sind
+        if self.creator_address and not self.creator_address.startswith('0x'):
+            self.creator_address = '0x' + self.creator_address
+        
+        if self.partner_address and not self.partner_address.startswith('0x'):
+            self.partner_address = '0x' + self.partner_address
+            
+        # Konvertiere zu Checksum-Adressen, wenn sie gültige Adressen sind
+        try:
+            if self.creator_address and Web3.is_address(self.creator_address):
+                self.creator_address = Web3.to_checksum_address(self.creator_address)
+                
+            if self.partner_address and Web3.is_address(self.partner_address):
+                self.partner_address = Web3.to_checksum_address(self.partner_address)
+        except Exception as e:
+            print(f"Warnung bei der Adresskonvertierung: {e}")
+        
         # Erst speichern wir das Objekt, um die ID zu bekommen, falls es neu ist
         is_new = self.pk is None
         

@@ -152,5 +152,5 @@ MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
 
 # Blockchain settings
 ETHEREUM_NODE_URL = os.environ.get('ETHEREUM_NODE_URL', '')
-#CONTRACT_ADDRESS = os.environ.get('CONTRACT_ADDRESS', '')
+CONTRACT_ADDRESS = os.environ.get('CONTRACT_ADDRESS', '')
 CONTRACT_ABI_PATH = os.path.join(BASE_DIR, 'contractsapp', 'static', 'contracts', 'DigitalContractPlatform.json')

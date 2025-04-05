@@ -551,6 +551,17 @@ def verify_partner(request, pk):
         errors['address'] = 'Bitte geben Sie Ihre Ethereum Wallet-Adresse ein.'
     elif not partner_address.startswith('0x') or len(partner_address) != 42:
         errors['address'] = 'Bitte geben Sie eine gültige Ethereum-Adresse ein (beginnt mit 0x und hat 42 Zeichen).'
+    else:
+        # Validiere die Ethereum-Adresse zusätzlich mit web3
+        try:
+            from web3 import Web3
+            if not Web3.is_address(partner_address):
+                errors['address'] = 'Die angegebene Ethereum-Adresse ist ungültig.'
+            else:
+                # Konvertiere in Checksum-Format
+                partner_address = Web3.to_checksum_address(partner_address)
+        except Exception as e:
+            errors['address'] = f'Fehler bei der Überprüfung der Ethereum-Adresse: {str(e)}'
     
     if errors:
         return JsonResponse({'success': False, 'errors': errors})
@@ -760,6 +771,22 @@ def submit_to_blockchain(request, pk):
             if not contract.partner_address:
                 messages.error(request, "Der Vertragspartner muss eine Ethereum-Adresse haben.")
                 return redirect('contract_detail', pk=pk)
+            
+            # Stellen Sie sicher, dass ein PDF-Hash existiert
+            if not contract.pdf_hash:
+                # Versuchen Sie, den Hash erneut zu berechnen
+                try:
+                    contract.pdf_hash = blockchain_service.calculate_pdf_hash(contract.pdf_file)
+                    contract.save(update_fields=['pdf_hash'])
+                    messages.success(request, "PDF-Hash wurde neu berechnet.")
+                except Exception as hash_error:
+                    messages.error(request, f"Fehler beim Berechnen des PDF-Hashes: {str(hash_error)}")
+                    return redirect('contract_detail', pk=pk)
+            
+            # Überprüfen Sie erneut, ob der Hash jetzt vorhanden ist
+            if not contract.pdf_hash:
+                messages.error(request, "Der Vertrag hat keinen gültigen PDF-Hash. Bitte kontaktieren Sie den Support.")
+                return redirect('contract_detail', pk=pk)
                 
             tx = blockchain_service.create_contract(
                 creator_address=contract.creator_address,
@@ -767,6 +794,11 @@ def submit_to_blockchain(request, pk):
                 contract_hash=contract.pdf_hash,
                 amount_wei=contract.contract_amount
             )
+            
+            # Debugging-Log hinzufügen
+            print(f"Contract Hash: {contract.pdf_hash}")
+            print(f"Contract Amount: {contract.contract_amount}")
+            print(f"Counterparty Address: {contract.partner_address}")
             
             # Für die JavaScript-Verarbeitung vorbereiten
             tx_dict = dict(tx)
