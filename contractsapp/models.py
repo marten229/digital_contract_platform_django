@@ -69,7 +69,6 @@ class Contract(models.Model):
     pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
     blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
     contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
-    transaction_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="Transaktions-Hash")
 
     def __str__(self):
         return self.title

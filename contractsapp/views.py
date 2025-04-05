@@ -449,17 +449,15 @@ def add_signature(request, pk):
                     blockchain_tx_hash = request.POST.get('blockchain_tx_hash')
                     blockchain_contract_id = request.POST.get('blockchain_contract_id')
                     
-                    if blockchain_tx_hash:
-                        contract.transaction_hash = blockchain_tx_hash
-                        if blockchain_contract_id:
-                            contract.blockchain_contract_id = int(blockchain_contract_id)
-                        contract.save(update_fields=['transaction_hash', 'blockchain_contract_id'])
+                    if blockchain_contract_id:
+                        contract.blockchain_contract_id = int(blockchain_contract_id)
+                        contract.save(update_fields=['blockchain_contract_id'])
                         
                         ContractActivity.log(
                             contract=contract,
                             action='other',
                             user=request.user,
-                            details=f"Vertrag auf der Blockchain registriert: TX {blockchain_tx_hash[:10]}..."
+                            details=f"Vertrag auf der Blockchain registriert: Contract ID: {blockchain_contract_id}"
                         )
                     
                 except Exception as e:
@@ -557,41 +555,54 @@ def update_blockchain_status(request, pk):
     blockchain_tx_hash = request.POST.get('tx_hash')
     blockchain_contract_id = request.POST.get('contract_id')
     
-    if blockchain_tx_hash:
-        # Print debug information
-        print(f"Aktualisiere Blockchain-Status von Contract {pk}")
-        print(f"Frontend TX Hash: {blockchain_tx_hash}")
-        print(f"Frontend Contract ID: {blockchain_contract_id}")
-        
-        contract.transaction_hash = blockchain_tx_hash
-        
-        if blockchain_contract_id:
-            contract.blockchain_contract_id = int(blockchain_contract_id)
-        
-        # Explizit speichern und sicherstellen, dass die Daten gespeichert werden
-        contract.save(update_fields=['transaction_hash', 'blockchain_contract_id'])
-        print(f"Daten gespeichert: TX Hash={contract.transaction_hash}, Contract ID={contract.blockchain_contract_id}")
-        
-        # Status aktualisieren und Status auf "blockchain_published" setzen
-        contract.status = 'blockchain_published'
-        contract.save(update_fields=['status'])
-        
-        contract.update_blockchain_status()
-        
-        ContractActivity.log(
-            contract=contract,
-            action='blockchain_published',
-            user=request.user,
-            details=f"Vertrag wurde auf der Blockchain registriert: TX {blockchain_tx_hash[:10]}..."
-        )
-        
-        return JsonResponse({
-            'success': True, 
-            'contract_id': contract.blockchain_contract_id,
-            'status': contract.blockchain_status
-        })
+    if blockchain_contract_id:
+        try:
+            # Konvertiere zu Integer
+            blockchain_contract_id = int(blockchain_contract_id)
+            
+            # Setze nur die Contract-ID im Contract-Objekt
+            contract.blockchain_contract_id = blockchain_contract_id
+            contract.status = 'blockchain_published'
+            
+            # Speichern der Änderungen (nur Contract-ID, keine Transaction Hash)
+            contract.save(update_fields=['blockchain_contract_id', 'status'])
+            
+            # Protokolliere die Aktivität (ohne Transaction Hash)
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_published',
+                user=request.user,
+                details=f"Vertrag auf der Blockchain registriert: Contract ID: {blockchain_contract_id}"
+            )
+            
+            # Aktualisiere den Blockchain-Status
+            try:
+                contract.update_blockchain_status()
+            except Exception as e:
+                print(f"Error updating blockchain status: {e}")
+            
+            # Aktualisiere das Objekt und überprüfe die Werte
+            contract.refresh_from_db()
+            print(f"Nach Speichern: contract_id={contract.blockchain_contract_id}, status={contract.status}")
+            
+            return JsonResponse({
+                'success': True, 
+                'contract_id': contract.blockchain_contract_id,
+                'tx_hash': blockchain_tx_hash,  # Gib die tx_hash trotzdem im Response zurück für die Anzeige
+                'status': contract.blockchain_status or 'Updated',
+                'message': 'Blockchain-Status erfolgreich aktualisiert'
+            })
+            
+        except (ValueError, TypeError) as e:
+            print(f"Fehler bei der Konvertierung der Contract-ID: {e}")
+            return JsonResponse({'success': False, 'message': f'Ungültige Contract-ID: {str(e)}'})
+        except Exception as e:
+            import traceback
+            print(f"Allgemeiner Fehler in update_blockchain_status: {e}")
+            print(traceback.format_exc())
+            return JsonResponse({'success': False, 'message': f'Interner Fehler: {str(e)}'})
     
-    return JsonResponse({'success': False, 'message': 'Keine Transaktionsdaten erhalten'})
+    return JsonResponse({'success': False, 'message': 'Keine Contract-ID erhalten. Die Transaktion wurde möglicherweise nicht bestätigt.'})
 
 
 @login_required
@@ -764,16 +775,15 @@ def submit_to_blockchain(request, pk):
             # Debugging logs to ensure data is being processed correctly
             print(f"Blockchain transaction response: {tx_dict}")
 
-            # Save blockchain details
+            # Save only the contract_id
             contract.blockchain_contract_id = tx_dict.get('contract_id')
-            contract.transaction_hash = tx_dict.get('transaction_hash')
-
-            if not contract.blockchain_contract_id or not contract.transaction_hash:
-                print("Error: Missing blockchain_contract_id or transaction_hash in response.")
+            
+            if not contract.blockchain_contract_id:
+                print("Error: Missing blockchain_contract_id in response.")
             else:
-                print(f"Saving contract with ID: {contract.blockchain_contract_id} and TX hash: {contract.transaction_hash}")
+                print(f"Saving contract with ID: {contract.blockchain_contract_id}")
 
-            contract.save(update_fields=['blockchain_contract_id', 'transaction_hash'])
+            contract.save(update_fields=['blockchain_contract_id'])
 
             for key, value in tx_dict.items():
                 if isinstance(value, bytes):

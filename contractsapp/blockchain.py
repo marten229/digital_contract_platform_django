@@ -180,11 +180,6 @@ class BlockchainService:
             print(f"Fehler beim Abrufen des Contract Counters: {str(e)}")
             tx_with_data['contract_id'] = None
         
-        # Erzeuge einen Transaktions-Hash für die Datenbank
-        # Dies ist nicht der endgültige Hash auf der Blockchain, sondern ein vorläufiger Hash
-        tx_with_data['transaction_hash'] = Web3.keccak(text=str(tx)).hex()
-        print(f"Vorläufiger Transaction Hash: {tx_with_data['transaction_hash']}")
-        
         # The transaction needs to be signed by the creator off-chain
         # Return the extended transaction for signing in the frontend
         return tx_with_data
