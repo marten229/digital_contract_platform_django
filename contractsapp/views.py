@@ -42,9 +42,14 @@ def contract_list(request):
     completed_contracts = creator_contracts.filter(status='completed')
     rejected_contracts = creator_contracts.filter(status='rejected')
     
+    # Filter für Blockchain-Verträge hinzufügen
+    blockchain_contracts = creator_contracts.filter(status='blockchain_published')
+    blockchain_partner_contracts = partner_contracts.filter(status='blockchain_published')
+    
     pending_partner_contracts = partner_contracts.filter(
         ~Q(status='completed') & 
-        ~Q(status='rejected')
+        ~Q(status='rejected') &
+        ~Q(status='blockchain_published')
     )
     
     completed_partner_contracts = partner_contracts.filter(status='completed')
@@ -66,6 +71,8 @@ def contract_list(request):
         'all_contracts': creator_contracts,
         'pending_partner_contracts': pending_partner_contracts,
         'completed_partner_contracts': completed_partner_contracts,
+        'blockchain_contracts': blockchain_contracts,
+        'blockchain_partner_contracts': blockchain_partner_contracts,
         'recent_activities': recent_activities,
     }
     
@@ -551,20 +558,31 @@ def update_blockchain_status(request, pk):
     blockchain_contract_id = request.POST.get('contract_id')
     
     if blockchain_tx_hash:
+        # Print debug information
+        print(f"Aktualisiere Blockchain-Status von Contract {pk}")
+        print(f"Frontend TX Hash: {blockchain_tx_hash}")
+        print(f"Frontend Contract ID: {blockchain_contract_id}")
+        
         contract.transaction_hash = blockchain_tx_hash
         
         if blockchain_contract_id:
             contract.blockchain_contract_id = int(blockchain_contract_id)
         
+        # Explizit speichern und sicherstellen, dass die Daten gespeichert werden
         contract.save(update_fields=['transaction_hash', 'blockchain_contract_id'])
+        print(f"Daten gespeichert: TX Hash={contract.transaction_hash}, Contract ID={contract.blockchain_contract_id}")
+        
+        # Status aktualisieren und Status auf "blockchain_published" setzen
+        contract.status = 'blockchain_published'
+        contract.save(update_fields=['status'])
         
         contract.update_blockchain_status()
         
         ContractActivity.log(
             contract=contract,
-            action='other',
+            action='blockchain_published',
             user=request.user,
-            details=f"Blockchain-Status aktualisiert: {contract.blockchain_status}"
+            details=f"Vertrag wurde auf der Blockchain registriert: TX {blockchain_tx_hash[:10]}..."
         )
         
         return JsonResponse({
@@ -686,6 +704,14 @@ def submit_to_blockchain(request, pk):
             amount_wei = int(float(contract_amount) * 10**18)
             contract.contract_amount = amount_wei
             contract.save(update_fields=['contract_amount'])
+            
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain',
+                user=request.user,
+                user_role='creator',
+                details=f"Vertragswert festgelegt: {contract_amount} ETH"
+            )
         except (ValueError, TypeError):
             messages.error(request, "Bitte geben Sie einen gültigen Betrag ein.")
             return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})
@@ -700,6 +726,15 @@ def submit_to_blockchain(request, pk):
                 try:
                     contract.pdf_hash = blockchain_service.calculate_pdf_hash(contract.pdf_file)
                     contract.save(update_fields=['pdf_hash'])
+                    
+                    ContractActivity.log(
+                        contract=contract,
+                        action='blockchain',
+                        user=request.user,
+                        user_role='creator',
+                        details="PDF-Hash wurde neu berechnet für Blockchain-Übermittlung"
+                    )
+                    
                     messages.success(request, "PDF-Hash wurde neu berechnet.")
                 except Exception as hash_error:
                     messages.error(request, f"Fehler beim Berechnen des PDF-Hashes: {str(hash_error)}")
@@ -716,8 +751,30 @@ def submit_to_blockchain(request, pk):
                 amount_wei=contract.contract_amount
             )
             
-            tx_dict = dict(tx)
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain',
+                user=request.user,
+                user_role='creator',
+                details="Blockchain-Transaktion für Vertrag vorbereitet"
+            )
             
+            tx_dict = dict(tx)
+
+            # Debugging logs to ensure data is being processed correctly
+            print(f"Blockchain transaction response: {tx_dict}")
+
+            # Save blockchain details
+            contract.blockchain_contract_id = tx_dict.get('contract_id')
+            contract.transaction_hash = tx_dict.get('transaction_hash')
+
+            if not contract.blockchain_contract_id or not contract.transaction_hash:
+                print("Error: Missing blockchain_contract_id or transaction_hash in response.")
+            else:
+                print(f"Saving contract with ID: {contract.blockchain_contract_id} and TX hash: {contract.transaction_hash}")
+
+            contract.save(update_fields=['blockchain_contract_id', 'transaction_hash'])
+
             for key, value in tx_dict.items():
                 if isinstance(value, bytes):
                     tx_dict[key] = value.hex()
@@ -728,7 +785,23 @@ def submit_to_blockchain(request, pk):
                 'is_submission': True
             })
         except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_error',
+                user=request.user,
+                user_role='creator',
+                details=f"Fehler bei der Blockchain-Übermittlung: {str(e)}"
+            )
+            
             messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Transaktion: {str(e)}")
             return redirect('contract_detail', pk=pk)
+    
+    ContractActivity.log(
+        contract=contract,
+        action='blockchain',
+        user=request.user,
+        user_role='creator',
+        details="Blockchain-Übermittlungsseite geöffnet"
+    )
     
     return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})

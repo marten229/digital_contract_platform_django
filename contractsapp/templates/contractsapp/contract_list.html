@@ -109,10 +109,15 @@
                                         </div>
                                         <div class="contract-actions">
                                             <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
-                                            {% if contract.status == 'completed' and not contract.blockchain_tx_hash and contract.creator_address == user.ethereum_address %}
+                                            {% if contract.status == 'completed' and not contract.blockchain_contract_id and contract.creator_address == user.ethereum_address %}
                                                 <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
                                                 </a>
+                                            {% endif %}
+                                            {% if contract.status == 'blockchain_published' %}
+                                                <span class="badge bg-primary">
+                                                    <i class="bi bi-link-45deg"></i> Blockchain ID: {{ contract.blockchain_contract_id }}
+                                                </span>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -196,6 +201,62 @@
                     </div>
                 </div>
                 {% endif %}
+                
+                <!-- Blockchain-Verträge -->
+                <div class="contract-section">
+                    <h2 class="section-header">Verträge auf der Blockchain</h2>
+                    {% if blockchain_contracts or blockchain_partner_contracts %}
+                        <div class="row">
+                            {% for contract in blockchain_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
+                                            <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                            {% for contract in blockchain_partner_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card partner-contract">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:10 }}</div>
+                                            <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
+                                            <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address %}
+                                                <button class="btn btn-outline-success btn-sm withdraw-funds" 
+                                                        data-contract-id="{{ contract.pk }}">
+                                                    <i class="bi bi-cash-coin"></i> Geld abheben
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <p>Sie haben derzeit keine Verträge auf der Blockchain.</p>
+                        </div>
+                    {% endif %}
+                </div>
             {% else %}
                 <div class="empty-state mt-5">
                     <h3>Keine Verträge gefunden</h3>

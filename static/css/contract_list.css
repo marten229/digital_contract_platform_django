@@ -81,6 +81,11 @@
 .status-signed-partner { background-color: #f8d7da; color: #842029; }
 .status-completed { background-color: #d1e7dd; color: #0f5132; }
 .status-rejected { background-color: #f8d7da; color: #842029; }
+.status-blockchain { 
+    background-color: #6610f2; 
+    color: #ffffff;
+    font-weight: 600;
+}
 
 .activity-list {
     margin-top: 1.5rem;

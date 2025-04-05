@@ -167,9 +167,27 @@ class BlockchainService:
             'gasPrice': self.web3.eth.gas_price
         })
         
+        # Erstelle eine Kopie des Transaktions-Dictionaries für zusätzliche Daten
+        tx_with_data = dict(tx)
+        
+        # Erzeuge die vorläufige Contract-ID basierend auf dem aktuellen Contract-Counter
+        try:
+            current_contract_counter = self.contract.functions.contractCounter().call()
+            next_contract_id = current_contract_counter + 1
+            tx_with_data['contract_id'] = next_contract_id
+            print(f"Vorläufige Contract ID: {next_contract_id}")
+        except Exception as e:
+            print(f"Fehler beim Abrufen des Contract Counters: {str(e)}")
+            tx_with_data['contract_id'] = None
+        
+        # Erzeuge einen Transaktions-Hash für die Datenbank
+        # Dies ist nicht der endgültige Hash auf der Blockchain, sondern ein vorläufiger Hash
+        tx_with_data['transaction_hash'] = Web3.keccak(text=str(tx)).hex()
+        print(f"Vorläufiger Transaction Hash: {tx_with_data['transaction_hash']}")
+        
         # The transaction needs to be signed by the creator off-chain
-        # Return the transaction for signing in the frontend
-        return tx
+        # Return the extended transaction for signing in the frontend
+        return tx_with_data
     
     def sign_contract(self, partner_address, contract_id):
         """Sign a contract on the blockchain"""

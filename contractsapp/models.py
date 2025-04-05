@@ -28,6 +28,7 @@ class Contract(models.Model):
         ('signed_by_creator', 'Vom Ersteller unterschrieben'),
         ('signed_by_partner', 'Vom Partner unterschrieben'),
         ('completed', 'Vollständig unterschrieben'),
+        ('blockchain_published', 'Auf Blockchain veröffentlicht'),
         ('rejected', 'Abgelehnt'),
     )
     
@@ -156,6 +157,7 @@ class Contract(models.Model):
             'signed_by_creator': 'status-signed-creator',
             'signed_by_partner': 'status-signed-partner',
             'completed': 'status-completed',
+            'blockchain_published': 'status-blockchain',
             'rejected': 'status-rejected',
         }
         return status_classes.get(self.status, 'status-default')
@@ -169,7 +171,19 @@ class Contract(models.Model):
                 
                 # Get the current status from the blockchain
                 self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
-                self.save(update_fields=['blockchain_status'])
+                
+                # Wenn der Vertrag erfolgreich auf der Blockchain ist und der Status noch nicht aktualisiert wurde
+                if self.blockchain_status in ['Created', 'Signed', 'Completed'] and self.status != 'blockchain_published':
+                    self.status = 'blockchain_published'
+                    # Log the activity
+                    from .models import ContractActivity
+                    ContractActivity.log(
+                        contract=self,
+                        action='status_change',
+                        details=f"Vertragsstatus auf 'Auf Blockchain veröffentlicht' geändert (Blockchain-Status: {self.blockchain_status})"
+                    )
+                
+                self.save(update_fields=['blockchain_status', 'status'])
                 return True
             except Exception as e:
                 print(f"Error updating blockchain status: {e}")
