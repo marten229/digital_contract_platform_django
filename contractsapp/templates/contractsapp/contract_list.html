@@ -77,7 +77,9 @@
                                         </div>
                                         <div class="contract-actions">
                                             <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.status != 'signed_by_creator' %}
                                             <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">Zur Signatur</a>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -176,7 +178,9 @@
                                     </div>
                                     <div class="contract-actions">
                                         <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                        {% if contract.status != 'signed_by_creator' %}
                                         <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">Zur Signatur</a>
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>

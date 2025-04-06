@@ -271,6 +271,14 @@ def contract_signing(request, pk):
     is_creator = user_eth_address == contract.creator_address
     is_partner = user_eth_address == contract.partner_address
     
+    # Überprüfen, ob der Benutzer bereits unterschrieben hat und zur Detailseite umleiten
+    if is_creator and contract.status == 'signed_by_creator':
+        messages.info(request, 'Sie haben diesen Vertrag bereits unterschrieben.')
+        return redirect('contract_detail', pk=contract.pk)
+    elif is_partner and contract.status == 'signed_by_partner':
+        messages.info(request, 'Sie haben diesen Vertrag bereits unterschrieben.')
+        return redirect('contract_detail', pk=contract.pk)
+    
     if request.user.is_authenticated:
         if is_creator:
             ContractActivity.log(
