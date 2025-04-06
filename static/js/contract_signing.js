@@ -469,26 +469,17 @@ function saveSignature(url, csrfToken) {
             'y': pdfCoords.y,
             'width': pdfCoords.width,
             'height': pdfCoords.height,
-            'page': currentPage
+            'page': currentPage,
+            'no_download': 'true'  // New parameter to indicate we don't want to download
         })
     })
     .then(response => {
         if (!response.ok) {
             throw new Error("Fehler beim Hinzufügen der Unterschrift");
         }
-        return response.blob();
+        return response.json(); // Changed from blob to json
     })
-    .then(blob => {
-        // Erstelle einen Downloadlink für die signierte PDF
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = 'signed_contract.pdf';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        
+    .then(data => {
         // UI zurücksetzen
         previewMode = false;
         previewControls.style.display = 'none';
@@ -496,12 +487,17 @@ function saveSignature(url, csrfToken) {
         signatureRect = null;
         signatureDataURL = null;
         overlayCanvas.style.cursor = 'default';
-        updateWorkflowStep(1);
         
         hideLoading();
         
-        // Success message
-        alert("Unterschrift erfolgreich hinzugefügt! Das signierte Dokument wurde heruntergeladen.");
+        // Redirect to contract list after a short delay
+        setTimeout(() => {
+            if (data.redirect_url) {
+                window.location.href = data.redirect_url;  // Use the redirect URL from the server
+            } else {
+                window.location.href = '/contracts/';  // Fallback
+            }
+        }, 1000);
     })
     .catch(error => {
         console.error("Fehler:", error);

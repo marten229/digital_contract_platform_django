@@ -460,6 +460,9 @@ def add_signature(request, pk):
                             user=request.user,
                             details=details
                         )
+                        
+                        # Add a success message for the next page load
+                        messages.success(request, "Unterschrift erfolgreich hinzugefügt.")
                     
                     blockchain_tx_hash = request.POST.get('blockchain_tx_hash')
                     blockchain_contract_id = request.POST.get('blockchain_contract_id')
@@ -482,9 +485,20 @@ def add_signature(request, pk):
                 
                 output_stream.seek(0)
                 
-                response = HttpResponse(output_stream, content_type='application/pdf')
-                response['Content-Disposition'] = 'attachment; filename="signed_contract.pdf"'
-                return response
+                # Check if the client requested no file download
+                if request.POST.get('no_download') == 'true':
+                    # Return a response with a redirect URL instead of JSON response
+                    return JsonResponse({
+                        'success': True,
+                        'message': 'Unterschrift erfolgreich hinzugefügt',
+                        'status': contract.status,
+                        'redirect_url': reverse('contract_list')
+                    })
+                else:
+                    # Original behavior - return the PDF for download
+                    response = HttpResponse(output_stream, content_type='application/pdf')
+                    response['Content-Disposition'] = 'attachment; filename="signed_contract.pdf"'
+                    return response
                 
             except Exception as e:
                 import traceback
