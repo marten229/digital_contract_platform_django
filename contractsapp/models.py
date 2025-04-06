@@ -41,9 +41,9 @@ class Contract(models.Model):
     partner_name = models.CharField(max_length=100, verbose_name="Name des Vertragspartners", default=None)
     partner_email = models.EmailField(verbose_name="E-Mail des Vertragspartners", default=None)
     
-    # Make partner address optional - will be added when partner accepts the contract
+    # Make partner address required since it's entered at upload time
     partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Vertragspartners", 
-                                      blank=True, null=True, default=None)
+                                      blank=False, null=False, default=None)
     
     # Fields for signature positions
     creator_signature_x = models.FloatField(null=True, blank=True)
@@ -74,23 +74,13 @@ class Contract(models.Model):
         return self.title
         
     def save(self, *args, **kwargs):
-        # Stelle sicher, dass Ethereum-Adressen im Checksum-Format sind
-        if self.creator_address and not self.creator_address.startswith('0x'):
-            self.creator_address = '0x' + self.creator_address
-        
-        if self.partner_address and not self.partner_address.startswith('0x'):
-            self.partner_address = '0x' + self.partner_address
+        # Stelle sicher, dass Ethereum-Adressen in Kleinbuchstaben gespeichert werden
+        if self.creator_address:
+            self.creator_address = self.creator_address.lower()
             
-        # Konvertiere zu Checksum-Adressen, wenn sie gültige Adressen sind
-        try:
-            if self.creator_address and Web3.is_address(self.creator_address):
-                self.creator_address = Web3.to_checksum_address(self.creator_address)
-                
-            if self.partner_address and Web3.is_address(self.partner_address):
-                self.partner_address = Web3.to_checksum_address(self.partner_address)
-        except Exception as e:
-            print(f"Warnung bei der Adresskonvertierung: {e}")
-        
+        if self.partner_address:
+            self.partner_address = self.partner_address.lower()
+            
         # Erst speichern wir das Objekt, um die ID zu bekommen, falls es neu ist
         is_new = self.pk is None
         

@@ -4,51 +4,18 @@
 {% block title %}Vertrag an Blockchain übermitteln | DigiContract{% endblock %}
 
 {% block extra_css %}
-<style>
-    .blockchain-submit-section {
-        background-color: #f8f9fa;
-        border-radius: 8px;
-        padding: 30px;
-        margin-bottom: 30px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-    }
-    
-    .contract-detail {
-        background: #e9ecef;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    
-    .contract-hash {
-        font-family: monospace;
-        word-break: break-all;
-        background-color: #f8f9fa;
-        padding: 8px;
-        border-radius: 4px;
-        border-left: 4px solid #007bff;
-    }
-    
-    .status-info {
-        display: flex;
-        align-items: center;
-        margin-top: 20px;
-    }
-    
-    .status-info .spinner-border {
-        margin-right: 15px;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
 {% endblock %}
 
 {% block content %}
 <div class="container py-5">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Vertrag an Blockchain übermitteln</h1>
-        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary">
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
             <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
         </a>
+        <h1 class="mb-0">Vertrag an Blockchain übermitteln</h1>
     </div>
+    
     
     <div class="alert alert-info">
         <i class="bi bi-info-circle-fill me-2"></i>
@@ -149,35 +116,36 @@
                     </div>
                 </div>
                 {% else %}
-                <div id="amount-form-area">
-                    <h4 class="mb-3">Vertragsbetrag festlegen</h4>
-                    <p>
-                        Bitte geben Sie den Betrag in ETH an, den Sie für diesen Vertrag hinterlegen möchten.
-                        Dieser Betrag wird in dem Smart Contract gesperrt und bei erfolgreicher Vertragserfüllung 
-                        an den Partner ausgezahlt.
-                    </p>
+                <div id="contract-info-area">
+                    <h4 class="mb-3">Vertragsbetrag</h4>
                     
-                    <form method="post" class="needs-validation" novalidate>
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="contract_amount" class="form-label">Vertragsbetrag (ETH)</label>
-                            <div class="input-group">
-                                <input type="number" step="0.01" min="0.01" class="form-control"
-                                       id="contract_amount" name="contract_amount" required
-                                       placeholder="z.B. 0.5">
-                                <span class="input-group-text">ETH</span>
-                            </div>
-                            <div class="form-text">
-                                Geben Sie den Betrag in Ether ein, den Sie für diesen Vertrag hinterlegen möchten.
-                                Stellen Sie sicher, dass Ihre Wallet über genügend ETH verfügt.
-                            </div>
-                        </div>
-                        
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-currency-exchange me-2"></i>
-                            Betrag festlegen und fortfahren
-                        </button>
-                    </form>
+                    {% if contract.contract_amount %}
+                    <div class="alert alert-info">
+                        <p class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Der Vertrag wird mit dem beim Hochladen festgelegten Betrag von 
+                            <strong>{{ contract.eth_amount|floatformat:4 }} ETH</strong> auf der Blockchain registriert.
+                        </p>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mb-4">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="use_existing_amount" value="true">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-currency-exchange me-2"></i>
+                                Mit Blockchain-Registrierung fortfahren
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <p class="mb-0">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.
+                        </p>
+                    </div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -207,6 +175,11 @@
         </div>
     </div>
 </div>
+
+<!-- Füge diese versteckten Elemente zum HTML hinzu, um Daten an JS zu übergeben -->
+<div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
+<div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
+<div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
 {% endblock %}
 
 {% block extra_js %}
@@ -214,13 +187,36 @@
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Speichere die Transaktionsdaten
-        const txData = {{ transaction|safe }};
+        const submitButton = document.getElementById('submit-button');
+        const retryButton = document.getElementById('retry-button');
         
+        // Transaktionsdaten direkt aus Django
+        let txData = {{ transaction|safe }};
+        
+        if (submitButton) {
+            submitButton.onclick = function() {
+                submitToBlockchain();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                submitToBlockchain();
+                return false;
+            };
+        }
+
         async function submitToBlockchain() {
             // Prüfe, ob MetaMask installiert ist
             if (typeof window.ethereum === 'undefined') {
                 showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            // Überprüfen, ob die Transaktionsdaten vorhanden sind
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
                 return;
             }
             
@@ -230,15 +226,10 @@
                 document.getElementById('submission-status').classList.remove('d-none');
                 
                 // Mit MetaMask verbinden
-                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 const web3 = new Web3(window.ethereum);
                 
-                // Netzwerk-ID überprüfen
-                const networkId = await web3.eth.net.getId();
-                console.log(`Aktuelles Netzwerk: ${networkId}`);
-                
                 // Überprüfen, ob die aktuelle Adresse mit der Ersteller-Adresse übereinstimmt
-                const accounts = await web3.eth.getAccounts();
                 const userAddress = accounts[0];
                 const creatorAddress = "{{ contract.creator_address }}";
                 
@@ -247,14 +238,16 @@
                     return;
                 }
                 
-                // Transaktion senden
-                web3.eth.sendTransaction(txData)
-                    .on('transactionHash', (hash) => {
-                        console.log(`Transaktions-Hash: ${hash}`);
+                // Bereite die Transaktion für Web3.js vor
+                const web3Tx = {...txData};
+                if (web3Tx.contract_id) delete web3Tx.contract_id;
+                
+                // Transaktion mit MetaMask senden
+                web3.eth.sendTransaction(web3Tx)
+                    .on('transactionHash', function(hash) {
+                        // Transaktions-Hash wurde generiert
                     })
-                    .on('receipt', async (receipt) => {
-                        console.log('Transaktion bestätigt:', receipt);
-                        
+                    .on('receipt', async function(receipt) {
                         // Erfolgs-UI anzeigen
                         document.getElementById('submission-status').classList.add('d-none');
                         document.getElementById('submission-success').classList.remove('d-none');
@@ -262,35 +255,20 @@
                         // Hash und Contract-ID anzeigen
                         document.getElementById('transaction-hash').textContent = receipt.transactionHash;
                         
-                        // Contract-ID aus den Logs extrahieren
-                        let contractId = null;
-                        if (receipt.logs && receipt.logs.length > 0) {
-                            // Suche nach dem ContractCreated-Event und extrahiere die ID
-                            for (const log of receipt.logs) {
-                                if (log.topics && log.topics.length > 1 && log.topics[0].includes('ContractCreated')) {
-                                    // Die zweite Topic enthält die Contract-ID
-                                    const idHex = log.topics[1];
-                                    contractId = web3.utils.hexToNumber(idHex);
-                                    break;
-                                }
-                            }
-                        }
+                        // Contract-ID verwenden
+                        let contractId = txData.contract_id || null;
                         
-                        if (contractId !== null) {
+                        if (contractId) {
                             document.getElementById('contract-id').textContent = contractId;
-                            
-                            // Backend aktualisieren
                             await updateBlockchainStatus(receipt.transactionHash, contractId);
                         } else {
                             document.getElementById('contract-id').textContent = "Nicht verfügbar";
                         }
                     })
-                    .on('error', (error) => {
-                        console.error('Fehler bei der Blockchain-Übermittlung:', error);
+                    .on('error', function(error) {
                         showError(error.message || 'Unbekannter Fehler bei der Übermittlung des Vertrags');
                     });
             } catch (error) {
-                console.error('Fehler:', error);
                 showError(error.message || 'Unbekannter Fehler');
             }
         }
@@ -303,7 +281,9 @@
                     formData.append('contract_id', contractId);
                 }
                 
-                const response = await fetch('{% url "update_blockchain_status" contract.pk %}', {
+                const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
+                
+                const response = await fetch(updateUrl, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': getCookie('csrftoken'),
@@ -342,12 +322,6 @@
             }
             return cookieValue;
         }
-        
-        // Event-Listener für den Submit-Button
-        document.getElementById('submit-button').addEventListener('click', submitToBlockchain);
-        
-        // Event-Listener für den Retry-Button
-        document.getElementById('retry-button').addEventListener('click', submitToBlockchain);
     });
 </script>
 {% endif %}

@@ -154,6 +154,23 @@ class BlockchainService:
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
         
+        # Ensure addresses are in checksum format
+        try:
+            # Stelle sicher, dass die Adressen nicht None oder leer sind
+            if not creator_address or not counterparty_address:
+                raise ValueError("Creator or counterparty address is empty")
+                
+            # Stelle sicher, dass die Adressen mit 0x beginnen
+            if not creator_address.startswith('0x'):
+                creator_address = '0x' + creator_address
+            if not counterparty_address.startswith('0x'):
+                counterparty_address = '0x' + counterparty_address
+                
+            creator_address = self.web3.to_checksum_address(creator_address)
+            counterparty_address = self.web3.to_checksum_address(counterparty_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
         # Prepare the transaction
         tx = self.contract.functions.createContract(
             counterparty_address,
@@ -189,6 +206,20 @@ class BlockchainService:
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
         
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not partner_address:
+                raise ValueError("Partner address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not partner_address.startswith('0x'):
+                partner_address = '0x' + partner_address
+                
+            partner_address = self.web3.to_checksum_address(partner_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
         # Prepare the transaction
         tx = self.contract.functions.signContract(contract_id).build_transaction({
             'from': partner_address,
@@ -204,6 +235,20 @@ class BlockchainService:
         """Confirm contract completion on the blockchain"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not creator_address:
+                raise ValueError("Creator address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not creator_address.startswith('0x'):
+                creator_address = '0x' + creator_address
+                
+            creator_address = self.web3.to_checksum_address(creator_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
         # Prepare the transaction to confirm completion - this will set the contract as completed
         # in the Contract Manager
@@ -242,6 +287,20 @@ class BlockchainService:
         """Withdraw available funds from the contract"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not partner_address:
+                raise ValueError("Partner address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not partner_address.startswith('0x'):
+                partner_address = '0x' + partner_address
+                
+            partner_address = self.web3.to_checksum_address(partner_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
         # Prepare the withdrawal transaction
         tx = self.contract.functions.withdrawFunds().build_transaction({

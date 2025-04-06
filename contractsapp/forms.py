@@ -4,7 +4,7 @@ from .models import Contract
 class ContractForm(forms.ModelForm):
     contract_amount_eth = forms.DecimalField(
         label="Vertragsbetrag (ETH)",
-        required=False,
+        required=True,
         decimal_places=18,
         max_digits=36,
         widget=forms.NumberInput(attrs={
@@ -12,13 +12,11 @@ class ContractForm(forms.ModelForm):
             'placeholder': '0.0',
             'step': '0.01'
         }),
-        help_text="Optionaler Betrag in ETH, der mit diesem Vertrag verbunden ist. "
-                  "Wird für Smart Contracts auf der Blockchain verwendet."
     )
 
     class Meta:
         model = Contract
-        fields = ['title', 'pdf_file', 'creator_address', 'partner_name', 'partner_email', 'contract_amount_eth']
+        fields = ['title', 'pdf_file', 'creator_address', 'partner_name', 'partner_email', 'partner_address', 'contract_amount_eth']
         widgets = {
             'creator_address': forms.TextInput(attrs={
                 'placeholder': '0x...',
@@ -31,6 +29,11 @@ class ContractForm(forms.ModelForm):
             'partner_email': forms.EmailInput(attrs={
                 'placeholder': 'partner@example.com',
                 'class': 'form-control'
+            }),
+            'partner_address': forms.TextInput(attrs={
+                'placeholder': '0x...',
+                'class': 'form-control eth-address-input',
+                'required': True
             }),
         }
         

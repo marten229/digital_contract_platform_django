@@ -22,9 +22,12 @@ from .blockchain import BlockchainService
 
 @login_required
 def contract_list(request):
-    creator_contracts = Contract.objects.filter(creator_address=request.user.ethereum_address)
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
     
-    partner_contracts = Contract.objects.filter(partner_address=request.user.ethereum_address)
+    creator_contracts = Contract.objects.filter(creator_address=user_eth_address)
+    
+    partner_contracts = Contract.objects.filter(partner_address=user_eth_address)
     
     pending_contracts = creator_contracts.filter(
         Q(status='uploaded') | 
@@ -117,7 +120,10 @@ def contract_upload(request):
 @login_required
 def contract_configuration(request, pk):
     """Display the contract configuration page to set signature positions"""
-    contract = get_object_or_404(Contract, pk=pk, creator_address=request.user.ethereum_address)
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
     
     if contract.is_configured:
         messages.info(request, 'Dieser Vertrag wurde bereits konfiguriert.')
@@ -141,7 +147,10 @@ def finish_contract_configuration(request, pk):
     if request.method != 'POST':
         return redirect('contract_configuration', pk=pk)
     
-    contract = get_object_or_404(Contract, pk=pk, creator_address=request.user.ethereum_address)
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
     
     if contract.is_configured:
         messages.info(request, 'Dieser Vertrag wurde bereits konfiguriert.')
@@ -227,10 +236,12 @@ def contract_detail(request, pk):
     activities = contract.activities.all()[:20]
     
     if (request.user.is_authenticated and 
-        hasattr(request.user, 'ethereum_address') and 
-        request.user.ethereum_address != contract.creator_address):
+        hasattr(request.user, 'ethereum_address')):
         
-        is_partner = contract.partner_address == request.user.ethereum_address
+        # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+        user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+        
+        is_partner = contract.partner_address == user_eth_address
         if is_partner and contract.status == 'invitation_sent':
             contract.status = 'viewed_by_partner'
             contract.save()
@@ -254,8 +265,11 @@ def contract_detail(request, pk):
 def contract_signing(request, pk):
     contract = get_object_or_404(Contract, pk=pk)
     
-    is_creator = request.user.is_authenticated and request.user.ethereum_address == contract.creator_address
-    is_partner = request.user.is_authenticated and request.user.ethereum_address == contract.partner_address
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.is_authenticated and request.user.ethereum_address else None
+    
+    is_creator = user_eth_address == contract.creator_address
+    is_partner = user_eth_address == contract.partner_address
     
     if request.user.is_authenticated:
         if is_creator:
@@ -392,10 +406,11 @@ def add_signature(request, pk):
                 output.write(output_stream)
                 output_stream.seek(0)
                 
-                is_creator = (request.user.is_authenticated and 
-                               request.user.ethereum_address == contract.creator_address)
-                is_partner = (request.user.is_authenticated and 
-                               request.user.ethereum_address == contract.partner_address)
+                # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+                user_eth_address = request.user.ethereum_address.lower() if request.user.is_authenticated and request.user.ethereum_address else None
+                
+                is_creator = user_eth_address == contract.creator_address
+                is_partner = user_eth_address == contract.partner_address
                 
                 if is_creator:
                     if contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
@@ -575,20 +590,17 @@ def update_blockchain_status(request, pk):
                 details=f"Vertrag auf der Blockchain registriert: Contract ID: {blockchain_contract_id}"
             )
             
-            # Aktualisiere den Blockchain-Status
             try:
                 contract.update_blockchain_status()
             except Exception as e:
                 print(f"Error updating blockchain status: {e}")
             
-            # Aktualisiere das Objekt und überprüfe die Werte
             contract.refresh_from_db()
-            print(f"Nach Speichern: contract_id={contract.blockchain_contract_id}, status={contract.status}")
             
             return JsonResponse({
                 'success': True, 
                 'contract_id': contract.blockchain_contract_id,
-                'tx_hash': blockchain_tx_hash,  # Gib die tx_hash trotzdem im Response zurück für die Anzeige
+                'tx_hash': blockchain_tx_hash, 
                 'status': contract.blockchain_status or 'Updated',
                 'message': 'Blockchain-Status erfolgreich aktualisiert'
             })
@@ -699,7 +711,11 @@ def update_contract_address(request):
 
 @login_required
 def submit_to_blockchain(request, pk):
-    contract = get_object_or_404(Contract, pk=pk, creator_address=request.user.ethereum_address)
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
+    blockchain_service = BlockchainService()  # BlockchainService für das Template
 
     if contract.status != 'completed':
         messages.error(request, "Nur vollständig unterschriebene Verträge können an die Blockchain übermittelt werden.")
@@ -710,24 +726,14 @@ def submit_to_blockchain(request, pk):
         return redirect('contract_detail', pk=pk)
     
     if request.method == 'POST':
-        contract_amount = request.POST.get('contract_amount')
-        try:
-            amount_wei = int(float(contract_amount) * 10**18)
-            contract.contract_amount = amount_wei
-            contract.save(update_fields=['contract_amount'])
-            
-            ContractActivity.log(
-                contract=contract,
-                action='blockchain',
-                user=request.user,
-                user_role='creator',
-                details=f"Vertragswert festgelegt: {contract_amount} ETH"
-            )
-        except (ValueError, TypeError):
-            messages.error(request, "Bitte geben Sie einen gültigen Betrag ein.")
-            return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})
+        # Bestehenden Vertragsbetrag verwenden
+        if not contract.contract_amount:
+            messages.error(request, "Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.")
+            return render(request, 'contractsapp/submit_to_blockchain.html', {
+                'contract': contract,
+                'blockchain_service': blockchain_service
+            })
         
-        blockchain_service = BlockchainService()
         try:
             if not contract.partner_address:
                 messages.error(request, "Der Vertragspartner muss eine Ethereum-Adresse haben.")
@@ -771,28 +777,31 @@ def submit_to_blockchain(request, pk):
             )
             
             tx_dict = dict(tx)
-
-            # Debugging logs to ensure data is being processed correctly
-            print(f"Blockchain transaction response: {tx_dict}")
-
-            # Save only the contract_id
             contract.blockchain_contract_id = tx_dict.get('contract_id')
             
-            if not contract.blockchain_contract_id:
-                print("Error: Missing blockchain_contract_id in response.")
-            else:
-                print(f"Saving contract with ID: {contract.blockchain_contract_id}")
+            if contract.blockchain_contract_id:
+                contract.save(update_fields=['blockchain_contract_id'])
 
-            contract.save(update_fields=['blockchain_contract_id'])
-
+            # Binäre Daten in Hex-Strings umwandeln
+            processed_tx = {}
             for key, value in tx_dict.items():
                 if isinstance(value, bytes):
-                    tx_dict[key] = value.hex()
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            # Stelle sicher, dass die Transaktion einen 'to'-Parameter hat
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            # JSON-Serialisierung für das Template
+            transaction_json = json.dumps(processed_tx)
             
             return render(request, 'contractsapp/submit_to_blockchain.html', {
                 'contract': contract,
-                'transaction': json.dumps(tx_dict),
-                'is_submission': True
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service
             })
         except Exception as e:
             ContractActivity.log(
@@ -814,4 +823,11 @@ def submit_to_blockchain(request, pk):
         details="Blockchain-Übermittlungsseite geöffnet"
     )
     
-    return render(request, 'contractsapp/submit_to_blockchain.html', {'contract': contract})
+    # Berechne ETH-Betrag für die Anzeige (contract_amount ist in Wei gespeichert)
+    if contract.contract_amount:
+        contract.eth_amount = contract.contract_amount / (10**18)
+    
+    return render(request, 'contractsapp/submit_to_blockchain.html', {
+        'contract': contract,
+        'blockchain_service': blockchain_service
+    })
