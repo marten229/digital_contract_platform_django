@@ -5,6 +5,44 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/contract_signing.css' %}">
+<style>
+    /* Inline Modal Styles */
+    #verificationModal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .modal-inner {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .modal-notice {
+        background-color: #e9f5ff;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -55,7 +93,7 @@
                     <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary w-100 mb-2">
                         <i class="bi bi-download"></i> PDF herunterladen
                     </a>
-                    <button id="selectSignatureArea" class="btn btn-primary w-100">
+                    <button id="selectSignatureArea" class="btn btn-primary w-100" {% if not is_creator and not contract.partner_address %}disabled{% endif %}>
                         <i class="bi bi-pencil-square"></i> Unterschreiben
                     </button>
                     <span id="selectionHint" class="d-none text-muted mt-2">
@@ -126,66 +164,85 @@
     <p id="loadingMessage">Wird geladen...</p>
 </div>
 
-<!-- Partner Verification Modal -->
-<div class="verification-modal-backdrop" id="verificationModalBackdrop"></div>
-<div class="verification-modal" id="verificationModal">
-    <div class="verification-header">
-        <h2>Bitte verifizieren Sie sich</h2>
-        <p>Bevor Sie den Vertrag unterzeichnen können, bestätigen Sie bitte Ihre Identität und Wallet-Adresse.</p>
-    </div>
-    
-    <div class="verification-notice">
-        <p><i class="bi bi-info-circle me-2"></i> Die von Ihnen angegebenen Daten werden mit den Informationen abgeglichen, die der Vertragsersteller hinterlegt hat.</p>
-    </div>
-    
-    <form id="verificationForm" class="needs-validation" novalidate>
-        {% csrf_token %}
-        
-        <div class="form-group mb-3">
-            <label for="partner_name" class="form-label">Ihr vollständiger Name</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-person"></i></span>
-                <input type="text" class="form-control" id="partner_name" name="partner_name" required>
-            </div>
-            <div class="invalid-feedback" id="name_error">
-                Bitte geben Sie Ihren Namen ein.
-            </div>
+<!-- VERIFIKATIONSMODAL - Für nicht eingeloggte Benutzer -->
+{% if not user.is_authenticated %}
+<div id="verificationModal">
+    <div class="modal-inner">
+        <div class="modal-header">
+            <h2 style="color:#0d6efd; margin-bottom:0.5rem;">Bitte verifizieren Sie sich</h2>
+            <p>Bevor Sie den Vertrag unterzeichnen können, bestätigen Sie bitte Ihre Identität.</p>
         </div>
         
-        <div class="form-group mb-3">
-            <label for="partner_email" class="form-label">Ihre E-Mail-Adresse</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input type="email" class="form-control" id="partner_email" name="partner_email" required>
-            </div>
-            <div class="invalid-feedback" id="email_error">
-                Bitte geben Sie Ihre E-Mail-Adresse ein.
-            </div>
+        <div class="modal-notice">
+            <p><i class="bi bi-info-circle me-2"></i> Die von Ihnen angegebenen Daten werden mit den Informationen abgeglichen, die der Vertragsersteller hinterlegt hat.</p>
         </div>
         
-        <div class="form-group mb-4">
-            <label for="partner_address" class="form-label">Ihre Ethereum Wallet-Adresse</label>
-            <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-wallet2"></i></span>
-                <input type="text" class="form-control" id="partner_address" name="partner_address" required placeholder="0x...">
+        <!-- Form ohne AJAX - direkte Übermittlung an den Server -->
+        <form id="verificationForm" method="post" action="{% url 'verify_partner' pk=contract.pk %}">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label for="partner_name" class="form-label">Ihr vollständiger Name</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                    <input type="text" class="form-control" id="partner_name" name="partner_name" required>
+                </div>
+                <div class="form-text">Bitte geben Sie den Namen ein, der im Vertrag hinterlegt ist.</div>
+                <div class="invalid-feedback" id="name_error">
+                    Bitte geben Sie Ihren Namen ein.
+                </div>
             </div>
-            <div class="form-text">Diese Adresse wird für die Signatur auf der Blockchain verwendet.</div>
-            <div class="invalid-feedback" id="address_error">
-                Bitte geben Sie eine gültige Ethereum-Adresse ein.
+            
+            <div class="mb-3">
+                <label for="partner_email" class="form-label">Ihre E-Mail-Adresse</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                    <input type="email" class="form-control" id="partner_email" name="partner_email" required>
+                </div>
+                <div class="form-text">Diese muss mit der E-Mail-Adresse übereinstimmen, an die die Vertragseinladung gesendet wurde.</div>
+                <div class="invalid-feedback" id="email_error">
+                    Bitte geben Sie Ihre E-Mail-Adresse ein.
+                </div>
             </div>
-        </div>
+            
+            <div class="mb-4">
+                <label for="partner_address" class="form-label">Ihre Ethereum Wallet-Adresse</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-wallet2"></i></span>
+                    <input type="text" class="form-control" id="partner_address" name="partner_address" required placeholder="0x..." pattern="0x[a-fA-F0-9]{40}">
+                </div>
+                <div class="form-text">Diese Adresse wird für die Signatur auf der Blockchain verwendet und muss mit 0x beginnen und 42 Zeichen lang sein.</div>
+                <div class="invalid-feedback" id="address_error">
+                    Bitte geben Sie eine gültige Ethereum-Adresse ein.
+                </div>
+            </div>
+            
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-check-circle me-2"></i>Verifizieren und fortfahren
+                </button>
+            </div>
+        </form>
         
-        <div class="d-grid">
-            <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-check-circle me-2"></i>Verifizieren und fortfahren
-            </button>
+        <div style="margin-top:1.5rem; text-align:center;">
+            <p class="text-muted small">Benötigen Sie Hilfe? Kontaktieren Sie bitte den Vertragsersteller.</p>
         </div>
-    </form>
-    
-    <div class="verification-footer">
-        <p class="text-muted small">Benötigen Sie Hilfe? Kontaktieren Sie bitte den Vertragsersteller.</p>
     </div>
 </div>
+{% endif %}
+
+<!-- Anzeige für Fehlermeldungen, wenn sie nach dem Formular-Submit zurückkommen -->
+{% if messages %}
+<div class="container mt-3">
+    {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block extra_js %}
@@ -196,11 +253,12 @@
 <!-- Contract Detail JS -->
 <script src="{% static 'js/contract_signing.js' %}"></script>
 <script>
-    // Initialize the contract detail functionality
+    // Einfache direkte Formularverarbeitung ohne AJAX
     document.addEventListener('DOMContentLoaded', function() {
-        // Determine if this is the creator or partner signing
         const isCreator = {% if is_creator %}true{% else %}false{% endif %};
-        const partnerVerified = {% if is_creator or contract.partner_address %}true{% else %}false{% endif %};
+        const partnerVerified = {% if contract.partner_address %}true{% else %}false{% endif %};
+        
+        console.log("DOM loaded! isCreator:", isCreator, "partnerVerified:", partnerVerified);
         
         // Get the appropriate signature position based on the signer
         let signatureX, signatureY, signatureWidth, signatureHeight, signaturePage;
@@ -236,115 +294,6 @@
             signaturePage,
             isCreator
         );
-        
-        // Zeige das Verifikationsmodal NUR für den Partner (nicht für den Ersteller)
-        // und nur wenn die Partner-Adresse noch nicht verifiziert wurde
-        if (!isCreator && !contract.partner_address) {
-            showVerificationModal();
-        }
-        
-        // Verifikations-Modal anzeigen
-        function showVerificationModal() {
-            document.getElementById('verificationModalBackdrop').style.display = 'block';
-            document.getElementById('verificationModal').style.display = 'block';
-            // Deaktiviere den Unterschriftsbutton, bis die Verifizierung abgeschlossen ist
-            document.getElementById('selectSignatureArea').disabled = true;
-        }
-        
-        // Verifikations-Modal schließen
-        function hideVerificationModal() {
-            document.getElementById('verificationModalBackdrop').style.display = 'none';
-            document.getElementById('verificationModal').style.display = 'none';
-            document.getElementById('selectSignatureArea').disabled = false;
-        }
-        
-        // Formular absenden
-        document.getElementById('verificationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            // Formulardaten sammeln
-            const formData = new FormData();
-            formData.append('partner_name', document.getElementById('partner_name').value);
-            formData.append('partner_email', document.getElementById('partner_email').value);
-            formData.append('partner_address', document.getElementById('partner_address').value);
-            formData.append('csrfmiddlewaretoken', "{{ csrf_token }}");
-            
-            // Zurücksetzen der Fehlermeldungen
-            document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
-            
-            // AJAX-Anfrage senden
-            fetch("{% url 'verify_partner' pk=contract.pk %}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Erfolg: Modal schließen und Seite neu laden
-                    hideVerificationModal();
-                    showToast('Verifizierung erfolgreich', 'Sie können jetzt den Vertrag unterzeichnen.', 'success');
-                    // Aktiviere den Unterschriftsbutton
-                    document.getElementById('selectSignatureArea').disabled = false;
-                } else {
-                    // Fehler: Fehlermeldungen anzeigen
-                    if (data.errors) {
-                        if (data.errors.name) {
-                            const nameInput = document.getElementById('partner_name');
-                            nameInput.classList.add('is-invalid');
-                            document.getElementById('name_error').textContent = data.errors.name;
-                        }
-                        if (data.errors.email) {
-                            const emailInput = document.getElementById('partner_email');
-                            emailInput.classList.add('is-invalid');
-                            document.getElementById('email_error').textContent = data.errors.email;
-                        }
-                        if (data.errors.address) {
-                            const addressInput = document.getElementById('partner_address');
-                            addressInput.classList.add('is-invalid');
-                            document.getElementById('address_error').textContent = data.errors.address;
-                        }
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Fehler bei der Verifizierung:', error);
-                showToast('Fehler', 'Bei der Verifizierung ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.', 'danger');
-            });
-        });
-        
-        // Hilfsfunktion für Benachrichtigungen
-        function showToast(title, message, type) {
-            // Erstelle ein Bootstrap Toast
-            const toastContainer = document.createElement('div');
-            toastContainer.classList.add('toast-container', 'position-fixed', 'bottom-0', 'end-0', 'p-3');
-            
-            const toastHTML = `
-                <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-                    <div class="toast-header bg-${type} text-white">
-                        <strong class="me-auto">${title}</strong>
-                        <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            `;
-            
-            toastContainer.innerHTML = toastHTML;
-            document.body.appendChild(toastContainer);
-            
-            const toastElement = toastContainer.querySelector('.toast');
-            const toast = new bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
-            toast.show();
-            
-            // Entferne das Toast-Element nach dem Ausblenden
-            toastElement.addEventListener('hidden.bs.toast', function() {
-                document.body.removeChild(toastContainer);
-            });
-        }
     });
 </script>
 {% endblock %}

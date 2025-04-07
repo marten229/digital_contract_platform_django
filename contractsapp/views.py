@@ -269,7 +269,10 @@ def contract_signing(request, pk):
     user_eth_address = request.user.ethereum_address.lower() if request.user.is_authenticated and request.user.ethereum_address else None
     
     is_creator = user_eth_address == contract.creator_address
-    is_partner = user_eth_address == contract.partner_address
+    
+    # Für nicht eingeloggte Benutzer oder Benutzer ohne Ethereum-Adresse,
+    # nehmen wir an, dass sie der Partner sind, wenn sie nicht der Ersteller sind
+    is_partner = not is_creator
     
     # Überprüfen, ob der Benutzer bereits unterschrieben hat und zur Detailseite umleiten
     if is_creator and contract.status == 'signed_by_creator':
@@ -518,13 +521,19 @@ def add_signature(request, pk):
 
 
 def verify_partner(request, pk):
-    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    # Entferne die strenge AJAX-Überprüfung, damit normale POST-Anfragen funktionieren
+    if request.method != 'POST':
         return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
     
     contract = get_object_or_404(Contract, pk=pk)
     
+    # Wenn der Partner bereits eine Adresse hat, zeigen wir direkt die Erfolgsseite
     if contract.partner_address:
-        return JsonResponse({'success': True})
+        if 'X-Requested-With' in request.headers and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': True})
+        else:
+            messages.success(request, "Sie haben sich bereits verifiziert!")
+            return redirect('contract_signing', pk=pk)
     
     partner_name = request.POST.get('partner_name', '').strip()
     partner_email = request.POST.get('partner_email', '').strip()
@@ -557,8 +566,16 @@ def verify_partner(request, pk):
             errors['address'] = f'Fehler bei der Überprüfung der Ethereum-Adresse: {str(e)}'
     
     if errors:
-        return JsonResponse({'success': False, 'errors': errors})
+        # Bei AJAX-Anfragen JSON zurückgeben
+        if 'X-Requested-With' in request.headers and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'errors': errors})
+        # Bei normalen POST-Anfragen Fehler als Messages hinzufügen und zurück zum Formular
+        else:
+            for key, error in errors.items():
+                messages.error(request, error)
+            return redirect('contract_signing', pk=pk)
     
+    # Hier sind wir sicher, dass die Daten gültig sind
     contract.partner_address = partner_address
     contract.status = 'partner_verified'
     contract.save()
@@ -572,7 +589,13 @@ def verify_partner(request, pk):
             details=f"Partner hat sich verifiziert: {partner_address}"
         )
     
-    return JsonResponse({'success': True})
+    # Bei AJAX-Anfragen JSON zurückgeben
+    if 'X-Requested-With' in request.headers and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+    # Bei normalen POST-Anfragen erfolgreiche Nachricht anzeigen und weiterleiten
+    else:
+        messages.success(request, "Sie haben sich erfolgreich verifiziert. Sie können jetzt den Vertrag unterzeichnen.")
+        return redirect('contract_signing', pk=pk)
 
 
 @login_required
