@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Unterschrift erfolgreich{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Success Animation Styles */
+    .success-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 4rem 2rem;
+        text-align: center;
+    }
+    
+    .success-icon {
+        width: 120px;
+        height: 120px;
+        background-color: #28a745;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 2rem;
+        animation: pulse 2s ease infinite;
+    }
+    
+    .success-icon i {
+        color: white;
+        font-size: 60px;
+    }
+    
+    .success-title {
+        color: #333;
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        animation: fadeInUp 1s ease;
+    }
+    
+    .success-message {
+        color: #6c757d;
+        font-size: 1.25rem;
+        max-width: 600px;
+        margin: 0 auto 2rem auto;
+        animation: fadeInUp 1.2s ease;
+    }
+    
+    .success-actions {
+        animation: fadeInUp 1.4s ease;
+    }
+    
+    /* Confetti Container */
+    .confetti-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        overflow: hidden;
+        pointer-events: none;
+    }
+    
+    /* Confetti Pieces */
+    .confetti {
+        position: absolute;
+        top: -20px;
+        animation: confetti-fall linear forwards;
+    }
+    
+    /* Animations */
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4);
+            transform: scale(1);
+        }
+        70% {
+            box-shadow: 0 0 0 15px rgba(40, 167, 69, 0);
+            transform: scale(1.05);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+            transform: scale(1);
+        }
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes confetti-fall {
+        0% {
+            opacity: 1;
+            transform: translateY(0) rotate(0deg);
+        }
+        100% {
+            opacity: 0;
+            transform: translateY(100vh) rotate(720deg);
+        }
+    }
+    
+    /* Card styling similar to other pages */
+    .info-card {
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        padding: 2rem;
+        margin-top: 2rem;
+        transition: transform 0.3s, box-shadow 0.3s;
+        animation: fadeInUp 1.6s ease;
+    }
+    
+    .info-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    
+    .info-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        color: #0d6efd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="success-container">
+        <div class="success-icon">
+            <i class="bi bi-check-lg"></i>
+        </div>
+        
+        <h1 class="success-title">Unterschrift erfolgreich!</h1>
+        
+        <p class="success-message">
+            Der Vertrag "{{ contract.title }}" wurde erfolgreich signiert und wird nun auf der Blockchain verankert.
+            Eine Kopie des unterschriebenen Dokuments wurde an alle Beteiligten gesendet.
+        </p>
+        
+        <div class="success-actions">
+            <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-primary me-3" download>
+                <i class="bi bi-download me-2"></i>Dokument herunterladen
+            </a>
+            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-primary">
+                <i class="bi bi-file-earmark-text me-2"></i>Zu den Vertragsdetails
+            </a>
+        </div>
+        
+        <div class="row mt-5">
+            <div class="col-md-6">
+                <div class="info-card">
+                    <div class="info-icon">
+                        <i class="bi bi-link-45deg"></i>
+                    </div>
+                    <h3>Blockchain-Sicherheit</h3>
+                    <p>
+                        Ihr Vertrag wird durch Blockchain-Technologie geschützt, was bedeutet, 
+                        dass Ihre Unterschrift fälschungssicher und unveränderlich gespeichert ist.
+                    </p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-card">
+                    <div class="info-icon">
+                        <i class="bi bi-envelope-check"></i>
+                    </div>
+                    <h3>Bestätigung per E-Mail</h3>
+                    <p>
+                        Eine Benachrichtigung mit allen relevanten Informationen wurde an die hinterlegte 
+                        E-Mail-Adresse gesendet.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confetti Container (will be populated by JS) -->
+<div class="confetti-container" id="confettiContainer"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configuration for confetti
+        const confettiConfig = {
+            emojis: ['🎉', '🎊', '✨', '💯', '🥳'],
+            count: 50,  // Number of confetti pieces
+            minDuration: 5,  // Minimum fall duration in seconds
+            maxDuration: 12, // Maximum fall duration in seconds
+            container: document.getElementById('confettiContainer')
+        };
+        
+        // Create confetti
+        createConfetti(confettiConfig);
+        
+        // Function to create confetti animation
+        function createConfetti(config) {
+            for (let i = 0; i < config.count; i++) {
+                setTimeout(() => {
+                    // Create confetti element
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    
+                    // Random emoji from the array
+                    const emojiIndex = Math.floor(Math.random() * config.emojis.length);
+                    confetti.textContent = config.emojis[emojiIndex];
+                    
+                    // Random position, size, and animation duration
+                    const size = Math.random() * 20 + 15;
+                    const xPos = Math.random() * 100;  // % position horizontally
+                    const duration = Math.random() * (config.maxDuration - config.minDuration) + config.minDuration;
+                    
+                    // Set styles
+                    confetti.style.left = `${xPos}%`;
+                    confetti.style.fontSize = `${size}px`;
+                    confetti.style.animationDuration = `${duration}s`;
+                    
+                    // Add to container
+                    config.container.appendChild(confetti);
+                    
+                    // Remove after animation is complete
+                    setTimeout(() => {
+                        confetti.remove();
+                    }, duration * 1000);
+                }, Math.random() * 1500);  // Staggered start times
+            }
+        }
+    });
+</script>
+{% endblock %}

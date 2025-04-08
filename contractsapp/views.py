@@ -495,15 +495,22 @@ def add_signature(request, pk):
                     pass
                 
                 output_stream.seek(0)
-                
-                # Check if the client requested no file download
+                  # Check if the client requested no file download
                 if request.POST.get('no_download') == 'true':
-                    # Return a response with a redirect URL instead of JSON response
+                    # Prüfen, ob der Benutzer eingeloggt ist
+                    if request.user.is_authenticated:
+                        # Für eingeloggte Benutzer: Zur Vertragsliste weiterleiten
+                        redirect_url = reverse('contract_list')
+                    else:
+                        # Für nicht eingeloggte Benutzer: Zur Erfolgsseite weiterleiten
+                        redirect_url = reverse('contract_signing_success', args=[contract.pk])
+                    
+                    # Return a response with a redirect URL as JSON response
                     return JsonResponse({
                         'success': True,
                         'message': 'Unterschrift erfolgreich hinzugefügt',
                         'status': contract.status,
-                        'redirect_url': reverse('contract_list')
+                        'redirect_url': redirect_url
                     })
                 else:
                     # Original behavior - return the PDF for download
@@ -603,6 +610,20 @@ def verify_partner(request, pk):
     # Bei normalen POST-Anfragen erfolgreiche Nachricht anzeigen und weiterleiten
     else:
         messages.success(request, "Sie haben sich erfolgreich verifiziert. Sie können jetzt den Vertrag unterzeichnen.")
+        return redirect('contract_signing', pk=pk)
+
+
+def contract_signing_success(request, pk):
+    """Zeigt die Erfolgsseite für die Vertragsunterzeichnung an"""
+    contract = get_object_or_404(Contract, pk=pk)
+    
+    # Prüfe, ob der Vertrag tatsächlich unterschrieben wurde
+    if contract.status in ['signed_by_partner', 'signed_by_creator', 'completed', 'blockchain_published']:
+        return render(request, 'contractsapp/contract_signing_success.html', {
+            'contract': contract
+        })
+    else:
+        # Falls der Vertrag nicht unterschrieben ist, leite zur normalen Signierseite um
         return redirect('contract_signing', pk=pk)
 
 

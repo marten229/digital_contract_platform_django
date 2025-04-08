@@ -6,6 +6,7 @@ urlpatterns = [
     path('list/', views.contract_list, name='contract_list'),
     path('contract/<int:pk>/', views.contract_detail, name='contract_detail'),
     path('contract/<int:pk>/sign/', views.contract_signing, name='contract_signing'),
+    path('contract/<int:pk>/success/', views.contract_signing_success, name='contract_signing_success'),
     path('contract/<int:pk>/verify/', views.verify_partner, name='verify_partner'),
     path('contract/<int:pk>/add_signature/', views.add_signature, name='add_signature'),
     path('contract/<int:pk>/configure/', views.contract_configuration, name='contract_configuration'),
