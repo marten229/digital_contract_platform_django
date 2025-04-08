@@ -532,7 +532,15 @@ def verify_partner(request, pk):
         if 'X-Requested-With' in request.headers and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return JsonResponse({'success': True})
         else:
-            messages.success(request, "Sie haben sich bereits verifiziert!")
+            messages.success(request, "Sie haben sich erfolgreich verifiziert!")
+            
+            # Erstelle eine spezielle Session-Variable, um das Modal beim nächsten Seitenaufruf zu verstecken
+            request.session['partner_verified_for_contract'] = str(pk)
+            
+            # Damit die Session-Daten sofort gespeichert werden
+            request.session.modified = True
+            
+            # Erzwinge eine vollständige Seiten-Neuladung, damit die Verifikation wirksam wird
             return redirect('contract_signing', pk=pk)
     
     partner_name = request.POST.get('partner_name', '').strip()

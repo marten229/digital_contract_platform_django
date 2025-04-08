@@ -42,6 +42,26 @@
         padding: 15px;
         margin-bottom: 20px;
     }
+    
+    /* Stil für den temporären Platzhalter anstelle der PDF */
+    .pdf-placeholder {
+        background-color: #f8f9fa;
+        border: 1px dashed #dee2e6;
+        border-radius: 4px;
+        padding: 40px;
+        text-align: center;
+        height: 600px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .pdf-placeholder i {
+        font-size: 48px;
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
 </style>
 {% endblock %}
 
@@ -66,14 +86,29 @@
     <div class="row">
         <!-- Left column - PDF display -->
         <div class="col-md-8">
-            <!-- PDF Container mit Canvas-Overlay -->
+            {% if not user.is_authenticated %}
+            <!-- Platzhalter anstelle der PDF, wenn Benutzer nicht verifiziert ist -->
+            <div class="pdf-placeholder" id="pdfPlaceholder">
+                <i class="bi bi-file-earmark-lock"></i>
+                <h4>PDF wird nach der Verifizierung geladen</h4>
+                <p class="text-muted">Bitte verifizieren Sie sich im Formular rechts, um das Dokument anzuzeigen.</p>
+            </div>
+            
+            <!-- PDF Container mit Canvas-Overlay - versteckt, bis Benutzer verifiziert ist -->
+            <div id="pdfContainer" style="display: none;">
+                <canvas id="pdfViewer"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+            </div>
+            {% else %}
+            <!-- Wenn Benutzer eingeloggt ist, PDF sofort anzeigen -->
             <div id="pdfContainer">
                 <canvas id="pdfViewer"></canvas>
                 <canvas id="overlayCanvas"></canvas>
             </div>
+            {% endif %}
             
             <!-- Page Navigation -->
-            <div id="pageNavigation" class="mt-3">
+            <div id="pageNavigation" class="mt-3" {% if not user.is_authenticated %}style="display: none;"{% endif %}>
                 <button id="prevPage" class="btn btn-outline-primary">
                     <i class="bi bi-chevron-left"></i> Vorherige Seite
                 </button>
@@ -90,12 +125,18 @@
                 <!-- Document controls -->
                 <div class="mb-4">
                     <h5 class="mb-3">Dokumentsteuerung:</h5>
+                    {% if user.is_authenticated or request.session.partner_verified_for_contract|default:'' == contract.pk|stringformat:"s" or contract.partner_address %}
                     <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary w-100 mb-2">
                         <i class="bi bi-download"></i> PDF herunterladen
                     </a>
-                    <button id="selectSignatureArea" class="btn btn-primary w-100" {% if not is_creator and not contract.partner_address %}disabled{% endif %}>
+                    <button id="selectSignatureArea" class="btn btn-primary w-100" {% if not is_creator and not contract.partner_address and not request.session.partner_verified_for_contract|default:'' == contract.pk|stringformat:"s" %}disabled{% endif %}>
                         <i class="bi bi-pencil-square"></i> Unterschreiben
                     </button>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i> Bitte verifizieren Sie sich, um auf das Dokument zugreifen zu können.
+                    </div>
+                    {% endif %}
                     <span id="selectionHint" class="d-none text-muted mt-2">
                         <i class="bi bi-info-circle"></i> Klicken Sie auf den markierten Bereich, um zu unterschreiben
                     </span>
@@ -149,7 +190,6 @@
                             <li>Bitte prüfen Sie das Dokument sorgfältig vor der Unterzeichnung</li>
                             <li>Navigieren Sie zum Bereich, der für Ihre Unterschrift vorgesehen ist</li>
                             <li>Klicken Sie auf "Unterschreiben" und folgen Sie den Anweisungen</li>
-                            <li>Nach der Bestätigung wird das unterschriebene Dokument automatisch heruntergeladen</li>
                         </ul>
                     </div>
                 </div>
@@ -164,8 +204,8 @@
     <p id="loadingMessage">Wird geladen...</p>
 </div>
 
-<!-- VERIFIKATIONSMODAL - Für nicht eingeloggte Benutzer -->
-{% if not user.is_authenticated %}
+<!-- VERIFIKATIONSMODAL - Für nicht eingeloggte Benutzer, die noch nicht verifiziert sind -->
+{% if not user.is_authenticated and not request.session.partner_verified_for_contract|default:'' == contract.pk|stringformat:"s" %}
 <div id="verificationModal">
     <div class="modal-inner">
         <div class="modal-header">
@@ -253,12 +293,21 @@
 <!-- Contract Detail JS -->
 <script src="{% static 'js/contract_signing.js' %}"></script>
 <script>
-    // Einfache direkte Formularverarbeitung ohne AJAX
     document.addEventListener('DOMContentLoaded', function() {
         const isCreator = {% if is_creator %}true{% else %}false{% endif %};
         const partnerVerified = {% if contract.partner_address %}true{% else %}false{% endif %};
+        const isAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
         
-        console.log("DOM loaded! isCreator:", isCreator, "partnerVerified:", partnerVerified);
+        // Prüfen, ob der Benutzer als Partner verifiziert ist (entweder eingeloggt oder über Session)
+        const isVerified = isAuthenticated || partnerVerified || {% if request.session.partner_verified_for_contract|default:'' == contract.pk|stringformat:"s" %}true{% else %}false{% endif %};
+        
+        console.log("Status:", {
+            isCreator, 
+            partnerVerified, 
+            isAuthenticated, 
+            isVerified, 
+            sessionVerified: {% if request.session.partner_verified_for_contract|default:'' == contract.pk|stringformat:"s" %}true{% else %}false{% endif %}
+        });
         
         // Get the appropriate signature position based on the signer
         let signatureX, signatureY, signatureWidth, signatureHeight, signaturePage;
@@ -282,18 +331,116 @@
             "{% url 'add_signature' pk=contract.pk %}" : 
             "{% url 'add_signature' pk=contract.pk %}";
         
-        // Initialize with the correct parameters
-        initContractDetail(
-            '{{ contract.pdf_file.url }}',
-            signatureUrl,
-            "{{ csrf_token }}",
-            signatureX,
-            signatureY,
-            signatureWidth,
-            signatureHeight,
-            signaturePage,
-            isCreator
-        );
+        // Wenn der Benutzer verifiziert ist (eingeloggt oder über Session)
+        if (isVerified) {
+            console.log("Benutzer ist verifiziert, lade PDF...");
+            
+            // Beim ersten Laden nach der Verifizierung die UI anpassen
+            if (!isAuthenticated) {
+                // PDF-Container und Navigation anzeigen, Platzhalter ausblenden
+                document.getElementById('pdfPlaceholder').style.display = 'none';
+                document.getElementById('pdfContainer').style.display = 'block';
+                document.getElementById('pageNavigation').style.display = 'block';
+                
+                // Falls die Dokumentensteuerung noch nicht sichtbar ist, explizit einblenden
+                const controlsContainer = document.querySelector('.controls-sidebar');
+                if (controlsContainer) {
+                    const downloadBtn = controlsContainer.querySelector('a.btn-outline-secondary');
+                    const signBtn = controlsContainer.querySelector('#selectSignatureArea');
+                    const infoAlert = controlsContainer.querySelector('.alert-info');
+                    
+                    if (downloadBtn) downloadBtn.style.display = 'block';
+                    if (signBtn) {
+                        signBtn.style.display = 'block';
+                        signBtn.disabled = false;
+                    }
+                    if (infoAlert) infoAlert.style.display = 'none';
+                    
+                    // Sicherstellen, dass die gesamte Steuerung sichtbar ist
+                    const documentControls = controlsContainer.querySelector('.mb-4');
+                    if (documentControls) {
+                        documentControls.innerHTML = `
+                            <h5 class="mb-3">Dokumentsteuerung:</h5>
+                            <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary w-100 mb-2">
+                                <i class="bi bi-download"></i> PDF herunterladen
+                            </a>
+                            <button id="selectSignatureArea" class="btn btn-primary w-100">
+                                <i class="bi bi-pencil-square"></i> Unterschreiben
+                            </button>
+                            <span id="selectionHint" class="d-none text-muted mt-2">
+                                <i class="bi bi-info-circle"></i> Klicken Sie auf den markierten Bereich, um zu unterschreiben
+                            </span>
+                        `;
+                    }
+                }
+            }
+            
+            // PDF und Signature Pad initialisieren
+            initContractDetail(
+                '{{ contract.pdf_file.url }}',
+                signatureUrl,
+                "{{ csrf_token }}",
+                signatureX,
+                signatureY,
+                signatureWidth,
+                signatureHeight,
+                signaturePage,
+                isCreator
+            );
+            
+            // NEU: Direkter Ersatz für die Unterschriftenfunktion
+            const selectSignatureBtn = document.getElementById('selectSignatureArea');
+            if (selectSignatureBtn) {
+                // Entferne alle existierenden Event-Listener
+                const newBtn = selectSignatureBtn.cloneNode(true);
+                selectSignatureBtn.parentNode.replaceChild(newBtn, selectSignatureBtn);
+                
+                // Füge neuen Event-Listener hinzu
+                newBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log("Aktiviere Unterschriftenmodus...");
+                    
+                    // Direkt die relevanten Aktionen ausführen, die normalerweise der Button im contract_signing.js macht
+                    const signatureContainer = document.getElementById('signatureContainer');
+                    const selectionHint = document.getElementById('selectionHint');
+                    
+                    // Workflow-Schritt aktualisieren
+                    const workflowSteps = document.querySelectorAll('.workflow-step');
+                    workflowSteps.forEach((el, index) => {
+                        if (index + 1 === 2) { // Schritt 2: Unterschreiben
+                            el.classList.add('active');
+                        } else {
+                            el.classList.remove('active');
+                        }
+                    });
+                    
+                    // Signature-Container anzeigen
+                    if (signatureContainer) {
+                        signatureContainer.style.display = 'block';
+                    }
+                    
+                    // Selektions-Hinweis ausblenden
+                    if (selectionHint) {
+                        selectionHint.classList.add('d-none');
+                    }
+                    
+                    // Signature-Pad anpassen
+                    if (typeof resizeSignaturePad === 'function') {
+                        resizeSignaturePad();
+                    } else {
+                        // Fallback, wenn die Funktion nicht verfügbar ist
+                        const signaturePad = document.getElementById('signaturePad');
+                        if (signaturePad) {
+                            const ratio = Math.max(window.devicePixelRatio || 1, 1);
+                            signaturePad.width = signaturePad.offsetWidth * ratio;
+                            signaturePad.height = signaturePad.offsetHeight * ratio;
+                            signaturePad.getContext("2d").scale(ratio, ratio);
+                        }
+                    }
+                });
+            }
+        }
     });
 </script>
 {% endblock %}
