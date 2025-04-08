@@ -62,6 +62,23 @@
         color: #6c757d;
         margin-bottom: 15px;
     }
+    
+    /* Seitennavigation im gleichen Stil wie in contract_detail.css */
+    #pageNavigation {
+        background-color: rgba(255, 255, 255, 0.9);
+        border-radius: 8px;
+        padding: 0.5rem;
+        margin: 1rem 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    #pageInfo {
+        margin: 0 1rem;
+        font-weight: 600;
+    }
 </style>
 {% endblock %}
 
@@ -104,16 +121,15 @@
             <div id="pdfContainer">
                 <canvas id="pdfViewer"></canvas>
                 <canvas id="overlayCanvas"></canvas>
-            </div>
-            {% endif %}
+            </div>            {% endif %}
             
             <!-- Page Navigation -->
-            <div id="pageNavigation" class="mt-3" {% if not user.is_authenticated %}style="display: none;"{% endif %}>
-                <button id="prevPage" class="btn btn-outline-primary">
+            <div id="pageNavigation" class="mt-3 d-flex justify-content-center align-items-center" {% if not user.is_authenticated %}style="display: none;"{% endif %}>
+                <button id="prevPage" class="btn btn-outline-primary me-3">
                     <i class="bi bi-chevron-left"></i> Vorherige Seite
                 </button>
-                <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
-                <button id="nextPage" class="btn btn-outline-primary">
+                <span id="pageInfo" class="mx-3">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+                <button id="nextPage" class="btn btn-outline-primary ms-3">
                     Nächste Seite <i class="bi bi-chevron-right"></i>
                 </button>
             </div>
@@ -222,17 +238,6 @@
             {% csrf_token %}
             
             <div class="mb-3">
-                <label for="partner_name" class="form-label">Ihr vollständiger Name</label>
-                <div class="input-group">
-                    <span class="input-group-text"><i class="bi bi-person"></i></span>
-                    <input type="text" class="form-control" id="partner_name" name="partner_name" required>
-                </div>
-                <div class="form-text">Bitte geben Sie den Namen ein, der im Vertrag hinterlegt ist.</div>
-                <div class="invalid-feedback" id="name_error">
-                    Bitte geben Sie Ihren Namen ein.
-                </div>
-            </div>
-            
             <div class="mb-3">
                 <label for="partner_email" class="form-label">Ihre E-Mail-Adresse</label>
                 <div class="input-group">
