@@ -146,10 +146,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 AUTH_USER_MODEL = 'authenticationapp.Web3User'
 
-# Mailjet API settings
-MAILJET_API_KEY = os.environ.get('MAILJET_API_KEY', '')
-MAILJET_SECRET_KEY = os.environ.get('MAILJET_SECRET_KEY', '')
-
 # Blockchain settings
 ETHEREUM_NODE_URL = os.environ.get('ETHEREUM_NODE_URL', '')
 CONTRACT_ADDRESS = os.environ.get('CONTRACT_ADDRESS', '')

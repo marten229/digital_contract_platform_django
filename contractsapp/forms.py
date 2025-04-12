@@ -1,5 +1,8 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from .models import Contract
+
+User = get_user_model()
 
 class ContractForm(forms.ModelForm):
     contract_amount_eth = forms.DecimalField(
@@ -13,30 +16,19 @@ class ContractForm(forms.ModelForm):
             'step': '0.01'
         }),
     )
+    
+    partner = forms.ModelChoiceField(
+        queryset=User.objects.all(),
+        label="Vertragspartner",
+        required=True,
+        widget=forms.Select(attrs={
+            'class': 'form-control'
+        })
+    )
 
     class Meta:
         model = Contract
-        fields = ['title', 'pdf_file', 'creator_address', 'partner_name', 'partner_email', 'partner_address', 'contract_amount_eth']
-        widgets = {
-            'creator_address': forms.TextInput(attrs={
-                'placeholder': '0x...',
-                'class': 'form-control eth-address-input'
-            }),
-            'partner_name': forms.TextInput(attrs={
-                'placeholder': 'Max Mustermann',
-                'class': 'form-control'
-            }),
-            'partner_email': forms.EmailInput(attrs={
-                'placeholder': 'partner@example.com',
-                'class': 'form-control'
-            }),
-            'partner_address': forms.TextInput(attrs={
-                'placeholder': '0x...',
-                'class': 'form-control eth-address-input',
-                'required': True
-            }),
-        }
-        
+        fields = ['title', 'pdf_file', 'partner', 'contract_amount_eth']
     def clean(self):
         cleaned_data = super().clean()
         amount_eth = cleaned_data.get('contract_amount_eth')
@@ -55,6 +47,15 @@ class ContractForm(forms.ModelForm):
         # Save the contract amount in Wei
         if 'contract_amount' in self.cleaned_data:
             instance.contract_amount = self.cleaned_data['contract_amount']
+            
+        # Setze die Ethereum-Adresse des Partners
+        if instance.partner and instance.partner.ethereum_address:
+            instance.partner_address = instance.partner.ethereum_address.lower()
+            
+        if commit:
+            instance.save()
+            
+        return instance
             
         if commit:
             instance.save()

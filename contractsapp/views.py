@@ -18,19 +18,16 @@ import traceback
 
 from .forms import ContractForm
 from .models import Contract, ContractActivity
-from .services import MailjetService
 from .blockchain import BlockchainService
 from .storage import ContractStorage
 
 
 @login_required
 def contract_list(request):
-    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
-    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    # Verträge abrufen, bei denen der aktuelle Benutzer der Ersteller oder Partner ist
+    creator_contracts = Contract.objects.filter(creator=request.user)
     
-    creator_contracts = Contract.objects.filter(creator_address=user_eth_address)
-    
-    partner_contracts = Contract.objects.filter(partner_address=user_eth_address)
+    partner_contracts = Contract.objects.filter(partner=request.user)
     
     pending_contracts = creator_contracts.filter(
         Q(status='uploaded') | 
@@ -91,7 +88,10 @@ def contract_upload(request):
         form = ContractForm(request.POST, request.FILES)
         if form.is_valid():
             contract = form.save(commit=False)
+            # Setze den aktuellen Benutzer als Ersteller
+            contract.creator = request.user
             contract.creator_address = request.user.ethereum_address
+            # Setze den Status
             contract.status = 'uploaded'
             contract.is_configured = False
             
@@ -115,7 +115,7 @@ def contract_upload(request):
             
             return redirect('contract_configuration', pk=contract.pk)
     else:
-        form = ContractForm(initial={'creator_address': request.user.ethereum_address})
+        form = ContractForm()
     
     return render(request, 'contractsapp/contract_upload.html', {'form': form})
 
@@ -123,10 +123,7 @@ def contract_upload(request):
 @login_required
 def contract_configuration(request, pk):
     """Display the contract configuration page to set signature positions"""
-    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
-    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
-    
-    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
+    contract = get_object_or_404(Contract, pk=pk, creator=request.user)
     
     if contract.is_configured:
         messages.info(request, 'Dieser Vertrag wurde bereits konfiguriert.')
@@ -186,46 +183,20 @@ def finish_contract_configuration(request, pk):
         user_role='creator',
         details="Vertragskonfiguration abgeschlossen"
     )
+      # Da alle Partner registrierte Benutzer sind, ist keine E-Mail-Benachrichtigung mehr notwendig
+    # Der Status wird direkt auf 'invitation_sent' gesetzt, um den Workflow beizubehalten
+    contract.status = 'invitation_sent'
+    contract.save()
     
-    try:
-        contract_url = request.build_absolute_uri(
-            reverse('contract_signing', args=[contract.pk])
-        )
-        
-        context = {
-            'partner_name': contract.partner_name,
-            'creator_name': request.user.get_full_name() or request.user.username,
-            'contract_title': contract.title,
-            'contract_url': contract_url,
-            'site_name': 'DigiContract'
-        }
-        
-        email_sent = MailjetService.send_email(
-            to_email=contract.partner_email,
-            to_name=contract.partner_name,
-            subject=f'Einladung zur Vertragsunterzeichnung: {contract.title}',
-            template_name='contractsapp/email/contract_invitation.html',
-            context=context
-        )
-        
-        if email_sent:
-            contract.status = 'invitation_sent'
-            contract.save()
-            
-            ContractActivity.log(
-                contract=contract,
-                action='send_invitation',
-                user=request.user,
-                user_role='creator',
-                details=f"Einladung an {contract.partner_email} gesendet"
-            )
-            
-            messages.success(request, 'Vertrag wurde erfolgreich konfiguriert und Ihr Partner wurde per E-Mail eingeladen.')
-        else:
-            messages.warning(request, 'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden.')
-    except Exception as e:
-        messages.warning(request, f'Vertrag wurde konfiguriert, aber die Einladungs-E-Mail konnte nicht gesendet werden. Fehler: {str(e)}')
-        print(f"E-Mail-Fehler: {e}")
+    ContractActivity.log(
+        contract=contract,
+        action='send_invitation',
+        user=request.user,
+        user_role='creator',
+        details=f"Vertrag für Partner {contract.partner.username} bereitgestellt"
+    )
+    
+    messages.success(request, 'Vertrag wurde erfolgreich konfiguriert und steht dem Partner zur Verfügung.')
     
     if request.POST.get('redirect_to_signing') == 'true':
         return redirect('contract_signing', pk=contract.pk)
@@ -388,15 +359,8 @@ def add_signature(request, pk):
                 user_eth_address = request.user.ethereum_address.lower() if request.user.is_authenticated and request.user.ethereum_address else None
                 
                 is_creator = user_eth_address == contract.creator_address
-                
-                if request.user.is_authenticated:
-                    is_partner = user_eth_address == contract.partner_address
-                else:
-                    partner_token = request.POST.get('partner_token')
-                    is_partner = (not is_creator) and (
-                        partner_token == contract.partner_email or 
-                        contract.status in ['partner_verified', 'viewed_by_partner']
-                    )
+                  # Da alle Partner registrierte Benutzer sein müssen, prüfen wir nur, ob der angemeldete Benutzer der Partner des Vertrags ist
+                is_partner = request.user.is_authenticated and request.user == contract.partner
                 
                 if is_creator:
                     if contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
@@ -518,25 +482,15 @@ def verify_partner(request, pk):
             
             # Damit die Session-Daten sofort gespeichert werden
             request.session.modified = True
-            
-            # Erzwinge eine vollständige Seiten-Neuladung, damit die Verifikation wirksam wird
+              # Erzwinge eine vollständige Seiten-Neuladung, damit die Verifikation wirksam wird
             return redirect('contract_signing', pk=pk)
     
-    partner_name = request.POST.get('partner_name', '').strip()
-    partner_email = request.POST.get('partner_email', '').strip()
     partner_address = request.POST.get('partner_address', '').strip()
     
     errors = {}
     
-    if not partner_name:
-        errors['name'] = 'Bitte geben Sie Ihren Namen ein.'
-    elif partner_name != contract.partner_name:
-        errors['name'] = 'Der Name stimmt nicht mit dem hinterlegten Namen überein.'
-        
-    if not partner_email:
-        errors['email'] = 'Bitte geben Sie Ihre E-Mail-Adresse ein.'
-    elif partner_email != contract.partner_email:
-        errors['email'] = 'Die E-Mail-Adresse stimmt nicht mit der hinterlegten Adresse überein.'
+    # Da Partner jetzt angemeldete Benutzer sind, ist die Prüfung von Namen und E-Mail nicht mehr erforderlich
+    # Die Identität wird bereits durch die Anmeldung verifiziert
          
     if not partner_address:
         errors['address'] = 'Bitte geben Sie Ihre Ethereum Wallet-Adresse ein.'

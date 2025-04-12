@@ -4,6 +4,9 @@ from django.conf import settings
 from .storage import ContractStorage
 from django.utils import timezone
 from web3 import Web3
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 def contract_pdf_file_path(instance, filename):
     # Dateiendung (.pdf) vom Dateinamen extrahieren
@@ -31,18 +34,17 @@ class Contract(models.Model):
         ('blockchain_published', 'Auf Blockchain veröffentlicht'),
         ('rejected', 'Abgelehnt'),
     )
-    
     title = models.CharField(max_length=255, verbose_name="Vertragstitel")
     pdf_file = models.FileField(upload_to='contracts/', verbose_name="Vertragsdokument (PDF)")
     uploaded_at = models.DateTimeField(auto_now_add=True)
-    creator_address = models.CharField(max_length=42, verbose_name="Ihre Ethereum-Adresse", default=None)
     
-    # New fields for partner information
-    partner_name = models.CharField(max_length=100, verbose_name="Name des Vertragspartners", default=None)
-    partner_email = models.EmailField(verbose_name="E-Mail des Vertragspartners", default=None)
+    # Beziehungen zu registrierten Benutzern
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name="Ersteller")
+    partner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='partnered_contracts', verbose_name="Partner")
     
-    # Make partner address required since it's entered at upload time
-    partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Vertragspartners", 
+    # Ethereum-Adressen werden von den Benutzerkonten übernommen
+    creator_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Erstellers", default=None)
+    partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Partners", 
                                       blank=False, null=False, default=None)
     
     # Fields for signature positions
@@ -72,14 +74,13 @@ class Contract(models.Model):
 
     def __str__(self):
         return self.title
-        
     def save(self, *args, **kwargs):
-        # Stelle sicher, dass Ethereum-Adressen in Kleinbuchstaben gespeichert werden
-        if self.creator_address:
-            self.creator_address = self.creator_address.lower()
+        # Stelle sicher, dass Ethereum-Adressen von den Benutzerkonten übernommen werden
+        if self.creator and self.creator.ethereum_address:
+            self.creator_address = self.creator.ethereum_address.lower()
             
-        if self.partner_address:
-            self.partner_address = self.partner_address.lower()
+        if self.partner and self.partner.ethereum_address:
+            self.partner_address = self.partner.ethereum_address.lower()
             
         # Erst speichern wir das Objekt, um die ID zu bekommen, falls es neu ist
         is_new = self.pk is None

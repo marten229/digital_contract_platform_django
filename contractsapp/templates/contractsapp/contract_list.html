@@ -36,7 +36,7 @@
                                         </div>
                                         <div class="contract-meta mb-3">
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                            <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
                                         </div>
                                         <div class="contract-actions">
@@ -72,7 +72,7 @@
                                         </div>
                                         <div class="contract-meta mb-3">
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                            <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
                                         </div>
                                         <div class="contract-actions">
@@ -106,7 +106,7 @@
                                         </div>
                                         <div class="contract-meta mb-3">
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                            <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Abgeschlossen am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
                                         </div>
                                         <div class="contract-actions">
@@ -147,7 +147,7 @@
                                     </div>
                                     <div class="contract-meta mb-3">
                                         <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                        <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                        <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                         <div><strong>Abgelehnt am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
                                     </div>
                                     <div class="contract-actions">
@@ -220,7 +220,7 @@
                                         </div>
                                         <div class="contract-meta mb-3">
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                            <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
                                         </div>

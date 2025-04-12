@@ -94,12 +94,13 @@
                     <dl class="row mb-0">
                         <dt class="col-sm-5">Ersteller:</dt>
                         <dd class="col-sm-7">{{ contract.creator_address|truncatechars:15 }}</dd>
+                          <dt class="col-sm-5">Partner:</dt>
+                        <dd class="col-sm-7">{{ contract.partner.username }}</dd>
                         
-                        <dt class="col-sm-5">Partner:</dt>
-                        <dd class="col-sm-7">{{ contract.partner_name }}</dd>
-                        
-                        <dt class="col-sm-5">Partner E-Mail:</dt>
-                        <dd class="col-sm-7">{{ contract.partner_email }}</dd>
+                        {% if contract.partner.email %}
+                            <dt class="col-sm-5">Partner E-Mail:</dt>
+                            <dd class="col-sm-7">{{ contract.partner.email }}</dd>
+                        {% endif %}
                         
                         {% if contract.partner_address %}
                             <dt class="col-sm-5">Partner Adresse:</dt>
