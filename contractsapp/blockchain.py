@@ -268,6 +268,7 @@ class BlockchainService:
             raise ValueError("Smart contract not properly initialized")
             
         status = self.contract.functions.getContractStatus(contract_id).call()
+        print(f"Contract ID: {contract_id}, Status: {status}")
         status_map = {
             0: 'Created',
             1: 'Signed',

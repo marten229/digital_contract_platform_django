@@ -5,6 +5,7 @@ from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.db.models import Q
 
+
 import base64
 from io import BytesIO
 from PIL import Image
@@ -13,11 +14,13 @@ from reportlab.lib.utils import ImageReader
 from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
 import json
+import traceback
 
 from .forms import ContractForm
 from .models import Contract, ContractActivity
 from .services import MailjetService
 from .blockchain import BlockchainService
+from .storage import ContractStorage
 
 
 @login_required
@@ -304,45 +307,11 @@ def contract_signing(request, pk):
                     details="Partner hat die Signierseite geöffnet"
                 )
     
-    blockchain_data = {}
-    if contract.pdf_hash and contract.contract_amount:
-        if is_creator and contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
-            if contract.partner_address:
-                blockchain_service = BlockchainService()
-                try:
-                    tx = blockchain_service.create_contract(
-                        creator_address=contract.creator_address,
-                        counterparty_address=contract.partner_address,
-                        contract_hash=contract.pdf_hash,
-                        amount_wei=contract.contract_amount
-                    )
-                    blockchain_data = {
-                        'transaction': json.dumps(dict(tx)),
-                        'contract_hash': contract.pdf_hash,
-                        'amount_wei': contract.contract_amount
-                    }
-                except Exception as e:
-                    messages.error(request, f"Fehler bei der Blockchain-Transaktion: {e}")
-        elif is_partner and contract.status in ['viewed_by_partner', 'partner_verified']:
-            if contract.blockchain_contract_id:
-                blockchain_service = BlockchainService()
-                try:
-                    tx = blockchain_service.sign_contract(
-                        partner_address=contract.partner_address,
-                        contract_id=contract.blockchain_contract_id
-                    )
-                    blockchain_data = {
-                        'transaction': json.dumps(dict(tx)),
-                        'contract_id': contract.blockchain_contract_id
-                    }
-                except Exception as e:
-                    messages.error(request, f"Fehler bei der Blockchain-Transaktion: {e}")
-    
     return render(request, 'contractsapp/contract_signing.html', {
         'contract': contract,
         'is_creator': is_creator,
         'is_partner': is_partner,
-        'blockchain_data': blockchain_data
+        #'blockchain_data': blockchain_data
     })
 
 
@@ -416,12 +385,18 @@ def add_signature(request, pk):
                 output_stream = BytesIO()
                 output.write(output_stream)
                 output_stream.seek(0)
-                
-                # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
                 user_eth_address = request.user.ethereum_address.lower() if request.user.is_authenticated and request.user.ethereum_address else None
                 
                 is_creator = user_eth_address == contract.creator_address
-                is_partner = user_eth_address == contract.partner_address
+                
+                if request.user.is_authenticated:
+                    is_partner = user_eth_address == contract.partner_address
+                else:
+                    partner_token = request.POST.get('partner_token')
+                    is_partner = (not is_creator) and (
+                        partner_token == contract.partner_email or 
+                        contract.status in ['partner_verified', 'viewed_by_partner']
+                    )
                 
                 if is_creator:
                     if contract.status in ['configured', 'invitation_sent', 'viewed_by_partner', 'partner_verified']:
@@ -446,7 +421,6 @@ def add_signature(request, pk):
                     details = "Unbekannte Partei hat den Vertrag unterzeichnet"
                 
                 try:
-                    from .storage import ContractStorage
                     contract_storage = ContractStorage()
                     
                     file_path = contract_storage.save_contract_file(
@@ -472,7 +446,6 @@ def add_signature(request, pk):
                             details=details
                         )
                         
-                        # Add a success message for the next page load
                         messages.success(request, "Unterschrift erfolgreich hinzugefügt.")
                     
                     blockchain_tx_hash = request.POST.get('blockchain_tx_hash')
@@ -490,7 +463,6 @@ def add_signature(request, pk):
                         )
                     
                 except Exception as e:
-                    import traceback
                     print(traceback.format_exc())
                     pass
                 
@@ -897,7 +869,6 @@ def submit_to_blockchain(request, pk):
         details="Blockchain-Übermittlungsseite geöffnet"
     )
     
-    # Berechne ETH-Betrag für die Anzeige (contract_amount ist in Wei gespeichert)
     if contract.contract_amount:
         contract.eth_amount = contract.contract_amount / (10**18)
     
