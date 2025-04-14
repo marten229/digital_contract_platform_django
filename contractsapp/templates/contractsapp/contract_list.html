@@ -161,48 +161,92 @@
                 {% endif %}
                 
                 <!-- Verträge als Partner -->
-                {% if pending_partner_contracts or completed_partner_contracts %}
+                {% if pending_partner_contracts or completed_partner_contracts or signed_by_partner_contracts %}
                 <div class="contract-section">
                     <h2 class="section-header">Verträge als Partner</h2>
-                    <div class="row">
-                        {% for contract in pending_partner_contracts %}
-                            <div class="col-md-6 mb-4">
-                                <div class="contract-card partner-contract">
-                                    <div class="d-flex justify-content-between align-items-start mb-3">
-                                        <h3>{{ contract.title }}</h3>
-                                        <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
-                                    </div>
-                                    <div class="contract-meta mb-3">
-                                        <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:10 }}</div>
-                                        <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
-                                    </div>
-                                    <div class="contract-actions">
-                                        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
-                                        {% if contract.status != 'signed_by_creator' %}
-                                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">Zur Signatur</a>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                        {% for contract in completed_partner_contracts %}
-                            <div class="col-md-6 mb-4">
-                                <div class="contract-card partner-contract">
-                                    <div class="d-flex justify-content-between align-items-start mb-3">
-                                        <h3>{{ contract.title }}</h3>
-                                        <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
-                                    </div>
-                                    <div class="contract-meta mb-3">
-                                        <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:10 }}</div>
-                                        <div><strong>Abgeschlossen am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
-                                    </div>
-                                    <div class="contract-actions">
-                                        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                    
+                    {% if pending_partner_contracts %}
+                        <h3 class="subsection-header">Ausstehend</h3>
+                        <div class="row">
+                            {% for contract in pending_partner_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card partner-contract">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:15 }}</div>
+                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
+                                            <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.status != 'signed_by_partner' %}
+                                                <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">Zur Signatur</a>
+                                            {% else %}
+                                                <span class="badge bg-info text-dark">Von Ihnen signiert</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        {% endfor %}
-                    </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if signed_by_partner_contracts %}
+                        <div class="row">
+                            {% for contract in signed_by_partner_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card partner-contract">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:15 }}</div>
+                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
+                                            <div><strong>Von Ihnen signiert am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            <span class="badge bg-info text-dark">Wartet auf Ersteller-Signatur</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if completed_partner_contracts %}
+                        <h3 class="subsection-header">Abgeschlossen</h3>
+                        <div class="row">
+                            {% for contract in completed_partner_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card partner-contract completed">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:15 }}</div>
+                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
+                                            <div><strong>Abgeschlossen am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.status == 'blockchain_published' %}
+                                                <span class="badge bg-primary">
+                                                    <i class="bi bi-link-45deg"></i> Blockchain ID: {{ contract.blockchain_contract_id }}
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
                 </div>
                 {% endif %}
                 

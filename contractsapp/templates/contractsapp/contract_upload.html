@@ -66,26 +66,14 @@
                         {% if form.creator_address.errors %}
                             <div class="form-text text-danger">{{ form.creator_address.errors }}</div>
                         {% endif %}
-                    </div>
-                      <div class="mb-3">
-                        <label for="{{ form.partner.id_for_label }}" class="form-label">Vertragspartner</label>
+                    </div>                    <div class="mb-3">
+                        <label for="{{ form.partner_address.id_for_label }}" class="form-label">Ethereum-Adresse des Partners</label>
                         <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person-fill"></i></span>
-                            {{ form.partner }}
+                            <span class="input-group-text"><i class="bi bi-wallet2"></i></span>
+                            {{ form.partner_address }}
                         </div>
-                        {% if form.partner.errors %}
-                            <div class="form-text text-danger">{{ form.partner.errors }}</div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="{{ form.contract_amount_eth.id_for_label }}" class="form-label">Vertragsbetrag (ETH)</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-currency-exchange"></i></span>
-                            {{ form.contract_amount_eth }}
-                        </div>
-                        {% if form.contract_amount_eth.errors %}
-                            <div class="form-text text-danger">{{ form.contract_amount_eth.errors }}</div>
+                        {% if form.partner_address.errors %}
+                            <div class="form-text text-danger">{{ form.partner_address.errors }}</div>
                         {% endif %}
                     </div>
                     

@@ -37,12 +37,11 @@ class Contract(models.Model):
     title = models.CharField(max_length=255, verbose_name="Vertragstitel")
     pdf_file = models.FileField(upload_to='contracts/', verbose_name="Vertragsdokument (PDF)")
     uploaded_at = models.DateTimeField(auto_now_add=True)
+      # Beziehungen zu registrierten Benutzern (optional für die Migration)
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name="Ersteller", null=True, blank=True)
+    partner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='partnered_contracts', verbose_name="Partner", null=True, blank=True)
     
-    # Beziehungen zu registrierten Benutzern
-    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name="Ersteller")
-    partner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='partnered_contracts', verbose_name="Partner")
-    
-    # Ethereum-Adressen werden von den Benutzerkonten übernommen
+    # Die primären Felder für Ethereum-Adressen
     creator_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Erstellers", default=None)
     partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Partners", 
                                       blank=False, null=False, default=None)
@@ -70,10 +69,19 @@ class Contract(models.Model):
     blockchain_contract_id = models.BigIntegerField(null=True, blank=True, verbose_name="Blockchain-Vertrags-ID")
     pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
     blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
-    contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
-
+    contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")    
     def __str__(self):
         return self.title
+    @property
+    def partner_name(self):
+        """Returns a display name for the partner - either username if partner object exists, 
+        or truncated ethereum address"""
+        if self.partner and hasattr(self.partner, 'username'):
+            return self.partner.username
+        elif self.partner_address:
+            return f"{self.partner_address[:6]}...{self.partner_address[-4:]}"
+        return "Unbekannt"
+    
     def save(self, *args, **kwargs):
         # Stelle sicher, dass Ethereum-Adressen von den Benutzerkonten übernommen werden
         if self.creator and self.creator.ethereum_address:
@@ -85,8 +93,20 @@ class Contract(models.Model):
         # Erst speichern wir das Objekt, um die ID zu bekommen, falls es neu ist
         is_new = self.pk is None
         
+        # Temporär speichern und dann wiederherstellen der creator/partner-Beziehungen
+        temp_creator = self.creator
+        temp_partner = self.partner
+        
+        # Setze die Felder auf None, damit Django nicht versucht, sie in die Datenbank zu schreiben
+        self.creator = None
+        self.partner = None
+        
         # Speichern ohne Dateibehandlung, um eine ID zu erhalten
         super().save(*args, **kwargs)
+        
+        # Beziehungen wiederherstellen für weitere Code-Verwendung (aber nicht in DB)
+        self.creator = temp_creator
+        self.partner = temp_partner
         
         # Nach dem Speichern, wenn ein PDF vorhanden ist, mit der richtigen ID speichern
         if self.pdf_file:
@@ -129,12 +149,12 @@ class Contract(models.Model):
                 import traceback
                 print(f"Fehler beim Speichern des Vertrags {self.pk}: {e}")
                 print(traceback.format_exc())
-                
     def get_status_display_german(self):
         """Gibt eine benutzerfreundliche deutsche Beschreibung des aktuellen Status zurück"""
         status_map = dict(self.STATUS_CHOICES)
-        return status_map.get(self.status, self.status)
-    
+        result = status_map.get(self.status, self.status)
+        return result
+
     def get_status_class(self):
         """Gibt eine CSS-Klasse basierend auf dem Status zurück"""
         status_classes = {
@@ -150,7 +170,8 @@ class Contract(models.Model):
             'blockchain_published': 'status-blockchain',
             'rejected': 'status-rejected',
         }
-        return status_classes.get(self.status, 'status-default')
+        result = status_classes.get(self.status, 'status-default')
+        return result
         
     def update_blockchain_status(self):
         """Updates the blockchain status for this contract"""

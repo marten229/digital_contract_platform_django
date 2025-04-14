@@ -87,6 +87,44 @@
     font-weight: 600;
 }
 
+/* Additional status classes */
+.status-draft {
+    background-color: #6c757d;
+    color: #fff;
+}
+.status-uploaded {
+    background-color: #0dcaf0;
+    color: #fff;
+}
+.status-configured {
+    background-color: #ffc107;
+    color: #212529;
+}
+.status-invitation {
+    background-color: #6610f2;
+    color: #fff;
+}
+.status-viewed {
+    background-color: #20c997;
+    color: #fff;
+}
+.status-verified {
+    background-color: #198754;
+    color: #fff;
+}
+.status-signed-creator {
+    background-color: #0d6efd;
+    color: #fff;
+}
+.status-signed-partner {
+    background-color: #6f42c1;
+    color: #fff;
+}
+.status-blockchain {
+    background-color: #fd7e14;
+    color: #fff;
+}
+
 .activity-list {
     margin-top: 1.5rem;
 }

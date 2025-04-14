@@ -47,6 +47,25 @@
                     <i class="bi bi-download"></i> PDF herunterladen
                 </a>
             </div>
+
+            {% if user.is_authenticated %}
+                {% comment %}
+                Verwende die is_creator und is_partner Variablen aus dem View-Kontext.
+                {% endcomment %}
+                
+                {% if (is_creator and contract.status not in ['signed_by_creator', 'completed', 'blockchain_published']) or \
+                      (is_partner and contract.status not in ['signed_by_partner', 'completed', 'blockchain_published']) %}
+                    <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-primary btn-sm mb-3">Zur Signatur</a>
+                {% endif %}
+            {% endif %}
+
+            {% if user.is_authenticated and is_creator and contract.status == 'completed' and not contract.blockchain_contract_id %}
+                <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-success btn-sm mb-3">An Blockchain übermitteln</a>
+            {% endif %}
+
+            {% if user.is_authenticated and is_partner and contract.blockchain_status == 'Completed' %}
+                <button id="withdrawBtn" class="btn btn-warning btn-sm mb-3">Geld abheben</button>
+            {% endif %}
         </div>
         
         <div class="col-md-4">
@@ -121,6 +140,39 @@
     <div class="spinner-border text-primary loading-spinner" role="status"></div>
     <p id="loadingMessage">Wird geladen...</p>
 </div>
+
+{% if user.is_authenticated and user.ethereum_address == contract.partner_address and contract.blockchain_status == 'Completed' %}
+<script>
+document.getElementById('withdrawBtn').addEventListener('click', function() {
+    // Implementiere hier die Logik zum Abheben von Geldern (z.B. AJAX-Aufruf an eine Django-View)
+    alert('Funktion zum Abheben von Geldern noch nicht implementiert.');
+    // Beispiel für einen AJAX-Aufruf (benötigt jQuery oder fetch API):
+    /*
+    fetch("{% url 'withdraw_funds' contract.pk %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/json'
+        },
+        // body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Abhebung erfolgreich! Transaktion: ' + data.transaction);
+        } else {
+            alert('Fehler beim Abheben: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ein Fehler ist aufgetreten.');
+    });
+    */
+});
+</script>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
