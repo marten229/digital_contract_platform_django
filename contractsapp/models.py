@@ -221,7 +221,7 @@ class ContractActivity(models.Model):
     )
     
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='activities')
-    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    action = models.CharField(max_length=30, choices=ACTION_CHOICES)
     timestamp = models.DateTimeField(default=timezone.now)
     user_address = models.CharField(max_length=42, null=True, blank=True, 
                                    help_text="Ethereum-Adresse des Benutzers, der die Aktion ausgeführt hat")

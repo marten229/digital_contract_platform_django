@@ -263,13 +263,17 @@
                                             <span class="status-badge {{ contract.get_status_class }}">{{ contract.get_status_display_german }}</span>
                                         </div>
                                         <div class="contract-meta mb-3">
-                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
-                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
+                                            <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
                                         </div>
                                         <div class="contract-actions">
                                             <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.blockchain_status == 'Signed' %}
+                                                <a href="{% url 'confirm_contract_completion' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                    <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
+                                                </a>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </div>
@@ -285,14 +289,16 @@
                                             <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:10 }}</div>
                                             <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
-                                        </div>
-                                        <div class="contract-actions">
-                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                        </div>                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>                                            {% if contract.blockchain_status == 'Created' and contract.partner_address == user.ethereum_address %}
+                                                <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                    <i class="bi bi-pen"></i> Auf Blockchain signieren
+                                                </a>
+                                            {% endif %}
                                             {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address %}
-                                                <button class="btn btn-outline-success btn-sm withdraw-funds" 
-                                                        data-contract-id="{{ contract.pk }}">
+                                                <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-cash-coin"></i> Geld abheben
-                                                </button>
+                                                </a>
                                             {% endif %}
                                         </div>
                                     </div>

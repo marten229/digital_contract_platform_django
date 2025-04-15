@@ -10,8 +10,10 @@ urlpatterns = [
     path('contract/<int:pk>/verify/', views.verify_partner, name='verify_partner'),
     path('contract/<int:pk>/add_signature/', views.add_signature, name='add_signature'),
     path('contract/<int:pk>/configure/', views.contract_configuration, name='contract_configuration'),
-    path('contract/<int:pk>/finish_configuration/', views.finish_contract_configuration, name='finish_contract_configuration'),
-    path('contract/<int:pk>/submit_to_blockchain/', views.submit_to_blockchain, name='submit_to_blockchain'),
+    path('contract/<int:pk>/finish_configuration/', views.finish_contract_configuration, name='finish_contract_configuration'),    path('contract/<int:pk>/submit_to_blockchain/', views.submit_to_blockchain, name='submit_to_blockchain'),
+    path('contract/<int:pk>/sign_blockchain/', views.sign_blockchain_contract, name='sign_blockchain_contract'),
+    path('contract/<int:pk>/confirm_completion/', views.confirm_contract_completion, name='confirm_contract_completion'),
+    path('contract/<int:pk>/withdraw_funds/', views.withdraw_contract_funds, name='withdraw_contract_funds'),
     path('update-blockchain-status/<int:pk>/', views.update_blockchain_status, name='update_blockchain_status'),
     path('withdraw-funds/<int:pk>/', views.withdraw_funds, name='withdraw_funds'),
     

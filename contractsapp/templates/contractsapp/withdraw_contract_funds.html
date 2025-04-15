@@ -1,0 +1,309 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Vertragsgelder abheben | DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
+        </a>
+        <h1 class="mb-0">Vertragsgelder abheben</h1>
+    </div>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Der Vertrag wurde erfolgreich erfüllt und der Ersteller hat die Erfüllung auf der Blockchain bestätigt.
+        Sie können nun die hinterlegten Vertragsgelder abheben.
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="blockchain-submit-section">
+                <h3 class="mb-4">Vertragsdetails</h3>
+                
+                <div class="contract-detail">
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragstitel:</strong></div>
+                        <div class="col-sm-8">{{ contract.title }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Ersteller:</strong></div>
+                        <div class="col-sm-8">{{ contract.creator_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Partner:</strong></div>
+                        <div class="col-sm-8">{{ contract.partner_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.get_status_display_german }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Blockchain-Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_status }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Blockchain-ID:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
+                    </div>
+                    {% if contract.contract_amount %}
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Verfügbarer Betrag:</strong></div>
+                        <div class="col-sm-8">
+                            <span class="h5 text-success">{{ contract.eth_amount|floatformat:4 }} ETH</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-4 mb-3">
+                    <h4>Smart Contract auf der Blockchain</h4>
+                    <p>
+                        <a href="{{ explorer_url }}" target="_blank" class="btn btn-outline-info btn-sm">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>
+                            Smart Contract im Block Explorer ansehen
+                        </a>
+                    </p>
+                </div>
+                
+                {% if is_submission %}
+                <div id="blockchain-submission-area">
+                    <h4 class="mb-3">Vertragsgelder abheben</h4>
+                    <p>
+                        Sie können nun die Vertragsgelder von der Blockchain abheben.
+                        Der Betrag wird direkt an Ihr Ethereum-Wallet gesendet.
+                    </p>
+                    
+                    <div class="d-grid gap-2 mb-4">
+                        <button id="submit-button" class="btn btn-primary btn-lg">
+                            <i class="bi bi-cash-coin me-2"></i>
+                            Gelder abheben
+                        </button>
+                    </div>
+                    
+                    <div id="submission-status" class="alert alert-info d-none">
+                        <div class="status-info">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Wird verarbeitet...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">Transaktion wird verarbeitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während Ihre Anfrage an die Blockchain übermittelt wird.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-success" class="alert alert-success d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Gelder erfolgreich abgehoben!
+                        </h5>
+                        <p>Die Vertragsgelder wurden erfolgreich abgehoben und an Ihr Wallet gesendet.</p>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>Transaktions-Hash:</strong> 
+                            <span id="transaction-hash" class="d-block mt-2 contract-hash"></span>
+                        </p>
+                        <div class="mt-3">
+                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary">
+                                Zurück zum Vertrag
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-error" class="alert alert-danger d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Fehler bei der Abhebung
+                        </h5>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Abhebung der Vertragsgelder.</p>
+                        <div class="mt-3">
+                            <button id="retry-button" class="btn btn-outline-danger">
+                                Erneut versuchen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div id="contract-info-area">
+                    <div class="d-grid gap-2 mb-4">
+                        <form method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-cash-coin me-2"></i>
+                                Geldabhebung vorbereiten
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Informationen zur Geldabhebung</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3">Über die Geldabhebung</h6>
+                    <ul class="mb-4">
+                        <li>Der Vertrag wurde erfolgreich erfüllt und auf der Blockchain als "Completed" markiert</li>
+                        <li>Die hinterlegten Vertragsgelder wurden zur Abhebung freigegeben</li>
+                        <li>Nach erfolgreicher Abhebung werden die Gelder direkt an Ihre Ethereum-Adresse gesendet</li>
+                        <li>Dieser Vorgang kann einige Sekunden bis Minuten dauern, abhängig vom Netzwerkzustand</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
+                    <p>Für die Abhebung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
+                       Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Füge diese versteckten Elemente zum HTML hinzu, um Daten an JS zu übergeben -->
+<div id="partner-address" data-address="{{ contract.partner_address }}" style="display: none;"></div>
+<div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
+<div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+{% if is_submission %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitButton = document.getElementById('submit-button');
+        const retryButton = document.getElementById('retry-button');
+        
+        // Transaktionsdaten direkt aus Django
+        let txData = {{ transaction|safe }};
+        
+        if (submitButton) {
+            submitButton.onclick = function() {
+                withdrawFunds();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                withdrawFunds();
+                return false;
+            };
+        }
+
+        async function withdrawFunds() {
+            // Prüfe, ob MetaMask installiert ist
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            // Überprüfen, ob die Transaktionsdaten vorhanden sind
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
+                return;
+            }
+            
+            try {
+                // UI-Status aktualisieren
+                document.getElementById('submit-button').disabled = true;
+                document.getElementById('submission-status').classList.remove('d-none');
+                
+                // Mit MetaMask verbinden
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Überprüfen, ob die aktuelle Adresse mit der Partner-Adresse übereinstimmt
+                const userAddress = accounts[0];
+                const partnerAddress = "{{ contract.partner_address }}";
+                
+                if (userAddress.toLowerCase() !== partnerAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragspartners (${partnerAddress})`);
+                    return;
+                }
+                
+                // Bereite die Transaktion für Web3.js vor
+                const web3Tx = {...txData};
+                
+                // Transaktion mit MetaMask senden
+                web3.eth.sendTransaction(web3Tx)
+                    .on('transactionHash', function(hash) {
+                        // Transaktions-Hash wurde generiert
+                    })
+                    .on('receipt', async function(receipt) {
+                        // Erfolgs-UI anzeigen
+                        document.getElementById('submission-status').classList.add('d-none');
+                        document.getElementById('submission-success').classList.remove('d-none');
+                        
+                        // Hash anzeigen
+                        document.getElementById('transaction-hash').textContent = receipt.transactionHash;
+                        
+                        await updateBlockchainStatus(receipt.transactionHash);
+                    })
+                    .on('error', function(error) {
+                        showError(error.message || 'Unbekannter Fehler bei der Abhebung der Vertragsgelder');
+                    });
+            } catch (error) {
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        async function updateBlockchainStatus(txHash) {
+            try {
+                const formData = new FormData();
+                formData.append('tx_hash', txHash);
+                
+                const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
+                
+                const response = await fetch(updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Fehler beim Aktualisieren des Blockchain-Status:', data.message);
+                }
+            } catch (error) {
+                console.error('Fehler bei der Kommunikation mit dem Server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('submission-status').classList.add('d-none');
+            document.getElementById('submission-error').classList.remove('d-none');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('submit-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

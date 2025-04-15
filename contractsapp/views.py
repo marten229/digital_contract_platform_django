@@ -886,3 +886,314 @@ def submit_to_blockchain(request, pk):
         'contract': contract,
         'blockchain_service': blockchain_service
     })
+
+
+@login_required
+def sign_blockchain_contract(request, pk):
+    """Page for partners to sign contracts on the blockchain"""
+    from django.conf import settings
+    
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    # Vertrag abrufen, bei dem der aktuelle Benutzer der Partner ist
+    contract = get_object_or_404(Contract, pk=pk, partner_address=user_eth_address)
+    blockchain_service = BlockchainService()
+    
+    # Prüfen, ob der Vertrag auf der Blockchain ist und noch nicht signiert wurde
+    if not contract.blockchain_contract_id:
+        messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
+        return redirect('contract_detail', pk=pk)
+    
+    if contract.blockchain_status != 'Created':
+        messages.info(request, "Dieser Vertrag benötigt keine Signatur mehr auf der Blockchain.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Blockexplorer-URL erstellen
+    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
+    if network == 'mainnet':
+        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = "https://etherscan.io/tx/"
+    else:
+        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
+    
+    if request.method == 'POST':
+        try:
+            # Vorbereiten der Transaktion für das Signieren auf der Blockchain
+            tx = blockchain_service.sign_contract(
+                partner_address=contract.partner_address,
+                contract_id=contract.blockchain_contract_id
+            )
+            
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_sign',
+                user=request.user,
+                user_role='partner',
+                details="Blockchain-Signatur für Vertrag vorbereitet"
+            )
+            
+            # Transaktion für JS aufbereiten
+            tx_dict = dict(tx)
+            
+            # Binäre Daten in Hex-Strings umwandeln
+            processed_tx = {}
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            # Stelle sicher, dass die Transaktion einen 'to'-Parameter hat
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            # JSON-Serialisierung für das Template
+            transaction_json = json.dumps(processed_tx)
+            
+            return render(request, 'contractsapp/sign_blockchain_contract.html', {
+                'contract': contract,
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service,
+                'explorer_url': explorer_url,
+                'tx_explorer_base': tx_explorer_base
+            })
+        except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_error',
+                user=request.user,
+                user_role='partner',
+                details=f"Fehler bei der Blockchain-Signatur: {str(e)}"
+            )
+            
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Signatur: {str(e)}")
+            return redirect('contract_detail', pk=pk)
+    
+    # Aktivität protokollieren
+    ContractActivity.log(
+        contract=contract,
+        action='blockchain_sign_view',
+        user=request.user,
+        user_role='partner',
+        details="Blockchain-Signaturseite geöffnet"
+    )
+    
+    return render(request, 'contractsapp/sign_blockchain_contract.html', {
+        'contract': contract,
+        'blockchain_service': blockchain_service,
+        'explorer_url': explorer_url,
+        'tx_explorer_base': tx_explorer_base
+    })
+
+
+@login_required
+def confirm_contract_completion(request, pk):
+    """Page for creators to confirm contract completion on the blockchain"""
+    from django.conf import settings
+    
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    # Vertrag abrufen, bei dem der aktuelle Benutzer der Ersteller ist
+    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
+    blockchain_service = BlockchainService()
+    
+    # Prüfen, ob der Vertrag auf der Blockchain ist und im Status "Signed"
+    if not contract.blockchain_contract_id:
+        messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
+        return redirect('contract_detail', pk=pk)
+    
+    if contract.blockchain_status != 'Signed':
+        if contract.blockchain_status == 'Created':
+            messages.info(request, "Dieser Vertrag muss zuerst vom Partner auf der Blockchain signiert werden.")
+        elif contract.blockchain_status == 'Completed':
+            messages.info(request, "Dieser Vertrag wurde bereits als erfüllt bestätigt.")
+        else:
+            messages.info(request, "Dieser Vertrag kann nicht als erfüllt bestätigt werden.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Blockexplorer-URL erstellen
+    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
+    if network == 'mainnet':
+        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = "https://etherscan.io/tx/"
+    else:
+        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
+    
+    if request.method == 'POST':
+        try:
+            # Vorbereiten der Transaktion für die Bestätigung der Vertragserfüllung
+            tx = blockchain_service.confirm_completion(
+                creator_address=contract.creator_address,
+                contract_id=contract.blockchain_contract_id
+            )
+            
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_complete',
+                user=request.user,
+                user_role='creator',
+                details="Blockchain-Vertragserfüllung vorbereitet"
+            )
+            
+            # Transaktion für JS aufbereiten
+            tx_dict = dict(tx)
+            
+            # Binäre Daten in Hex-Strings umwandeln
+            processed_tx = {}
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            # Stelle sicher, dass die Transaktion einen 'to'-Parameter hat
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            # JSON-Serialisierung für das Template
+            transaction_json = json.dumps(processed_tx)
+            
+            return render(request, 'contractsapp/confirm_contract_completion.html', {
+                'contract': contract,
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service,
+                'explorer_url': explorer_url,
+                'tx_explorer_base': tx_explorer_base
+            })
+        except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_error',
+                user=request.user,
+                user_role='creator',
+                details=f"Fehler bei der Blockchain-Vertragserfüllung: {str(e)}"
+            )
+            
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Vertragserfüllung: {str(e)}")
+            return redirect('contract_detail', pk=pk)
+      # Aktivität protokollieren
+    ContractActivity.log(
+        contract=contract,
+        action='blockchain_complete_view',
+        user=request.user,
+        user_role='creator',
+        details="Blockchain-Vertragserfüllungsseite geöffnet"
+    )
+    
+    return render(request, 'contractsapp/confirm_contract_completion.html', {
+        'contract': contract,
+        'blockchain_service': blockchain_service,
+        'explorer_url': explorer_url,
+        'tx_explorer_base': tx_explorer_base
+    })
+
+
+@login_required
+def withdraw_contract_funds(request, pk):
+    """Page for partners to withdraw funds from completed contracts"""
+    from django.conf import settings
+    
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    # Vertrag abrufen, bei dem der aktuelle Benutzer der Partner ist
+    contract = get_object_or_404(Contract, pk=pk, partner_address=user_eth_address)
+    blockchain_service = BlockchainService()
+    
+    # Prüfen, ob der Vertrag auf der Blockchain ist und im Status "Completed"
+    if not contract.blockchain_contract_id:
+        messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
+        return redirect('contract_detail', pk=pk)
+    
+    if contract.blockchain_status != 'Completed':
+        if contract.blockchain_status == 'Created':
+            messages.info(request, "Dieser Vertrag muss zuerst signiert werden, bevor Gelder abgehoben werden können.")
+        elif contract.blockchain_status == 'Signed':
+            messages.info(request, "Der Vertrag muss zuerst vom Ersteller als erfüllt bestätigt werden.")
+        else:
+            messages.info(request, "Aus diesem Vertrag können keine Gelder abgehoben werden.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Blockexplorer-URL erstellen
+    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
+    if network == 'mainnet':
+        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = "https://etherscan.io/tx/"
+    else:
+        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
+    
+    if request.method == 'POST':
+        try:
+            # Vorbereiten der Transaktion für die Abhebung der Vertragsgelder
+            tx = blockchain_service.withdrawFunds(
+                partner_address=contract.partner_address
+            )
+            
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_withdraw',
+                user=request.user,
+                user_role='partner',
+                details="Blockchain-Geldabhebung vorbereitet"
+            )
+            
+            # Transaktion für JS aufbereiten
+            tx_dict = dict(tx)
+            
+            # Binäre Daten in Hex-Strings umwandeln
+            processed_tx = {}
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            # Stelle sicher, dass die Transaktion einen 'to'-Parameter hat
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            # JSON-Serialisierung für das Template
+            transaction_json = json.dumps(processed_tx)
+            
+            return render(request, 'contractsapp/withdraw_contract_funds.html', {
+                'contract': contract,
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service,
+                'explorer_url': explorer_url,
+                'tx_explorer_base': tx_explorer_base
+            })
+        except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_error',
+                user=request.user,
+                user_role='partner',
+                details=f"Fehler bei der Blockchain-Geldabhebung: {str(e)}"
+            )
+            
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Geldabhebung: {str(e)}")
+            return redirect('contract_detail', pk=pk)
+    
+    # Aktivität protokollieren
+    ContractActivity.log(
+        contract=contract,
+        action='blockchain_view',
+        user=request.user,
+        user_role='partner',
+        details="Blockchain-Geldabhebungsseite geöffnet"
+    )
+    
+    return render(request, 'contractsapp/withdraw_contract_funds.html', {
+        'contract': contract,
+        'blockchain_service': blockchain_service,
+        'explorer_url': explorer_url,
+        'tx_explorer_base': tx_explorer_base
+    })
