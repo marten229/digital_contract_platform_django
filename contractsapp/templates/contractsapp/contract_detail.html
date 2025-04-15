@@ -49,14 +49,17 @@
             </div>
 
             {% if user.is_authenticated %}
-                {% comment %}
-                Verwende die is_creator und is_partner Variablen aus dem View-Kontext.
-                {% endcomment %}
-                
-                {% if (is_creator and contract.status not in ['signed_by_creator', 'completed', 'blockchain_published']) or \
-                      (is_partner and contract.status not in ['signed_by_partner', 'completed', 'blockchain_published']) %}
-                    <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-primary btn-sm mb-3">Zur Signatur</a>
-                {% endif %}
+                {% with not_creator_signed="signed_by_creator" %}
+                {% with not_partner_signed="signed_by_partner" %}
+                {% with completed="completed" %}
+                {% with blockchain="blockchain_published" %}
+                    {% if is_creator and contract.status != not_creator_signed and contract.status != completed and contract.status != blockchain or is_partner and contract.status != not_partner_signed and contract.status != completed and contract.status != blockchain %}
+                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-primary btn-sm mb-3">Zur Signatur</a>
+                    {% endif %}
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
+                {% endwith %}
             {% endif %}
 
             {% if user.is_authenticated and is_creator and contract.status == 'completed' and not contract.blockchain_contract_id %}
