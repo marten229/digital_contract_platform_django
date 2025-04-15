@@ -332,3 +332,33 @@ class BlockchainService:
         }
         
         return formatted_details
+    
+    def deactivate_contract(self, creator_address, contract_id):
+        """Deactivate (void) a contract on the blockchain"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not creator_address:
+                raise ValueError("Creator address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not creator_address.startswith('0x'):
+                creator_address = '0x' + creator_address
+                
+            creator_address = self.web3.to_checksum_address(creator_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
+        # Prepare the transaction to deactivate the contract
+        tx = self.contract.functions.deactivateContract(contract_id).build_transaction({
+            'from': creator_address,
+            'nonce': self.web3.eth.get_transaction_count(creator_address),
+            'gas': 2000000,  # Adjust as needed
+            'gasPrice': self.web3.eth.gas_price
+        })
+        
+        # Return the transaction for signing in the frontend
+        return tx

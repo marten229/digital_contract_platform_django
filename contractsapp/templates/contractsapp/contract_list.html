@@ -166,7 +166,6 @@
                     <h2 class="section-header">Verträge als Partner</h2>
                     
                     {% if pending_partner_contracts %}
-                        <h3 class="subsection-header">Ausstehend</h3>
                         <div class="row">
                             {% for contract in pending_partner_contracts %}
                                 <div class="col-md-6 mb-4">
@@ -219,7 +218,6 @@
                     {% endif %}
 
                     {% if completed_partner_contracts %}
-                        <h3 class="subsection-header">Abgeschlossen</h3>
                         <div class="row">
                             {% for contract in completed_partner_contracts %}
                                 <div class="col-md-6 mb-4">
@@ -268,11 +266,17 @@
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
                                         </div>
                                         <div class="contract-actions">
-                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
-                                            {% if contract.blockchain_status == 'Signed' %}
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>                                            {% if contract.blockchain_status == 'Signed' %}
                                                 <a href="{% url 'confirm_contract_completion' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
                                                 </a>
+                                            {% endif %}
+                                            {% if contract.creator_address == user.ethereum_address and contract.blockchain_status != 'Cancelled' %}
+                                                {% if contract.blockchain_status != 'Completed' or contract.funds_withdrawn %}
+                                                    <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-outline-danger btn-sm">
+                                                        <i class="bi bi-x-circle"></i> Für nichtig erklären
+                                                    </a>
+                                                {% endif %}
                                             {% endif %}
                                         </div>
                                     </div>
@@ -294,11 +298,14 @@
                                                 <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-pen"></i> Auf Blockchain signieren
                                                 </a>
-                                            {% endif %}
-                                            {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address %}
+                                            {% endif %}                                            {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address and not contract.funds_withdrawn %}
                                                 <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-cash-coin"></i> Geld abheben
                                                 </a>
+                                            {% elif contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address and contract.funds_withdrawn %}
+                                                <span class="badge bg-success">
+                                                    <i class="bi bi-check-circle"></i> Gelder abgehoben
+                                                </span>
                                             {% endif %}
                                         </div>
                                     </div>

@@ -64,10 +64,12 @@
 
             {% if user.is_authenticated and is_creator and contract.status == 'completed' and not contract.blockchain_contract_id %}
                 <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-success btn-sm mb-3">An Blockchain übermitteln</a>
+            {% endif %}            {% if user.is_authenticated and is_partner and contract.blockchain_status == 'Completed' and not contract.funds_withdrawn %}
+                <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-warning btn-sm mb-3">Geld abheben</a>
             {% endif %}
-
-            {% if user.is_authenticated and is_partner and contract.blockchain_status == 'Completed' %}
-                <button id="withdrawBtn" class="btn btn-warning btn-sm mb-3">Geld abheben</button>
+            
+            {% if user.is_authenticated and is_creator and contract.blockchain_contract_id and contract.blockchain_status != 'Completed' and contract.blockchain_status != 'Cancelled' %}
+                <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-danger btn-sm mb-3">Vertrag für nichtig erklären</a>
             {% endif %}
         </div>
         

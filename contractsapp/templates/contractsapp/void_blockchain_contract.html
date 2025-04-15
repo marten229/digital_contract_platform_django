@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Vertragsgelder abheben | DigiContract{% endblock %}
+{% block title %}Vertrag nichtig machen | DigiContract{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
@@ -13,13 +13,13 @@
         <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
             <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
         </a>
-        <h1 class="mb-0">Vertragsgelder abheben</h1>
+        <h1 class="mb-0">Vertrag für nichtig erklären</h1>
     </div>
     
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        Der Vertrag wurde erfolgreich erfüllt und der Ersteller hat die Erfüllung auf der Blockchain bestätigt.
-        Sie können nun die hinterlegten Vertragsgelder abheben.
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Achtung:</strong> Das Nichtigerklären eines Vertrags auf der Blockchain kann nicht rückgängig gemacht werden.
+        Der Vertrag wird als "Cancelled" markiert und kann nicht mehr verwendet werden.
     </div>
     
     <div class="row">
@@ -52,14 +52,12 @@
                         <div class="col-sm-4"><strong>Blockchain-ID:</strong></div>
                         <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
                     </div>
-                    {% if contract.contract_amount %}
                     <div class="row mb-2">
-                        <div class="col-sm-4"><strong>Verfügbarer Betrag:</strong></div>
+                        <div class="col-sm-4"><strong>PDF-Hash:</strong></div>
                         <div class="col-sm-8">
-                            <span class="h5 text-success">{{ contract.eth_amount|floatformat:4 }} ETH</span>
+                            <div class="contract-hash">{{ contract.pdf_hash }}</div>
                         </div>
                     </div>
-                    {% endif %}
                 </div>
                 
                 <div class="mt-4 mb-3">
@@ -74,16 +72,16 @@
                 
                 {% if is_submission %}
                 <div id="blockchain-submission-area">
-                    <h4 class="mb-3">Vertragsgelder abheben</h4>
+                    <h4 class="mb-3">Vertrag auf der Blockchain für nichtig erklären</h4>
                     <p>
-                        Sie können nun die Vertragsgelder von der Blockchain abheben.
-                        Der Betrag wird direkt an Ihr Ethereum-Wallet gesendet.
+                        Durch das Nichtigerklären wird der Vertrag auf der Blockchain als "Cancelled" markiert.
+                        Dies kann nicht rückgängig gemacht werden.
                     </p>
                     
                     <div class="d-grid gap-2 mb-4">
-                        <button id="submit-button" class="btn btn-primary btn-lg">
-                            <i class="bi bi-cash-coin me-2"></i>
-                            Gelder abheben
+                        <button id="submit-button" class="btn btn-danger btn-lg">
+                            <i class="bi bi-x-circle me-2"></i>
+                            Vertrag für nichtig erklären
                         </button>
                     </div>
                     
@@ -102,9 +100,9 @@
                     <div id="submission-success" class="alert alert-success d-none">
                         <h5 class="alert-heading">
                             <i class="bi bi-check-circle-fill me-2"></i>
-                            Gelder erfolgreich abgehoben!
+                            Vertrag erfolgreich für nichtig erklärt!
                         </h5>
-                        <p>Die Vertragsgelder wurden erfolgreich abgehoben und an Ihr Wallet gesendet.</p>
+                        <p>Der Vertrag wurde erfolgreich auf der Ethereum-Blockchain für nichtig erklärt.</p>
                         <hr>
                         <p class="mb-0">
                             <strong>Transaktions-Hash:</strong> 
@@ -120,9 +118,9 @@
                     <div id="submission-error" class="alert alert-danger d-none">
                         <h5 class="alert-heading">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            Fehler bei der Abhebung
+                            Fehler bei der Nichtigerklärung
                         </h5>
-                        <p id="error-message">Ein Fehler ist aufgetreten bei der Abhebung der Vertragsgelder.</p>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Annullierung des Vertrags.</p>
                         <div class="mt-3">
                             <button id="retry-button" class="btn btn-outline-danger">
                                 Erneut versuchen
@@ -132,12 +130,20 @@
                 </div>
                 {% else %}
                 <div id="contract-info-area">
+                    <h4 class="mb-3">Vertrag für nichtig erklären</h4>
+                    <div class="alert alert-danger">
+                        <p class="mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Warnung: Diese Aktion ist endgültig und kann nicht rückgängig gemacht werden.
+                        </p>
+                    </div>
+                    
                     <div class="d-grid gap-2 mb-4">
                         <form method="post">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-cash-coin me-2"></i>
-                                Geldabhebung vorbereiten
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="bi bi-x-circle me-2"></i>
+                                Nichtigerklärung vorbereiten
                             </button>
                         </form>
                     </div>
@@ -148,20 +154,28 @@
         
         <div class="col-lg-4">
             <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Informationen zur Geldabhebung</h5>
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Informationen zur Vertragsannullierung</h5>
                 </div>
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-3">Über die Geldabhebung</h6>
+                    <h6 class="card-subtitle mb-3">Was bedeutet "Vertrag für nichtig erklären"?</h6>
                     <ul class="mb-4">
-                        <li>Der Vertrag wurde erfolgreich erfüllt und auf der Blockchain als "Completed" markiert</li>
-                        <li>Die hinterlegten Vertragsgelder wurden zur Abhebung freigegeben</li>
-                        <li>Nach erfolgreicher Abhebung werden die Gelder direkt an Ihre Ethereum-Adresse gesendet</li>
-                        <li>Dieser Vorgang kann einige Sekunden bis Minuten dauern, abhängig vom Netzwerkzustand</li>
+                        <li>Der Vertrag wird auf der Blockchain als "Cancelled" markiert</li>
+                        <li>Keine weiteren Aktionen können mit diesem Vertrag durchgeführt werden</li>
+                        <li>Diese Aktion ist unwiderruflich</li>
+                        <li>Der Vertrag kann nicht mehr erfüllt oder abgeschlossen werden</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Wann sollte ein Vertrag für nichtig erklärt werden?</h6>
+                    <p>Ein Vertrag sollte nur für nichtig erklärt werden, wenn:</p>
+                    <ul class="mb-4">
+                        <li>Beide Parteien zustimmen, den Vertrag zu beenden</li>
+                        <li>Der Vertrag enthält Fehler oder falsche Informationen</li>
+                        <li>Der Vertrag muss aus rechtlichen Gründen annulliert werden</li>
                     </ul>
                     
                     <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
-                    <p>Für die Abhebung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
+                    <p>Für die Nichtigerklärung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
                        Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
                 </div>
             </div>
@@ -170,7 +184,7 @@
 </div>
 
 <!-- Füge diese versteckten Elemente zum HTML hinzu, um Daten an JS zu übergeben -->
-<div id="partner-address" data-address="{{ contract.partner_address }}" style="display: none;"></div>
+<div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
 <div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
 <div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
 {% endblock %}
@@ -188,19 +202,19 @@
         
         if (submitButton) {
             submitButton.onclick = function() {
-                withdrawFunds();
+                voidContract();
                 return false;
             };
         }
         
         if (retryButton) {
             retryButton.onclick = function() {
-                withdrawFunds();
+                voidContract();
                 return false;
             };
         }
 
-        async function withdrawFunds() {
+        async function voidContract() {
             // Prüfe, ob MetaMask installiert ist
             if (typeof window.ethereum === 'undefined') {
                 showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
@@ -222,12 +236,12 @@
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 const web3 = new Web3(window.ethereum);
                 
-                // Überprüfen, ob die aktuelle Adresse mit der Partner-Adresse übereinstimmt
+                // Überprüfen, ob die aktuelle Adresse mit der Ersteller-Adresse übereinstimmt
                 const userAddress = accounts[0];
-                const partnerAddress = "{{ contract.partner_address }}";
+                const creatorAddress = "{{ contract.creator_address }}";
                 
-                if (userAddress.toLowerCase() !== partnerAddress.toLowerCase()) {
-                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragspartners (${partnerAddress})`);
+                if (userAddress.toLowerCase() !== creatorAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragserstellers (${creatorAddress})`);
                     return;
                 }
                 
@@ -238,7 +252,8 @@
                 web3.eth.sendTransaction(web3Tx)
                     .on('transactionHash', function(hash) {
                         // Transaktions-Hash wurde generiert
-                    })                    .on('receipt', async function(receipt) {
+                    })
+                    .on('receipt', async function(receipt) {
                         // Erfolgs-UI anzeigen
                         document.getElementById('submission-status').classList.add('d-none');
                         document.getElementById('submission-success').classList.remove('d-none');
@@ -246,21 +261,20 @@
                         // Hash anzeigen
                         document.getElementById('transaction-hash').textContent = receipt.transactionHash;
                         
-                        // Setze den Abhebungsstatus
-                        await updateWithdrawalStatus(receipt.transactionHash);
+                        await updateBlockchainStatus(receipt.transactionHash);
                     })
                     .on('error', function(error) {
-                        showError(error.message || 'Unbekannter Fehler bei der Abhebung der Vertragsgelder');
+                        showError(error.message || 'Unbekannter Fehler bei der Nichtigerklärung des Vertrags');
                     });
             } catch (error) {
                 showError(error.message || 'Unbekannter Fehler');
             }
         }
-          async function updateWithdrawalStatus(txHash) {
+        
+        async function updateBlockchainStatus(txHash) {
             try {
                 const formData = new FormData();
                 formData.append('tx_hash', txHash);
-                formData.append('withdrawal_completed', 'true');
                 
                 const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
                 
@@ -275,7 +289,7 @@
                 
                 const data = await response.json();
                 if (!data.success) {
-                    console.error('Fehler beim Aktualisieren des Abhebungsstatus:', data.message);
+                    console.error('Fehler beim Aktualisieren des Blockchain-Status:', data.message);
                 }
             } catch (error) {
                 console.error('Fehler bei der Kommunikation mit dem Server:', error);

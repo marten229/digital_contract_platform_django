@@ -64,12 +64,12 @@ class Contract(models.Model):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     last_updated = models.DateTimeField(auto_now=True)
-    
-    # New blockchain-related fields
+      # New blockchain-related fields
     blockchain_contract_id = models.BigIntegerField(null=True, blank=True, verbose_name="Blockchain-Vertrags-ID")
     pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
     blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
-    contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")    
+    contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
+    funds_withdrawn = models.BooleanField(default=False, verbose_name="Gelder wurden abgehoben")
     def __str__(self):
         return self.title
     @property

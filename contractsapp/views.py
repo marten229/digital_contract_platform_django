@@ -56,8 +56,9 @@ def contract_list(request):
         Q(status='invitation_sent') | 
         Q(status='viewed_by_partner') | 
         Q(status='partner_verified') | 
-        Q(status='configured') # Include configured if partner can sign immediately
-        # EXCLUDE signed_by_partner from this list
+        Q(status='configured') |
+        Q(status='signed_by_creator')
+
     )
 
     # Contracts signed by partner but not yet completed/published
@@ -70,15 +71,25 @@ def contract_list(request):
                        list(partner_contracts.values_list('pk', flat=True))
     recent_activities = ContractActivity.objects.filter(
         contract_id__in=set(all_contract_pks) # Use set for efficiency
-    ).select_related('contract').order_by('-timestamp')[:10]
-
-    # Update blockchain status for relevant contracts
+    ).select_related('contract').order_by('-timestamp')[:10]    # Update blockchain status for relevant contracts
     # It's generally better to do this periodically or via a background task,
     # but for now, we'll update the ones being displayed.
     contracts_to_update = creator_contracts.filter(blockchain_contract_id__isnull=False) | \
                           partner_contracts.filter(blockchain_contract_id__isnull=False)
     for contract in contracts_to_update:
-        contract.update_blockchain_status() # Assuming this method saves the changes
+        contract.update_blockchain_status()
+        
+        # Stellen Sie sicher, dass funds_withdrawn direkt aus der Datenbank neu geladen wird
+        if contract.blockchain_status == 'Completed':
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT funds_withdrawn FROM contractsapp_contract WHERE id = %s", [contract.pk])
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        contract.funds_withdrawn = True
+            except Exception as e:
+                print(f"Fehler beim Aktualisieren des funds_withdrawn Status: {e}")
 
     context = {
         # Pass the QuerySets directly, not lists of dictionaries
@@ -257,9 +268,20 @@ def contract_detail(request, pk):
                 user=request.user,
                 details="Partner hat den Vertrag angesehen"
             )
-    
     if contract.blockchain_contract_id:
         contract.update_blockchain_status()
+        
+        # Stellen Sie sicher, dass funds_withdrawn direkt aus der Datenbank neu geladen wird
+        if contract.blockchain_status == 'Completed':
+            try:
+                from django.db import connection
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT funds_withdrawn FROM contractsapp_contract WHERE id = %s", [contract.pk])
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        contract.funds_withdrawn = True
+            except Exception as e:
+                print(f"Fehler beim Aktualisieren des funds_withdrawn Status: {e}")
     
     return render(request, 'contractsapp/contract_detail.html', {
         'contract': contract,
@@ -622,9 +644,28 @@ def update_blockchain_status(request, pk):
     
     if not (is_creator or is_partner):
         return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
-    
     blockchain_tx_hash = request.POST.get('tx_hash')
     blockchain_contract_id = request.POST.get('contract_id')
+    withdrawal_completed = request.POST.get('withdrawal_completed') == 'true'
+    
+    if withdrawal_completed:
+        # Markiere, dass die Gelder abgehoben wurden
+        contract.funds_withdrawn = True
+        contract.save(update_fields=['funds_withdrawn'])
+        
+        # Protokolliere die Aktivität
+        ContractActivity.log(
+            contract=contract,
+            action='blockchain_withdraw_success',
+            user=request.user,
+            user_role='partner',
+            details=f"Vertragsgelder erfolgreich abgehoben: Transaction Hash: {blockchain_tx_hash}"
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Abhebungsstatus erfolgreich aktualisiert'
+        })
     
     if blockchain_contract_id:
         try:
@@ -1192,6 +1233,112 @@ def withdraw_contract_funds(request, pk):
     )
     
     return render(request, 'contractsapp/withdraw_contract_funds.html', {
+        'contract': contract,
+        'blockchain_service': blockchain_service,
+        'explorer_url': explorer_url,
+        'tx_explorer_base': tx_explorer_base
+    })
+
+
+@login_required
+def void_blockchain_contract(request, pk):
+    """Page for creators to void/deactivate contracts on the blockchain"""
+    from django.conf import settings
+    
+    # Ethereum-Adresse in Kleinbuchstaben für den Vergleich mit der DB
+    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+    
+    # Vertrag abrufen, bei dem der aktuelle Benutzer der Ersteller ist
+    contract = get_object_or_404(Contract, pk=pk, creator_address=user_eth_address)
+    blockchain_service = BlockchainService()
+    
+    # Prüfen, ob der Vertrag auf der Blockchain ist
+    if not contract.blockchain_contract_id:
+        messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Prüfen, ob der Vertrag nicht bereits als "Completed" oder "Cancelled" markiert ist
+    if contract.blockchain_status == 'Completed':
+        messages.error(request, "Abgeschlossene Verträge können nicht nichtig gemacht werden.")
+        return redirect('contract_detail', pk=pk)
+    
+    if contract.blockchain_status == 'Cancelled':
+        messages.info(request, "Dieser Vertrag wurde bereits als nichtig markiert.")
+        return redirect('contract_detail', pk=pk)
+    
+    # Blockexplorer-URL erstellen
+    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
+    if network == 'mainnet':
+        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = "https://etherscan.io/tx/"
+    else:
+        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
+        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
+    
+    if request.method == 'POST':
+        try:
+            # Vorbereiten der Transaktion für die Nichtigkeit des Vertrags
+            tx = blockchain_service.deactivate_contract(
+                creator_address=contract.creator_address,
+                contract_id=contract.blockchain_contract_id
+            )
+            
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_void',
+                user=request.user,
+                user_role='creator',
+                details="Blockchain-Vertragsnichtigkeit vorbereitet"
+            )
+            
+            # Transaktion für JS aufbereiten
+            tx_dict = dict(tx)
+            
+            # Binäre Daten in Hex-Strings umwandeln
+            processed_tx = {}
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            # Stelle sicher, dass die Transaktion einen 'to'-Parameter hat
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            # JSON-Serialisierung für das Template
+            transaction_json = json.dumps(processed_tx)
+            
+            return render(request, 'contractsapp/void_blockchain_contract.html', {
+                'contract': contract,
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service,
+                'explorer_url': explorer_url,
+                'tx_explorer_base': tx_explorer_base
+            })
+        except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='blockchain_error',
+                user=request.user,
+                user_role='creator',
+                details=f"Fehler bei der Blockchain-Vertragsnichtigkeit: {str(e)}"
+            )
+            
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Vertragsnichtigkeit: {str(e)}")
+            return redirect('contract_detail', pk=pk)
+    
+    # Aktivität protokollieren
+    ContractActivity.log(
+        contract=contract,
+        action='blockchain_view',
+        user=request.user,
+        user_role='creator',
+        details="Blockchain-Vertragsannullierungsseite geöffnet"
+    )
+    
+    return render(request, 'contractsapp/void_blockchain_contract.html', {
         'contract': contract,
         'blockchain_service': blockchain_service,
         'explorer_url': explorer_url,

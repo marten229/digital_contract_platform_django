@@ -14,6 +14,7 @@ urlpatterns = [
     path('contract/<int:pk>/sign_blockchain/', views.sign_blockchain_contract, name='sign_blockchain_contract'),
     path('contract/<int:pk>/confirm_completion/', views.confirm_contract_completion, name='confirm_contract_completion'),
     path('contract/<int:pk>/withdraw_funds/', views.withdraw_contract_funds, name='withdraw_contract_funds'),
+    path('contract/<int:pk>/void_contract/', views.void_blockchain_contract, name='void_blockchain_contract'),
     path('update-blockchain-status/<int:pk>/', views.update_blockchain_status, name='update_blockchain_status'),
     path('withdraw-funds/<int:pk>/', views.withdraw_funds, name='withdraw_funds'),
     
