@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Lieferung bestätigen - {{ contract.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3>Lieferung des Pakets bestätigen</h3>
+                    <h5>{{ contract.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Info:</strong> DHL hat die Lieferung des Pakets bestätigt. Bitte überprüfen Sie, ob der Inhalt vollständig und korrekt ist.
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h5>Tracking-Informationen:</h5>
+                        <table class="table table-bordered">
+                            <tr>
+                                <th>Tracking-Nummer:</th>
+                                <td>{{ contract.tracking_number }}</td>
+                            </tr>
+                            <tr>
+                                <th>Status:</th>
+                                <td>{{ contract.package_status }}</td>
+                            </tr>
+                            <tr>
+                                <th>Letzte Aktualisierung:</th>
+                                <td>{{ contract.last_tracking_update }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <form method="post" action="{% url 'confirm_delivery' contract.pk %}">
+                        {% csrf_token %}
+                        <div class="form-group mb-4">
+                            <label class="form-label">Ist die Lieferung vollständig und korrekt angekommen?</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="is_confirmed" id="confirm_yes" value="true" required>
+                                <label class="form-check-label" for="confirm_yes">
+                                    Ja, die Lieferung ist vollständig und korrekt. Der Vertrag kann als erfüllt betrachtet werden.
+                                </label>
+                            </div>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="radio" name="is_confirmed" id="confirm_no" value="false">
+                                <label class="form-check-label" for="confirm_no">
+                                    Nein, es gibt Probleme mit der Lieferung.
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mb-4">
+                            <label for="delivery_notes" class="form-label">Anmerkungen zur Lieferung:</label>
+                            <textarea class="form-control" id="delivery_notes" name="delivery_notes" rows="4" 
+                                      placeholder="Geben Sie hier Anmerkungen zur Lieferung ein (optional)."></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-secondary">Zurück</a>
+                            <button type="submit" class="btn btn-primary">Lieferung bestätigen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

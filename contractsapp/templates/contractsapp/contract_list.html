@@ -230,12 +230,22 @@
                                             <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:15 }}</div>
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>
                                             <div><strong>Abgeschlossen am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
-                                        </div>
+                                        </div>                                        
                                         <div class="contract-actions">
                                             <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
                                             {% if contract.status == 'blockchain_published' %}
                                                 <span class="badge bg-primary">
                                                     <i class="bi bi-link-45deg"></i> Blockchain ID: {{ contract.blockchain_contract_id }}
+                                                </span>
+                                            {% endif %}
+                                            {% if contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
+                                                <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                    <i class="bi bi-truck"></i> Tracking-Nummer hinzufügen
+                                                </a>
+                                            {% endif %}
+                                            {% if contract.has_dhl_tracking and not contract.tracking_number and contract.blockchain_contract_id %}
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-truck"></i> DHL Tracking aktiviert
                                                 </span>
                                             {% endif %}
                                         </div>
@@ -244,7 +254,164 @@
                             {% endfor %}
                         </div>
                     {% endif %}
+                      </div>
+                {% endif %}
+                  <!-- DHL Tracking Verträge -->
+                {% if in_transit_contracts or out_for_delivery_contracts or delivered_contracts or failed_delivery_contracts %}
+                <div class="contract-section">
+                    <h2 class="section-header">Verträge mit DHL Tracking</h2>
+                      <!-- Contracts with status 'package_shipped' -->
+                    {% if shipped_contracts %}
+                        <h5 class="mt-4 mb-3"><i class="bi bi-box"></i> Paket versendet</h5>
+                        <div class="row">
+                            {% for contract in shipped_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge badge bg-primary">Paket versendet</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Tracking-Nummer:</strong> {{ contract.tracking_number }}</div>
+                                            {% if contract.creator_address == user.ethereum_address %}
+                                                <div><strong>Partner:</strong> {{ contract.partner_name }}</div>
+                                            {% else %}
+                                                <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:15 }}</div>
+                                            {% endif %}
+                                            <div><strong>Versendet am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                     
+                    {% if in_transit_contracts %}
+                        <h5 class="mt-4 mb-3"><i class="bi bi-truck"></i> In Transit</h5>
+                        <div class="row">
+                            {% for contract in in_transit_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge badge bg-info text-dark">In Transit</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Tracking-Nummer:</strong> {{ contract.tracking_number }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
+                                            <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_tracking_update|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if out_for_delivery_contracts %}
+                        <h5 class="mt-4 mb-3"><i class="bi bi-box-seam"></i> Wird zugestellt</h5>
+                        <div class="row">
+                            {% for contract in out_for_delivery_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge badge bg-warning text-dark">Wird zugestellt</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Tracking-Nummer:</strong> {{ contract.tracking_number }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
+                                            <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_tracking_update|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                      {% if delivered_contracts %}
+                        <h5 class="mt-4 mb-3"><i class="bi bi-check-circle"></i> Geliefert</h5>
+                        <div class="row">
+                            {% for contract in delivered_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            {% if contract.status == 'delivery_confirmed' %}
+                                                <span class="status-badge badge bg-success">Lieferung bestätigt</span>
+                                            {% else %}
+                                                <span class="status-badge badge bg-success">Geliefert</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Tracking-Nummer:</strong> {{ contract.tracking_number }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
+                                            <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_tracking_update|date:"d.m.Y H:i" }}</div>
+                                            {% if contract.status == 'delivery_confirmed' %}
+                                                <div><strong>Lieferung bestätigt am:</strong> {{ contract.last_updated|date:"d.m.Y H:i" }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.creator_address == user.ethereum_address and contract.status == 'package_delivered' and not contract.delivery_confirmation %}
+                                                <a href="{% url 'confirm_delivery' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                    <i class="bi bi-check-circle"></i> Lieferung bestätigen
+                                                </a>
+                                            {% endif %}
+                                            {% if contract.status == 'delivery_confirmed' and not contract.blockchain_contract_id %}
+                                                <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                    <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    
+                    {% if failed_delivery_contracts %}
+                        <h5 class="mt-4 mb-3"><i class="bi bi-exclamation-triangle"></i> Lieferprobleme</h5>
+                        <div class="row">
+                            {% for contract in failed_delivery_contracts %}
+                                <div class="col-md-6 mb-4">
+                                    <div class="contract-card">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <h3>{{ contract.title }}</h3>
+                                            <span class="status-badge badge bg-danger">Lieferproblem</span>
+                                        </div>
+                                        <div class="contract-meta mb-3">
+                                            <div><strong>Tracking-Nummer:</strong> {{ contract.tracking_number }}</div>
+                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
+                                            <div><strong>Letzte Aktualisierung:</strong> {{ contract.last_tracking_update|date:"d.m.Y H:i" }}</div>
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
                 {% endif %}
                 
@@ -264,12 +431,16 @@
                                             <div><strong>Hochgeladen am:</strong> {{ contract.uploaded_at|date:"d.m.Y" }}</div>                                            <div><strong>Partner:</strong> {{ contract.partner.username }}</div>
                                             <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
-                                        </div>
-                                        <div class="contract-actions">
-                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>                                            {% if contract.blockchain_status == 'Signed' %}
+                                        </div>                                        <div class="contract-actions">                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.blockchain_status == 'Signed' and not contract.has_dhl_tracking %}
                                                 <a href="{% url 'confirm_contract_completion' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
                                                 </a>
+                                            {% endif %}
+                                            {% if contract.has_dhl_tracking and not contract.tracking_number and contract.blockchain_contract_id %}
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-truck"></i> DHL Tracking aktiviert
+                                                </span>
                                             {% endif %}
                                             {% if contract.creator_address == user.ethereum_address and contract.blockchain_status != 'Cancelled' %}
                                                 {% if contract.blockchain_status != 'Completed' or contract.funds_withdrawn %}
@@ -293,12 +464,24 @@
                                             <div><strong>Ersteller:</strong> {{ contract.creator_address|truncatechars:10 }}</div>
                                             <div><strong>Blockchain-Status:</strong> {{ contract.blockchain_status }}</div>
                                             <div><strong>Blockchain-ID:</strong> {{ contract.blockchain_contract_id }}</div>
-                                        </div>                                        <div class="contract-actions">
-                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>                                            {% if contract.blockchain_status == 'Created' and contract.partner_address == user.ethereum_address %}
+                                        </div>
+                                        <div class="contract-actions">
+                                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">Details ansehen</a>
+                                            {% if contract.blockchain_status == 'Created' and contract.partner_address == user.ethereum_address %}
                                                 <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-pen"></i> Auf Blockchain signieren
                                                 </a>
-                                            {% endif %}                                            {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address and not contract.funds_withdrawn %}
+                                            {% endif %}                                            {% if contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
+                                                <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                    <i class="bi bi-truck"></i> Tracking-Nummer hinzufügen
+                                                </a>
+                                            {% endif %}
+                                            {% if contract.has_dhl_tracking and not contract.tracking_number and contract.blockchain_contract_id %}
+                                                <span class="badge bg-info">
+                                                    <i class="bi bi-truck"></i> DHL Tracking aktiviert
+                                                </span>
+                                            {% endif %}
+                                            {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address and not contract.funds_withdrawn %}
                                                 <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-cash-coin"></i> Geld abheben
                                                 </a>

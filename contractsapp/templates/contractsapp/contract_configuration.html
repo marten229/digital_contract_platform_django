@@ -121,8 +121,35 @@
                         <input type="hidden" id="partnerSignatureHeight" name="partner_signature_height">
                         <input type="hidden" id="partnerSignaturePage" name="partner_signature_page">
                         
-                        <button type="button" id="finishConfiguration" class="btn btn-lg btn-success w-100" disabled>
-                            <i class="bi bi-check-circle"></i> Vertrag finalisieren
+                        <!-- DHL Tracking Option -->
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="bi bi-truck me-2"></i>DHL Paketversand
+                                </h6>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" 
+                                           id="hasDhlTracking" name="has_dhl_tracking">
+                                    <label class="form-check-label" for="hasDhlTracking">
+                                        DHL Tracking aktivieren
+                                    </label>
+                                </div>
+                                <small class="text-muted mt-2 d-block">
+                                    Bei aktiviertem DHL Tracking wird der Vertrag automatisch als erfüllt markiert, 
+                                    sobald das Paket geliefert wurde. Der Verkäufer muss die Lieferung anschließend bestätigen.
+                                </small>                                <div class="mt-3 dhl-tracking-fields" id="dhlTrackingFields" style="display: none;">
+                                    <div class="alert alert-info mb-2">
+                                        <strong>Hinweis:</strong> Die DHL-Tracking-Nummer kann erst hinzugefügt werden, wenn der Vertrag auf der Blockchain veröffentlicht wurde.
+                                    </div>
+                                    <small class="text-muted">
+                                        Nach der Veröffentlichung auf der Blockchain können sowohl Sie als auch der Vertragspartner die Tracking-Nummer hinterlegen.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" id="finishConfigurationBtn" class="btn btn-success w-100" disabled>
+                            <i class="bi bi-check-circle"></i> Konfiguration abschließen und Vertrag freigeben
                         </button>
                     </form>
                 </div>
@@ -164,7 +191,26 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <!-- Contract Configuration JS -->
 <script src="{% static 'js/contract_configuration.js' %}"></script>
+<script src="{% static 'js/pdf.js' %}"></script>
+<script src="{% static 'js/pdf.worker.js' %}"></script>
+
 <script>
+    // DHL Tracking functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const dhlCheckbox = document.getElementById('hasDhlTracking');
+        const dhlFields = document.getElementById('dhlTrackingFields');
+        
+        if (dhlCheckbox && dhlFields) {
+            dhlCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    dhlFields.style.display = 'block';
+                } else {
+                    dhlFields.style.display = 'none';
+                }
+            });
+        }
+    });
+
     // Initialize the contract configuration functionality
     document.addEventListener('DOMContentLoaded', function() {
         initContractConfiguration(

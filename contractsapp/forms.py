@@ -24,11 +24,28 @@ class ContractForm(forms.ModelForm):
             'class': 'form-control',
             'placeholder': '0x...'
         })
+    )    
+    has_dhl_tracking = forms.BooleanField(
+        label="DHL Tracking aktivieren",
+        required=False,
+        widget=forms.CheckboxInput(attrs={
+            'class': 'form-check-input'
+        })
     )
-
+    
+    tracking_number = forms.CharField(
+        label="DHL Tracking-Nummer (falls vorhanden)",
+        required=False,
+        max_length=50,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Tracking-Nummer eingeben...'
+        })
+    )
+    
     class Meta:
         model = Contract
-        fields = ['title', 'pdf_file', 'contract_amount_eth']
+        fields = ['title', 'pdf_file', 'contract_amount_eth', 'has_dhl_tracking', 'tracking_number']
     def clean(self):
         cleaned_data = super().clean()
         amount_eth = cleaned_data.get('contract_amount_eth')

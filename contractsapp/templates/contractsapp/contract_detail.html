@@ -136,6 +136,87 @@
                     </dl>
                 </div>
             </div>
+            
+            <!-- DHL Tracking Panel -->
+            {% if contract.has_dhl_tracking %}
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-truck"></i> DHL Tracking</h5>
+                </div>
+                <div class="card-body">
+                    {% if contract.tracking_number %}
+                        <dl class="row mb-2">
+                            <dt class="col-sm-5">Tracking-Nr.:</dt>
+                            <dd class="col-sm-7">{{ contract.tracking_number }}</dd>
+                            
+                            <dt class="col-sm-5">Status:</dt>
+                            <dd class="col-sm-7">
+                                {% if contract.package_status %}
+                                    {{ contract.package_status }}
+                                {% else %}
+                                    <span class="text-muted">Noch kein Status</span>
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-5">Letzte Aktualisierung:</dt>
+                            <dd class="col-sm-7">
+                                {% if contract.last_tracking_update %}
+                                    {{ contract.last_tracking_update|date:"d.m.Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">--</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                        
+                        <!-- Tracking Actions -->
+                        {% if is_creator %}
+                            <div class="mt-3">
+                                {% if contract.status == 'package_delivered' and not contract.delivery_confirmation %}
+                                    <a href="{% url 'confirm_delivery' contract.pk %}" class="btn btn-success btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Lieferung bestätigen
+                                    </a>
+                                {% endif %}
+                                
+                                <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-primary btn-sm w-100">
+                                    <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
+                                </a>
+                            </div>
+                        {% endif %}                    {% else %}
+                        <p class="text-muted mb-2">Keine Tracking-Nummer hinterlegt.</p>
+                          {% if contract.blockchain_contract_id %}
+                            {% if is_partner %}
+                                <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="bi bi-plus-circle"></i> Tracking-Nummer hinzufügen
+                                </a>
+                            {% elif is_creator %}
+                                <div class="alert alert-info small mb-0">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Nur der Vertragspartner kann die Tracking-Nummer hinzufügen.
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="alert alert-info small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Die Tracking-Nummer kann erst eingegeben werden, wenn der Vertrag auf der Blockchain ist.
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>            {% elif is_creator and contract.status == 'completed' %}
+            <div class="card mt-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">DHL Tracking</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        DHL Tracking kann nur während der Vertragskonfiguration aktiviert werden. Falls aktiviert, kann ausschließlich der Vertragspartner die Tracking-Nummer hinzufügen, sobald der Vertrag auf der Blockchain ist.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card mt-3">
         </div>
     </div>
 </div>

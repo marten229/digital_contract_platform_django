@@ -32,6 +32,9 @@ class Contract(models.Model):
         ('signed_by_partner', 'Vom Partner unterschrieben'),
         ('completed', 'Vollständig unterschrieben'),
         ('blockchain_published', 'Auf Blockchain veröffentlicht'),
+        ('package_shipped', 'Paket versendet'),
+        ('package_delivered', 'Paket geliefert'),
+        ('delivery_confirmed', 'Lieferung bestätigt'),
         ('rejected', 'Abgelehnt'),
     )
     title = models.CharField(max_length=255, verbose_name="Vertragstitel")
@@ -64,12 +67,21 @@ class Contract(models.Model):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     last_updated = models.DateTimeField(auto_now=True)
-      # New blockchain-related fields
+      # New blockchain-related fields    
     blockchain_contract_id = models.BigIntegerField(null=True, blank=True, verbose_name="Blockchain-Vertrags-ID")
     pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
     blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
     contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
     funds_withdrawn = models.BooleanField(default=False, verbose_name="Gelder wurden abgehoben")
+    
+    # DHL tracking fields
+    has_dhl_tracking = models.BooleanField(default=False, verbose_name="DHL Tracking aktivieren")
+    tracking_number = models.CharField(max_length=50, null=True, blank=True, verbose_name="DHL Tracking-Nummer")
+    package_status = models.CharField(max_length=50, null=True, blank=True, verbose_name="Paketstatus")
+    last_tracking_update = models.DateTimeField(null=True, blank=True, verbose_name="Letzte Tracking-Aktualisierung")
+    delivery_confirmation = models.BooleanField(default=False, verbose_name="Lieferung bestätigt")
+    delivery_notes = models.TextField(null=True, blank=True, verbose_name="Lieferhinweise")
+    
     def __str__(self):
         return self.title
     @property
@@ -182,9 +194,9 @@ class Contract(models.Model):
                 
                 # Get the current status from the blockchain
                 self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
-                
-                # Wenn der Vertrag erfolgreich auf der Blockchain ist und der Status noch nicht aktualisiert wurde
-                if self.blockchain_status in ['Created', 'Signed', 'Completed'] and self.status != 'blockchain_published':
+                  # Wenn der Vertrag erfolgreich auf der Blockchain ist und der Status noch nicht aktualisiert wurde
+                if self.blockchain_status in ['Created', 'Signed', 'Completed'] and self.status != 'blockchain_published' and \
+                   self.status not in ['package_shipped', 'package_delivered', 'delivery_confirmed']:
                     self.status = 'blockchain_published'
                     # Log the activity
                     from .models import ContractActivity

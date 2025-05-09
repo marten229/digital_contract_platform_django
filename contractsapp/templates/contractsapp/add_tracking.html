@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Tracking-Nummer hinzufügen - {{ contract.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3>Tracking-Nummer für Vertrag hinzufügen</h3>
+                    <h5>{{ contract.title }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <strong>Info:</strong> Durch Eingabe einer DHL Tracking-Nummer wird das Paket für diesen Vertrag automatisch überwacht. 
+                        Beim Eintreffen des Pakets wird der Vertragsstatus automatisch aktualisiert.
+                    </div>
+                    
+                    <form method="post" action="{% url 'add_tracking_number' contract.pk %}">
+                        {% csrf_token %}
+                        <div class="form-group mb-3">
+                            <label for="tracking_number" class="form-label">DHL Tracking-Nummer:</label>
+                            <input type="text" class="form-control" id="tracking_number" name="tracking_number" 
+                                   placeholder="z.B. 123456789DE" required>
+                            <small class="text-muted">Geben Sie die DHL Tracking-Nummer ein, die Sie vom Versanddienstleister erhalten haben.</small>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-secondary">Abbrechen</a>
+                            <button type="submit" class="btn btn-primary">Tracking-Nummer hinzufügen</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

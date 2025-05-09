@@ -80,15 +80,21 @@ document.addEventListener('DOMContentLoaded', function() {
         walletInfo.style.display = 'block';
         loginButton.style.display = 'flex';
     }
-    
-    // Login with MetaMask
+      // Login with MetaMask
     loginButton.addEventListener('click', async function() {
         if (!currentAccount) return;
         
         try {
+            // Clear any previous error messages
+            errorMessage.style.display = 'none';
+            
+            console.log('Starting login process with account:', currentAccount);
+            
             // Get nonce from server
+            console.log('Fetching nonce from server...');
             const response = await fetch(`/auth/api/get_nonce/?address=${currentAccount}`);
             const data = await response.json();
+            console.log('Received nonce response:', data);
             
             if (data.error) {
                 throw new Error(data.error);
@@ -96,26 +102,45 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const nonce = data.nonce;
             const message = `Sign this message to authenticate with our app: ${nonce}`;
+            console.log('Message to sign:', message);
             
             // Request signature from user
-            const signature = await ethereum.request({
-                method: 'personal_sign',
-                params: [message, currentAccount]
-            });
+            console.log('Requesting signature from MetaMask...');
+            let signature;
+            try {
+                signature = await ethereum.request({
+                    method: 'personal_sign',
+                    params: [message, currentAccount]
+                });
+                console.log('Signature received:', signature);
+            } catch (signError) {
+                console.error('Error during signing:', signError);
+                throw new Error(`Signatur-Fehler: ${signError.message || 'Unbekannter Fehler beim Signieren'}`);
+            }
+            
+            if (!signature) {
+                throw new Error('Keine Signatur erhalten');
+            }
             
             // Verify signature with server
+            console.log('Sending signature to server for verification...');
+            const payload = {
+                address: currentAccount,
+                signature: signature
+            };
+            console.log('Payload:', payload);
+            
             const verifyResponse = await fetch('/auth/api/verify_signature/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    address: currentAccount,
-                    signature: signature
-                })
+                body: JSON.stringify(payload)
             });
             
+            console.log('Server response status:', verifyResponse.status);
             const verifyData = await verifyResponse.json();
+            console.log('Verification response:', verifyData);
             
             if (verifyData.success) {
                 // Show success message
