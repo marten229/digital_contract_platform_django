@@ -1556,17 +1556,47 @@ def confirm_delivery(request, pk):
             notes=delivery_notes
         )
         
-        if success:
-            # Create activity log
+        if success and is_confirmed:
+            # Initiiere die Blockchain-Transaktion zur Bestätigung der Lieferung
+            blockchain_service = BlockchainService()
+            try:
+                tx_data = blockchain_service.approve_delivery_as_creator(
+                    user_eth_address,
+                    contract.blockchain_contract_id
+                )
+                
+                # Speichere die Transaktion für spätere Bestätigung
+                contract.pending_transactions.create(
+                    transaction_type='approve_delivery',
+                    transaction_data=json.dumps(tx_data),
+                    user=request.user
+                )
+                
+                # Create activity log
+                ContractActivity.log(
+                    contract=contract,
+                    user=request.user,
+                    user_role='creator',
+                    action='delivery_confirmed',
+                    details=delivery_notes if delivery_notes else "Keine Anmerkungen"
+                )
+                
+                messages.success(request, "Lieferungsbestätigung wurde initiiert. Bitte bestätigen Sie die Blockchain-Transaktion.")
+                return redirect('confirm_transaction', transaction_type='approve_delivery', contract_id=pk)
+                
+            except Exception as e:
+                messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
+                return redirect('contract_detail', pk=pk)
+        elif not is_confirmed:
+            # Wenn nicht bestätigt, handle Ablehnung der Lieferung
             ContractActivity.log(
                 contract=contract,
                 user=request.user,
                 user_role='creator',
-                action='delivery_confirmed' if is_confirmed else 'delivery_rejected',
+                action='delivery_rejected',
                 details=delivery_notes if delivery_notes else "Keine Anmerkungen"
             )
-            
-            messages.success(request, "Lieferungsbestätigung wurde aktualisiert.")
+            messages.success(request, "Lieferung wurde abgelehnt.")
         else:
             messages.error(request, message)
             
@@ -1597,18 +1627,46 @@ def add_tracking_number(request, pk):
         tracking_number = request.POST.get('tracking_number', '')
         
         if tracking_number:
+            # Speichere die Tracking-Nummer in der lokalen Datenbank
             contract.tracking_number = tracking_number
             contract.status = 'package_shipped'
             contract.save()
-            ContractActivity.log(
-                contract=contract,
-                user=request.user,
-                user_role='partner',
-                action='tracking_added',
-                details=f"Tracking-Nummer hinzugefügt: {tracking_number}"
-            )
             
-            messages.success(request, "Tracking-Nummer hinzugefügt und Status auf 'Paket versendet' aktualisiert.")
+            # Erstelle einen Hash der Tracking-Nummer für die Blockchain
+            tracking_service = DHLTrackingService()
+            tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
+            
+            # Initiiere die Blockchain-Transaktion
+            blockchain_service = BlockchainService()
+            try:
+                tx_data = blockchain_service.set_delivery_tracking(
+                    user_eth_address, 
+                    contract.blockchain_contract_id, 
+                    tracking_hash
+                )
+                
+                # Speichere die Transaktion für spätere Bestätigung
+                # Diese wird dann vom Frontend verarbeitet
+                contract.pending_transactions.create(
+                    transaction_type='set_tracking',
+                    transaction_data=json.dumps(tx_data),
+                    user=request.user
+                )
+                
+                ContractActivity.log(
+                    contract=contract,
+                    user=request.user,
+                    user_role='partner',
+                    action='tracking_added',
+                    details=f"Tracking-Nummer hinzugefügt: {tracking_number}"
+                )
+                
+                messages.success(request, "Tracking-Nummer hinzugefügt. Bitte bestätigen Sie die Blockchain-Transaktion.")
+                return redirect('confirm_transaction', transaction_type='set_tracking', contract_id=pk)
+                
+            except Exception as e:
+                messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
+                return redirect('contract_detail', pk=pk)
         else:
             messages.error(request, "Bitte geben Sie eine gültige Tracking-Nummer ein.")
             

@@ -362,3 +362,93 @@ class BlockchainService:
         
         # Return the transaction for signing in the frontend
         return tx
+        
+    def set_delivery_tracking(self, partner_address, contract_id, tracking_hash):
+        """Set the delivery tracking hash for a contract on the blockchain"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not partner_address:
+                raise ValueError("Partner address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not partner_address.startswith('0x'):
+                partner_address = '0x' + partner_address
+                
+            partner_address = self.web3.to_checksum_address(partner_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
+        # Prepare the transaction to set delivery tracking
+        tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_hash).build_transaction({
+            'from': partner_address,
+            'nonce': self.web3.eth.get_transaction_count(partner_address),
+            'gas': 2000000,  # Adjust as needed
+            'gasPrice': self.web3.eth.gas_price
+        })
+        
+        # Return the transaction for signing in the frontend
+        return tx
+        
+    def confirm_delivery_by_oracle(self, oracle_address, contract_id):
+        """Confirm delivery by the Oracle on the blockchain"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not oracle_address:
+                raise ValueError("Oracle address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not oracle_address.startswith('0x'):
+                oracle_address = '0x' + oracle_address
+                
+            oracle_address = self.web3.to_checksum_address(oracle_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
+        # Prepare the transaction to confirm delivery by Oracle
+        tx = self.contract.functions.confirmDeliveryByOracle(contract_id).build_transaction({
+            'from': oracle_address,
+            'nonce': self.web3.eth.get_transaction_count(oracle_address),
+            'gas': 2000000,
+            'gasPrice': self.web3.eth.gas_price
+        })
+        
+        # Return the transaction for signing in the frontend
+        return tx
+        
+    def approve_delivery_as_creator(self, creator_address, contract_id):
+        """Approve delivery as the creator on the blockchain"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+            
+        # Ensure address is in checksum format
+        try:
+            # Stelle sicher, dass die Adresse nicht None oder leer ist
+            if not creator_address:
+                raise ValueError("Creator address is empty")
+                
+            # Stelle sicher, dass die Adresse mit 0x beginnt
+            if not creator_address.startswith('0x'):
+                creator_address = '0x' + creator_address
+                
+            creator_address = self.web3.to_checksum_address(creator_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+            
+        # Prepare the transaction to approve delivery as creator
+        tx = self.contract.functions.approveDeliveryAsCreator(contract_id).build_transaction({
+            'from': creator_address,
+            'nonce': self.web3.eth.get_transaction_count(creator_address),
+            'gas': 2000000,
+            'gasPrice': self.web3.eth.gas_price
+        })
+        
+        # Return the transaction for signing in the frontend
+        return tx

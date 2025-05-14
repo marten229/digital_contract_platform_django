@@ -150,3 +150,6 @@ AUTH_USER_MODEL = 'authenticationapp.Web3User'
 ETHEREUM_NODE_URL = os.environ.get('ETHEREUM_NODE_URL', '')
 CONTRACT_ADDRESS = os.environ.get('CONTRACT_ADDRESS', '')
 CONTRACT_ABI_PATH = os.path.join(BASE_DIR, 'contractsapp', 'static', 'contracts', 'DigitalContractPlatform.json')
+
+# Oracle settings
+ORACLE_KEY_PATH = os.environ.get('ORACLE_KEY_PATH', os.path.join(BASE_DIR, 'keys', 'oracle_oracle_service.json'))

@@ -1,5 +1,6 @@
 import requests
 import os
+import hashlib
 from datetime import datetime
 from django.utils import timezone
 from django.db.models import Q
@@ -165,6 +166,26 @@ class DHLTrackingService:
             
         return updates
         
+    def generate_tracking_hash(self, tracking_number):
+        """
+        Generate a hashed value of the tracking number for blockchain storage
+        Uses abi.encode equivalent hashing to prevent hash collisions
+        """
+        # Using keccak256(abi.encode(tracking_number)) equivalent in Python
+        # This is compatible with the Solidity contract's verification method
+        from eth_abi import encode
+        from eth_utils import keccak
+        
+        # Encode the tracking number as a string (bytes32)
+        # This mimics abi.encode in Solidity
+        encoded_data = encode(['string'], [tracking_number])
+        
+        # Apply keccak256 hash
+        hashed_value = keccak(encoded_data)
+        
+        # Return as 0x-prefixed hex string
+        return '0x' + hashed_value.hex()
+    
     def confirm_delivery(self, contract, confirmed=True, notes=None):
         """
         Seller confirms the delivery is complete and correct
@@ -178,10 +199,37 @@ class DHLTrackingService:
             
         if confirmed:
             contract.status = 'delivery_confirmed'
-            # This could trigger payment release in the blockchain
+            # This will trigger the approveDeliveryAsCreator function on the blockchain
+            # The actual blockchain transaction will be created in the view
         else:
             # If not confirmed, handle dispute
             pass
             
         contract.save()
         return True, "Delivery confirmation updated"
+        
+    def process_oracle_confirmation(self, contract):
+        """
+        Process Oracle confirmation for a contract with delivery tracking
+        This would be called by a scheduled job or API endpoint
+        """
+        if not contract.has_dhl_tracking or not contract.tracking_number:
+            return False, "No tracking information available"
+            
+        # Get the latest tracking info
+        tracking_info = self.get_tracking_info(contract.tracking_number)
+        
+        # Only proceed if the package is delivered
+        if tracking_info.get('status') == 'delivered':
+            # Update the contract status
+            contract.package_status = 'delivered'
+            contract.status = 'package_delivered'
+            contract.last_tracking_update = timezone.now()
+            contract.save()
+            
+            # In a real implementation, this would trigger the Oracle
+            # to call confirmDeliveryByOracle on the blockchain
+            
+            return True, "Package confirmed as delivered by Oracle"
+        
+        return False, f"Package not yet delivered. Current status: {tracking_info.get('status')}"

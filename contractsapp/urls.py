@@ -17,11 +17,9 @@ urlpatterns = [
     path('contract/<int:pk>/void_contract/', views.void_blockchain_contract, name='void_blockchain_contract'),
     path('update-blockchain-status/<int:pk>/', views.update_blockchain_status, name='update_blockchain_status'),
     path('withdraw-funds/<int:pk>/', views.withdraw_funds, name='withdraw_funds'),
-      # URLs für Smart Contract-Bereitstellung
     path('deploy-contract/', views.deploy_contract, name='deploy_contract'),
     path('update-contract-address/', views.update_contract_address, name='update_contract_address'),
     
-    # URLs für DHL Tracking
     path('contract/<int:pk>/update_tracking/', views.update_tracking_status, name='update_tracking'),
     path('contract/<int:pk>/confirm_delivery/', views.confirm_delivery, name='confirm_delivery'),
     path('contract/<int:pk>/add_tracking/', views.add_tracking_number, name='add_tracking_number'),

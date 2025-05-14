@@ -81,6 +81,10 @@ class Contract(models.Model):
     last_tracking_update = models.DateTimeField(null=True, blank=True, verbose_name="Letzte Tracking-Aktualisierung")
     delivery_confirmation = models.BooleanField(default=False, verbose_name="Lieferung bestätigt")
     delivery_notes = models.TextField(null=True, blank=True, verbose_name="Lieferhinweise")
+    # Neues Feld für die Oracle-Bestätigung
+    delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")
+    # Speichert den Tracking-Hash für die Blockchain-Verifikation
+    tracking_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="Tracking-Hash")
     
     def __str__(self):
         return self.title
