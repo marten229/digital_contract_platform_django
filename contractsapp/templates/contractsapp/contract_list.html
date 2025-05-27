@@ -238,7 +238,7 @@
                                                     <i class="bi bi-link-45deg"></i> Blockchain ID: {{ contract.blockchain_contract_id }}
                                                 </span>
                                             {% endif %}
-                                            {% if contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
+                                            {% if contract.has_dhl_tracking and contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
                                                 <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
                                                     <i class="bi bi-truck"></i> Tracking-Nummer hinzufügen
                                                 </a>
@@ -437,10 +437,10 @@
                                                     <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
                                                 </a>
                                             {% endif %}
-                                            {% if contract.has_dhl_tracking and not contract.tracking_number and contract.blockchain_contract_id %}
-                                                <span class="badge bg-info">
-                                                    <i class="bi bi-truck"></i> DHL Tracking aktiviert
-                                                </span>
+                                            {% if contract.has_dhl_tracking and contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
+                                                <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                                    <i class="bi bi-truck"></i> Tracking-Nummer hinzufügen
+                                                </a>
                                             {% endif %}
                                             {% if contract.creator_address == user.ethereum_address and contract.blockchain_status != 'Cancelled' %}
                                                 {% if contract.blockchain_status != 'Completed' or contract.funds_withdrawn %}
@@ -471,15 +471,11 @@
                                                 <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                     <i class="bi bi-pen"></i> Auf Blockchain signieren
                                                 </a>
-                                            {% endif %}                                            {% if contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
+                                            {% endif %}
+                                            {% if contract.has_dhl_tracking and contract.blockchain_contract_id and contract.partner_address == user.ethereum_address and not contract.tracking_number %}
                                                 <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
                                                     <i class="bi bi-truck"></i> Tracking-Nummer hinzufügen
                                                 </a>
-                                            {% endif %}
-                                            {% if contract.has_dhl_tracking and not contract.tracking_number and contract.blockchain_contract_id %}
-                                                <span class="badge bg-info">
-                                                    <i class="bi bi-truck"></i> DHL Tracking aktiviert
-                                                </span>
                                             {% endif %}
                                             {% if contract.blockchain_status == 'Completed' and contract.partner_address == user.ethereum_address and not contract.funds_withdrawn %}
                                                 <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">

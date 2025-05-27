@@ -15,7 +15,7 @@ const loadingOverlay = document.getElementById('loadingOverlay');
 const loadingMessage = document.getElementById('loadingMessage');
 const workflowSteps = document.querySelectorAll('.workflow-step');
 const pdfContainer = document.getElementById('pdfContainer');
-const finishConfigurationBtn = document.getElementById('finishConfiguration');
+const finishConfigurationBtn = document.getElementById('finishConfigurationBtn');
 
 // Signature type radio buttons
 const creatorSignatureRadio = document.getElementById('creatorSignature');
@@ -118,10 +118,15 @@ const renderPage = (pageNum) => {
         
         // Clear canvas before rendering new page
         pdfViewer.getContext('2d').clearRect(0, 0, pdfViewer.width, pdfViewer.height);
-        
-        page.render(renderContext).promise.then(() => {
+          page.render(renderContext).promise.then(() => {
             pageRendering = false;
             hideLoading();
+              // Explizit Canvas-Position und -Größe setzen
+            overlayCanvas.style.position = 'absolute';
+            overlayCanvas.style.top = '0px';
+            overlayCanvas.style.left = '0px';
+            overlayCanvas.style.zIndex = '10';
+            overlayCanvas.style.pointerEvents = 'auto';
             
             // Redraw signatures if they exist on this page
             redrawSignatures(pageNum);
@@ -304,13 +309,24 @@ selectAreaBtn.addEventListener('click', function() {
     selectionMode = true;
     updateWorkflowStep(2);
     
+    // Reset drawing variables
+    isDrawing = false;
+    startX = undefined;
+    startY = undefined;
+    endX = undefined;
+    endY = undefined;
+    
     // Show selection instructions
     selectionHint.classList.remove('d-none');
     
-    // Change cursor to crosshair when in selection mode
+    // Canvas konfigurieren
+    overlayCanvas.style.position = 'absolute';
+    overlayCanvas.style.top = '0px';
+    overlayCanvas.style.left = '0px';
+    overlayCanvas.style.zIndex = '999';
     overlayCanvas.style.cursor = 'crosshair';
+    overlayCanvas.style.pointerEvents = 'auto';
     
-    isDrawing = false;
     clearOverlay();
     
     // Redraw existing signatures after clearing
@@ -388,44 +404,8 @@ function updateFinishButtonState() {
     if (creatorSignature && partnerSignature) {
         finishConfigurationBtn.disabled = false;
         updateWorkflowStep(3);
-    } else {
-        finishConfigurationBtn.disabled = true;
-    }
-}
-
-// Set up event listener for the finish configuration button
-finishConfigurationBtn.addEventListener('click', function() {
-    // Show the modal asking if the creator wants to sign
-    const modal = new bootstrap.Modal(creatorSigningModal);
-    modal.show();
-    
-    // Set up the skip signing button to submit the form
-    skipSigningBtn.addEventListener('click', function() {
-        configurationForm.submit();
-    });
-    
-    // Set up the sign now button to submit the form and redirect
-    signNowBtn.addEventListener('click', function() {
-        // Add a hidden field to indicate redirect to signing page
-        let redirectInput = document.createElement('input');
-        redirectInput.type = 'hidden';
-        redirectInput.name = 'redirect_to_signing';
-        redirectInput.value = 'true';
-        configurationForm.appendChild(redirectInput);
         
-        // Submit the form
-        configurationForm.submit();
-    });
-});
-
-// Update the finish button state based on signatures
-function updateFinishButtonState() {
-    // Enable only if both signatures are defined
-    if (creatorSignature && partnerSignature) {
-        finishConfigurationBtn.disabled = false;
-        updateWorkflowStep(3);
-        
-        // Show the creator signing option
+        // Show the creator signing option if it exists
         const creatorSigningOption = document.getElementById('creatorSigningOption');
         if (creatorSigningOption) {
             creatorSigningOption.classList.remove('d-none');
@@ -433,7 +413,7 @@ function updateFinishButtonState() {
     } else {
         finishConfigurationBtn.disabled = true;
         
-        // Hide the creator signing option
+        // Hide the creator signing option if it exists
         const creatorSigningOption = document.getElementById('creatorSigningOption');
         if (creatorSigningOption) {
             creatorSigningOption.classList.add('d-none');
@@ -441,39 +421,109 @@ function updateFinishButtonState() {
     }
 }
 
-// Event listeners for signature area selection
-overlayCanvas.addEventListener('mousedown', function(e) {
-    if (!selectionMode) return;
+// Set up event listener for the finish configuration button
+finishConfigurationBtn.addEventListener('click', function(e) {
+    // Prevent default form submission
+    e.preventDefault();
+    
+    // Show the modal asking if the creator wants to sign
+    const modal = new bootstrap.Modal(creatorSigningModal);
+    modal.show();
+});
+
+// Set up the skip signing button to submit the form (only once)
+skipSigningBtn.addEventListener('click', function() {
+    // Hide the modal first
+    const modal = bootstrap.Modal.getInstance(creatorSigningModal);
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Submit the form without redirect flag
+    configurationForm.submit();
+});
+
+// Set up the sign now button to submit the form and redirect (only once)
+signNowBtn.addEventListener('click', function() {
+    // Hide the modal first
+    const modal = bootstrap.Modal.getInstance(creatorSigningModal);
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Add a hidden field to indicate redirect to signing page
+    let redirectInput = document.getElementById('redirectToSigning');
+    if (!redirectInput) {
+        redirectInput = document.createElement('input');
+        redirectInput.type = 'hidden';
+        redirectInput.name = 'redirect_to_signing';
+        redirectInput.id = 'redirectToSigning';
+        redirectInput.value = 'true';
+        configurationForm.appendChild(redirectInput);
+    } else {
+        redirectInput.value = 'true';
+    }
+    
+    // Submit the form
+    configurationForm.submit();
+});
+
+// Add touch event handlers as fallback for signature area selection
+overlayCanvas.addEventListener('touchstart', function(e) {
+    if (!selectionMode) {
+        return;
+    }
+    
+    // Prevent all default behaviors
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     
     const rect = overlayCanvas.getBoundingClientRect();
-    startX = e.clientX - rect.left;
-    startY = e.clientY - rect.top;
+    const touch = e.touches[0];
+    startX = touch.clientX - rect.left;
+    startY = touch.clientY - rect.top;
     isDrawing = true;
     
     // Clear the overlay but keep existing signatures
     clearOverlay();
     redrawSignatures(currentPage);
-});
+}, { passive: false });
 
-overlayCanvas.addEventListener('mousemove', function(e) {
-    if (!selectionMode || !isDrawing) return;
+overlayCanvas.addEventListener('touchmove', function(e) {
+    if (!selectionMode || !isDrawing) {
+        return;
+    }
+    
+    // Prevent all default behaviors
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     
     const rect = overlayCanvas.getBoundingClientRect();
-    endX = e.clientX - rect.left;
-    endY = e.clientY - rect.top;
+    const touch = e.touches[0];
+    endX = touch.clientX - rect.left;
+    endY = touch.clientY - rect.top;
     
     // Redraw existing signatures and the selection rectangle
     clearOverlay();
     redrawSignatures(currentPage);
     drawSelectionRect();
-});
+}, { passive: false });
 
-overlayCanvas.addEventListener('mouseup', function(e) {
-    if (!selectionMode || !isDrawing) return;
+overlayCanvas.addEventListener('touchend', function(e) {
+    if (!selectionMode || !isDrawing) {
+        return;
+    }
+    
+    // Prevent all default behaviors
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    
     isDrawing = false;
     
-    // Normalize rectangle (ensure width and height are positive)
-    const x = Math.min(startX, endX);
+    // Normalize rectangle (ensure width and height are positive)    const x = Math.min(startX, endX);
     const y = Math.min(startY, endY);
     const width = Math.abs(endX - startX);
     const height = Math.abs(endY - startY);
@@ -507,8 +557,7 @@ overlayCanvas.addEventListener('mouseup', function(e) {
             partnerSignatureHeightInput.value = pdfCoords.height;
             partnerSignaturePageInput.value = currentPage;
         }
-        
-        // Exit selection mode
+          // Exit selection mode
         selectionMode = false;
         overlayCanvas.style.cursor = 'default';
         selectionHint.classList.add('d-none');
@@ -522,7 +571,7 @@ overlayCanvas.addEventListener('mouseup', function(e) {
         clearOverlay();
         redrawSignatures(currentPage);
     }
-});
+}, { passive: false });
 
 // Initialize function to set up everything
 function initContractConfiguration(pdfUrl, csrfToken) {
@@ -531,4 +580,176 @@ function initContractConfiguration(pdfUrl, csrfToken) {
     
     // Initialize by showing step 1 as active
     updateWorkflowStep(1);
+    
+    // Make sure pdfContainer has position relative for overlay canvas
+    if (pdfContainer && window.getComputedStyle(pdfContainer).position !== 'relative') {
+        pdfContainer.style.position = 'relative';
+    }
+      // Ensure canvas element exists before attaching event listeners
+    if (!overlayCanvas) {
+        console.error('Overlay canvas not found!');
+        return;
+    }
+    
+    // Event listeners for signature area selection
+    overlayCanvas.addEventListener('mousedown', function(e) {
+        if (!selectionMode) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const rect = overlayCanvas.getBoundingClientRect();
+        startX = e.clientX - rect.left;
+        startY = e.clientY - rect.top;
+        isDrawing = true;
+        
+        clearOverlay();
+        redrawSignatures(currentPage);
+    }, true);
+
+    overlayCanvas.addEventListener('mousemove', function(e) {
+        if (!selectionMode || !isDrawing) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const rect = overlayCanvas.getBoundingClientRect();
+        endX = e.clientX - rect.left;
+        endY = e.clientY - rect.top;
+        
+        clearOverlay();
+        redrawSignatures(currentPage);
+        drawSelectionRect();
+    }, true);
+
+    overlayCanvas.addEventListener('mouseup', function(e) {
+        if (!selectionMode || !isDrawing) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        isDrawing = false;
+        
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+        
+        if (width > 20 && height > 20) {
+            const pdfCoords = canvasToPdfCoordinates(x, y, width, height);            
+            if (currentSignatureType === 'creator') {
+                creatorSignature = { x, y, width, height, page: currentPage };
+                creatorSignatureStatus.textContent = `Festgelegt auf Seite ${currentPage}`;
+                resetCreatorSignature.classList.remove('d-none');
+                
+                creatorSignatureXInput.value = pdfCoords.x;
+                creatorSignatureYInput.value = pdfCoords.y;
+                creatorSignatureWidthInput.value = pdfCoords.width;
+                creatorSignatureHeightInput.value = pdfCoords.height;
+                creatorSignaturePageInput.value = currentPage;
+            } else {
+                partnerSignature = { x, y, width, height, page: currentPage };
+                partnerSignatureStatus.textContent = `Festgelegt auf Seite ${currentPage}`;
+                resetPartnerSignature.classList.remove('d-none');
+                
+                partnerSignatureXInput.value = pdfCoords.x;
+                partnerSignatureYInput.value = pdfCoords.y;
+                partnerSignatureWidthInput.value = pdfCoords.width;
+                partnerSignatureHeightInput.value = pdfCoords.height;
+                partnerSignaturePageInput.value = currentPage;
+            }
+            
+            selectionMode = false;
+            overlayCanvas.style.cursor = 'default';
+            selectionHint.classList.add('d-none');
+            
+            updateFinishButtonState();
+        } else {
+            alert('Bitte wählen Sie einen größeren Bereich für die Unterschrift aus.');
+            clearOverlay();
+            redrawSignatures(currentPage);
+        }
+    }, true);
+
+    // Document-level event delegation as backup
+    document.addEventListener('mousedown', function(e) {
+        if (e.target === overlayCanvas && selectionMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const rect = overlayCanvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+            
+            clearOverlay();
+            redrawSignatures(currentPage);
+        }
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+        if (isDrawing && selectionMode) {
+            e.preventDefault();
+            
+            const rect = overlayCanvas.getBoundingClientRect();
+            endX = e.clientX - rect.left;
+            endY = e.clientY - rect.top;
+            
+            clearOverlay();
+            redrawSignatures(currentPage);
+            drawSelectionRect();
+        }
+    });
+    
+    document.addEventListener('mouseup', function(e) {
+        if (isDrawing && selectionMode) {
+            e.preventDefault();
+            
+            isDrawing = false;
+            
+            const x = Math.min(startX, endX);
+            const y = Math.min(startY, endY);
+            const width = Math.abs(endX - startX);
+            const height = Math.abs(endY - startY);
+            
+            if (width > 20 && height > 20) {
+                const pdfCoords = canvasToPdfCoordinates(x, y, width, height);
+                
+                if (currentSignatureType === 'creator') {
+                    creatorSignature = { x, y, width, height, page: currentPage };
+                    creatorSignatureStatus.textContent = `Festgelegt auf Seite ${currentPage}`;
+                    resetCreatorSignature.classList.remove('d-none');
+                    
+                    creatorSignatureXInput.value = pdfCoords.x;
+                    creatorSignatureYInput.value = pdfCoords.y;
+                    creatorSignatureWidthInput.value = pdfCoords.width;
+                    creatorSignatureHeightInput.value = pdfCoords.height;
+                    creatorSignaturePageInput.value = currentPage;
+                } else {
+                    partnerSignature = { x, y, width, height, page: currentPage };
+                    partnerSignatureStatus.textContent = `Festgelegt auf Seite ${currentPage}`;
+                    resetPartnerSignature.classList.remove('d-none');
+                    
+                    partnerSignatureXInput.value = pdfCoords.x;
+                    partnerSignatureYInput.value = pdfCoords.y;
+                    partnerSignatureWidthInput.value = pdfCoords.width;
+                    partnerSignatureHeightInput.value = pdfCoords.height;
+                    partnerSignaturePageInput.value = currentPage;
+                }
+                
+                selectionMode = false;
+                overlayCanvas.style.cursor = 'default';
+                selectionHint.classList.add('d-none');
+                
+                updateFinishButtonState();
+            } else {
+                alert('Bitte wählen Sie einen größeren Bereich für die Unterschrift aus.');
+                clearOverlay();
+                redrawSignatures(currentPage);
+            }
+        }
+    });
 }
