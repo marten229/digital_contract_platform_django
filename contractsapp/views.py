@@ -756,11 +756,41 @@ def update_blockchain_status(request, pk):
     is_creator = request.user.ethereum_address == contract.creator_address
     is_partner = request.user.ethereum_address == contract.partner_address
 
-    if not (is_creator or is_partner):
-        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
+    if not (is_creator or is_partner):        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
+    
     blockchain_tx_hash = request.POST.get('tx_hash')
     blockchain_contract_id = request.POST.get('contract_id')
     withdrawal_completed = request.POST.get('withdrawal_completed') == 'true'
+    tracking_set = request.POST.get('tracking_set') == 'true'
+    tracking_number = request.POST.get('tracking_number', '')
+
+    if tracking_set:
+        # Save tracking number to database ONLY after successful blockchain transaction
+        if tracking_number:
+            contract.tracking_number = tracking_number
+            contract.status = 'package_shipped'
+            contract.save()
+            
+            ContractActivity.log(
+                contract=contract,
+                action='tracking_blockchain_success',
+                user=request.user,
+                user_role='partner',
+                details=f"Tracking-Nummer erfolgreich auf Blockchain hinterlegt und in DB gespeichert: {tracking_number}, TX: {blockchain_tx_hash}"
+            )
+        else:
+            ContractActivity.log(
+                contract=contract,
+                action='tracking_blockchain_success',
+                user=request.user,
+                user_role='partner',
+                details=f"Tracking-Hash erfolgreich auf Blockchain hinterlegt: Transaction Hash: {blockchain_tx_hash}"
+            )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Tracking-Nummer erfolgreich auf Blockchain hinterlegt und in Datenbank gespeichert'
+        })
 
     if withdrawal_completed:
         contract.funds_withdrawn = True
@@ -1565,12 +1595,11 @@ def confirm_delivery(request, pk):
                     contract.blockchain_contract_id
                 )
                 
-                # Speichere die Transaktion für spätere Bestätigung
-                contract.pending_transactions.create(
-                    transaction_type='approve_delivery',
-                    transaction_data=json.dumps(tx_data),
-                    user=request.user
-                )
+                # Transaktion wurde vorbereitet (noch nicht auf Blockchain gesendet)
+                print(f"Lieferbestätigung vorbereitet: {tx_data}")
+                
+                if tx_data.get('success'):
+                    print(f"Blockchain-Nachricht: {tx_data.get('message')}")
                 
                 # Create activity log
                 ContractActivity.log(
@@ -1578,11 +1607,9 @@ def confirm_delivery(request, pk):
                     user=request.user,
                     user_role='creator',
                     action='delivery_confirmed',
-                    details=delivery_notes if delivery_notes else "Keine Anmerkungen"
-                )
-                
-                messages.success(request, "Lieferungsbestätigung wurde initiiert. Bitte bestätigen Sie die Blockchain-Transaktion.")
-                return redirect('confirm_transaction', transaction_type='approve_delivery', contract_id=pk)
+                    details=delivery_notes if delivery_notes else "Keine Anmerkungen"                )                
+                messages.success(request, "Lieferungsbestätigung wurde vorbereitet. (Hinweis: Transaktion noch nicht auf Blockchain gesendet)")
+                return redirect('contract_detail', pk=pk)
                 
             except Exception as e:
                 messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
@@ -1623,20 +1650,26 @@ def add_tracking_number(request, pk):
         messages.error(request, "Nur der Vertragspartner kann Tracking-Nummern hinzufügen.")
         return redirect('contract_detail', pk=pk)
     
+    # GET request - show the form
+    if request.method == 'GET':
+        return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
+    
+    # POST request - process the tracking number
     if request.method == 'POST':
         tracking_number = request.POST.get('tracking_number', '')
+        submit_to_blockchain = request.POST.get('submit_to_blockchain', 'false') == 'true'
         
-        if tracking_number:
-            # Speichere die Tracking-Nummer in der lokalen Datenbank
-            contract.tracking_number = tracking_number
-            contract.status = 'package_shipped'
-            contract.save()
-            
+        if not tracking_number:
+            messages.error(request, "Bitte geben Sie eine gültige Tracking-Nummer ein.")
+            return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
+        
+        if submit_to_blockchain:
             # Erstelle einen Hash der Tracking-Nummer für die Blockchain
             tracking_service = DHLTrackingService()
             tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
             
-            # Initiiere die Blockchain-Transaktion
+            # Initiiere die Blockchain-Transaktion (OHNE Datenbank-Update)
+            # Die Tracking-Nummer wird erst nach erfolgreicher Transaktion gespeichert
             blockchain_service = BlockchainService()
             try:
                 tx_data = blockchain_service.set_delivery_tracking(
@@ -1644,32 +1677,25 @@ def add_tracking_number(request, pk):
                     contract.blockchain_contract_id, 
                     tracking_hash
                 )
-                
-                # Speichere die Transaktion für spätere Bestätigung
-                # Diese wird dann vom Frontend verarbeitet
-                contract.pending_transactions.create(
-                    transaction_type='set_tracking',
-                    transaction_data=json.dumps(tx_data),
-                    user=request.user
-                )
-                
-                ContractActivity.log(
-                    contract=contract,
-                    user=request.user,
-                    user_role='partner',
-                    action='tracking_added',
-                    details=f"Tracking-Nummer hinzugefügt: {tracking_number}"
-                )
-                
-                messages.success(request, "Tracking-Nummer hinzugefügt. Bitte bestätigen Sie die Blockchain-Transaktion.")
-                return redirect('confirm_transaction', transaction_type='set_tracking', contract_id=pk)
+                  # Render the template with transaction data for MetaMask signing
+                # NOTE: Tracking number is NOT saved to database yet - only after successful blockchain transaction
+                context = {
+                    'contract': contract,
+                    'tracking_number': tracking_number,  # Pass to template for later DB save
+                    'is_submission': True,
+                    'transaction': json.dumps(tx_data.get('transaction')),
+                    'blockchain_service': blockchain_service,
+                }
+                return render(request, 'contractsapp/add_tracking.html', context)
                 
             except Exception as e:
                 messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
-                return redirect('contract_detail', pk=pk)
+                return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
         else:
-            messages.error(request, "Bitte geben Sie eine gültige Tracking-Nummer ein.")
-            
-        return redirect('contract_detail', pk=pk)
-    
-    return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
+            # Just show the form with blockchain submission option
+            context = {
+                'contract': contract,
+                'tracking_number': tracking_number,
+                'show_blockchain_form': True,
+            }
+            return render(request, 'contractsapp/add_tracking.html', context)

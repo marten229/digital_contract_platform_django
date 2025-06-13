@@ -106,7 +106,7 @@ class OracleKeyManager:
             'keystore': encrypted_key
         }
     
-    def sign_transaction(self, transaction):
+    def sign_transaction(self, transaction):       
         """
         Signiert eine Blockchain-Transaktion mit dem privaten Schlüssel
         
@@ -128,10 +128,20 @@ class OracleKeyManager:
             
         Returns:
             tx_hash: Der Hash der gesendeten Transaktion
-        """
+        """        # Fix: Increase gas price by 50% to avoid "replacement transaction underpriced" error
+        if 'gasPrice' in transaction:
+            transaction['gasPrice'] = int(transaction['gasPrice'] * 1.5)
+            
+        # Add a random nonce increment (0-1000) to avoid nonce conflicts
+        import random
+        if 'nonce' in transaction:
+            transaction['nonce'] += random.randint(0, 1000)
+            
         signed_tx = self.sign_transaction(transaction)
-        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-        return self.web3.toHex(tx_hash)
+        tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+        
+        # Fix 2: Use Web3.to_hex utility function directly as it's not a method of the Web3 instance
+        return Web3.to_hex(tx_hash)
     
     def get_address(self):
         """

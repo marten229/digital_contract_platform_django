@@ -5,6 +5,7 @@ from .storage import ContractStorage
 from django.utils import timezone
 from web3 import Web3
 from django.contrib.auth import get_user_model
+import json
 
 User = get_user_model()
 

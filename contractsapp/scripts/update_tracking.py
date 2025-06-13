@@ -136,42 +136,35 @@ def process_oracle_confirmations(debug=False):
                 logger.info(f"Processing Oracle confirmation for contract {contract.id}")
                 
                 if not debug:
-                    # Blockchain-Transaktion vorbereiten
                     tx_data = blockchain_service.confirm_delivery_by_oracle(
                         oracle_address,
-                        contract.blockchain_contract_id
+                        contract.blockchain_contract_id,
+                        contract.tracking_hash
                     )
                     
                     # Transaktion direkt signieren und senden (statt sie im Pending-Status zu speichern)
                     tx_hash = oracle_key_manager.send_transaction(tx_data)
                     logger.info(f"Oracle confirmation transaction sent: {tx_hash}")
-                    
-                    # Transaktion in der Datenbank speichern (als bereits gesendet)
-                    contract.transactions.create(
-                        transaction_type='oracle_confirm',
-                        transaction_hash=tx_hash,
-                        from_address=oracle_address,
-                        to_address=blockchain_service.contract_address,
-                        user=oracle_user if oracle_user else None,
-                        status='sent'
-                    )
+                
                 else:
                     logger.info(f"DEBUG MODE: Would send Oracle confirmation for contract {contract.id}")
-                    
-                # Mark as Oracle confirmed in our database
-                contract.delivery_oracle_confirmed = True
-                contract.save()
-                  # Log activity
-                ContractActivity.log(
-                    contract=contract,
-                    user=oracle_user,
-                    action='oracle_confirmation',
-                    user_role='oracle',
-                    details=f"Oracle bestätigt Lieferung für Tracking #{contract.tracking_number}"
-                )
                 
-                processed_count += 1
-                logger.info(f"Successfully processed contract {contract.id}")
+                try:
+                    contract.delivery_oracle_confirmed = True
+                    contract.save()
+                    # Log activity
+                    ContractActivity.log(
+                        contract=contract,
+                        user=oracle_user,
+                        action='oracle_confirmation',
+                        user_role='oracle',
+                        details=f"Oracle bestätigt Lieferung für Tracking #{contract.tracking_number}"
+                    )
+                    processed_count += 1
+                    logger.info(f"Successfully processed contract {contract.id}")
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"Error updating contract status: {str(e)}")
             else:
                 logger.warning(f"Contract {contract.id} not ready for confirmation: {message}")
             
@@ -205,12 +198,6 @@ def update_all_tracking(debug=False):
                 details=f"Paket wurde laut DHL zugestellt am {contract.last_tracking_update.strftime('%d.%m.%Y %H:%M')}"
             )
             logger.info(f"Contract #{contract.pk} marked as delivered")
-            
-            # Store tracking hash in contract for future verification
-            if not contract.tracking_hash and contract.tracking_number:
-                contract.tracking_hash = tracking_service.generate_tracking_hash(contract.tracking_number)
-                contract.save()
-                logger.info(f"Generated tracking hash for contract #{contract.pk}")
         else:
             ContractActivity.log(
                 contract=contract,

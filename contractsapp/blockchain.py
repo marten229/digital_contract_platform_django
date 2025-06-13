@@ -357,8 +357,7 @@ class BlockchainService:
             'from': creator_address,
             'nonce': self.web3.eth.get_transaction_count(creator_address),
             'gas': 2000000,  # Adjust as needed
-            'gasPrice': self.web3.eth.gas_price
-        })
+            'gasPrice': self.web3.eth.gas_price        })
         
         # Return the transaction for signing in the frontend
         return tx
@@ -383,17 +382,25 @@ class BlockchainService:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
         # Prepare the transaction to set delivery tracking
+        # Note: Smart contract expects tracking number string, but we pass the hash for privacy
         tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_hash).build_transaction({
             'from': partner_address,
             'nonce': self.web3.eth.get_transaction_count(partner_address),
-            'gas': 2000000,  # Adjust as needed
+            'gas': 2000000,
             'gasPrice': self.web3.eth.gas_price
         })
         
-        # Return the transaction for signing in the frontend
-        return tx
+        # Return the transaction data for frontend signing
+        print(f"Tracking transaction prepared for contract {contract_id}")
+        print(f"Tracking hash to be sent to blockchain: {tracking_hash}")
         
-    def confirm_delivery_by_oracle(self, oracle_address, contract_id):
+        return {
+            'success': True,
+            'transaction': tx,
+            'message': f'Tracking hash prepared for blockchain'
+        }
+        
+    def confirm_delivery_by_oracle(self, oracle_address, contract_id, tracking_hash):
         """Confirm delivery by the Oracle on the blockchain"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
@@ -413,7 +420,7 @@ class BlockchainService:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
         # Prepare the transaction to confirm delivery by Oracle
-        tx = self.contract.functions.confirmDeliveryByOracle(contract_id).build_transaction({
+        tx = self.contract.functions.confirmDeliveryByOracle(contract_id, tracking_hash).build_transaction({
             'from': oracle_address,
             'nonce': self.web3.eth.get_transaction_count(oracle_address),
             'gas': 2000000,
@@ -441,8 +448,7 @@ class BlockchainService:
             creator_address = self.web3.to_checksum_address(creator_address)
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
-            
-        # Prepare the transaction to approve delivery as creator
+              # Prepare the transaction to approve delivery as creator
         tx = self.contract.functions.approveDeliveryAsCreator(contract_id).build_transaction({
             'from': creator_address,
             'nonce': self.web3.eth.get_transaction_count(creator_address),
@@ -450,5 +456,67 @@ class BlockchainService:
             'gasPrice': self.web3.eth.gas_price
         })
         
-        # Return the transaction for signing in the frontend
-        return tx
+        # For now, return the transaction data for potential frontend signing
+        # TODO: Implement actual transaction sending when private keys are available
+        print(f"Delivery approval transaction prepared for contract {contract_id}")
+        
+        return {
+            'success': True,
+            'transaction': tx,
+            'message': f'Delivery approval prepared for blockchain'
+        }
+    
+    def send_transaction(self, transaction, private_key):
+        """
+        Send a prepared transaction to the blockchain.
+        This method should only be used when private keys are available.
+        """
+        try:
+            # Sign the transaction
+            signed_tx = self.web3.eth.account.sign_transaction(transaction, private_key)
+            
+            # Send the signed transaction
+            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            
+            # Wait for transaction receipt
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+            
+            return {
+                'success': True,
+                'transaction_hash': tx_hash.hex(),
+                'block_number': receipt.blockNumber,
+                'gas_used': receipt.gasUsed
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
+    
+    def set_delivery_tracking_and_send(self, partner_address, contract_id, tracking_hash, private_key=None):
+        """
+        Set delivery tracking and optionally send the transaction immediately if private key is provided
+        """
+        # Prepare the transaction
+        transaction_data = self.set_delivery_tracking(partner_address, contract_id, tracking_hash)
+        
+        if private_key and transaction_data.get('success'):
+            # Send the transaction if private key is available
+            send_result = self.send_transaction(transaction_data['transaction'], private_key)
+            if send_result['success']:
+                return {
+                    'success': True,
+                    'sent_to_blockchain': True,
+                    'transaction_hash': send_result['transaction_hash'],
+                    'message': f'Tracking hash sent to blockchain: {send_result["transaction_hash"]}'
+                }
+            else:
+                return {
+                    'success': False,
+                    'sent_to_blockchain': False,
+                    'error': send_result['error']
+                }
+        else:
+            # Return prepared transaction for frontend signing
+            transaction_data['sent_to_blockchain'] = False
+            return transaction_data
