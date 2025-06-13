@@ -40,12 +40,10 @@ import json
 import argparse
 from datetime import datetime
 
-# Setup Django environment
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "digital_contract_platform.settings")
 django.setup()
 
-# Import after Django setup
 from contractsapp.models import Contract, ContractActivity
 from contractsapp.dhl_tracking import DHLTrackingService
 from contractsapp.blockchain import BlockchainService
@@ -53,7 +51,6 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -67,7 +64,6 @@ logger = logging.getLogger('tracking_updates')
 def get_oracle_user():
     """Get the oracle user from the database"""
     try:
-        # Get the first user in the Oracle group
         oracle_user = User.objects.filter(groups__name='Oracle').first()
         if not oracle_user:
             logger.error("No Oracle user found. Please create a user and assign it to the Oracle group.")
@@ -92,14 +88,11 @@ def process_oracle_confirmations(debug=False):
     import traceback
     
     try:
-        # Simply let OracleKeyManager handle the path resolution now
         logger.info("Initializing Oracle key manager for blockchain transactions")
         
-        # Initialisiere den Key-Manager für automatische Transaktionen
         oracle_key_manager = OracleKeyManager()
         oracle_address = oracle_key_manager.get_address()
         
-        # Wir beziehen auch den Oracle-User für Logging-Zwecke
         oracle_user = get_oracle_user()
         
         logger.info(f"Oracle successfully initialized with address: {oracle_address}")
@@ -108,7 +101,6 @@ def process_oracle_confirmations(debug=False):
         logger.error(traceback.format_exc())
         return False
     
-    # Find contracts ready for Oracle confirmation
     pending_contracts = Contract.objects.filter(
         has_dhl_tracking=True,
         tracking_number__isnull=False,
@@ -129,12 +121,10 @@ def process_oracle_confirmations(debug=False):
     
     for contract in pending_contracts:
         try:
-            # Double-check the tracking status
             success, message = tracking_service.process_oracle_confirmation(contract)
             
             if success:
                 logger.info(f"Processing Oracle confirmation for contract {contract.id}")
-                
                 if not debug:
                     tx_data = blockchain_service.confirm_delivery_by_oracle(
                         oracle_address,
@@ -142,7 +132,6 @@ def process_oracle_confirmations(debug=False):
                         contract.tracking_hash
                     )
                     
-                    # Transaktion direkt signieren und senden (statt sie im Pending-Status zu speichern)
                     tx_hash = oracle_key_manager.send_transaction(tx_data)
                     logger.info(f"Oracle confirmation transaction sent: {tx_hash}")
                 
@@ -152,7 +141,6 @@ def process_oracle_confirmations(debug=False):
                 try:
                     contract.delivery_oracle_confirmed = True
                     contract.save()
-                    # Log activity
                     ContractActivity.log(
                         contract=contract,
                         user=oracle_user,
@@ -180,16 +168,13 @@ def update_all_tracking(debug=False):
     """Update tracking status for all contracts with DHL tracking enabled"""
     logger.info("Starting DHL tracking update task")
     
-    # Initialize the tracking service
     tracking_service = DHLTrackingService()
     
-    # Get updates for all contracts with tracking
     updates = tracking_service.check_for_updates()
     
     for update in updates:
         contract = update['contract']
         tracking_info = update['tracking_info']
-          # Create activity log for each update
         if contract.package_status == 'delivered':
             ContractActivity.log(
                 contract=contract,
@@ -209,7 +194,6 @@ def update_all_tracking(debug=False):
     
     logger.info(f"DHL tracking update complete. Updated {len(updates)} contracts.")
     
-    # After updating all tracking information, process any Oracle confirmations needed
     if process_oracle_confirmations(debug=debug):
         logger.info("Oracle confirmation process completed successfully")
     else:

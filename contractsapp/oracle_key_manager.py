@@ -16,33 +16,25 @@ class OracleKeyManager:
     um automatische Transaktionen zu ermöglichen.
     """
     def __init__(self):
-        # Private Key aus Umgebungsvariable oder gesicherter Quelle laden
         self.private_key = os.environ.get('ORACLE_PRIVATE_KEY')
         
         if not self.private_key:
-            # Alternative: Key aus einer verschlüsselten Datei laden
             key_path = getattr(settings, 'ORACLE_KEY_PATH', None)
             key_password = os.environ.get('ORACLE_KEY_PASSWORD')
             
-            # Debugging: Log versuchten Pfad
             import logging
             logger = logging.getLogger(__name__)
             logger.info(f"Attempting to load Oracle key from: {key_path}")
             
             if key_path and key_password:
-                # Try multiple paths to find the key file
                 possible_paths = [
-                    key_path,  # Try the direct path first
+                    key_path,
                 ]
                 
-                # Handle relative paths
                 if not os.path.isabs(key_path):
-                    # Try relative to BASE_DIR
                     possible_paths.append(os.path.join(settings.BASE_DIR, key_path))
-                    # Try in the keys folder
                     possible_paths.append(os.path.join(settings.BASE_DIR, 'keys', os.path.basename(key_path)))
                 
-                # Try each path
                 key_found = False
                 for path in possible_paths:
                     if os.path.exists(path):
@@ -64,11 +56,9 @@ class OracleKeyManager:
                     "or configure ORACLE_KEY_PATH and ORACLE_KEY_PASSWORD."
                 )
                 
-        # Web3-Verbindung herstellen
         ethereum_node_url = getattr(settings, 'ETHEREUM_NODE_URL', 'http://localhost:8545')
         self.web3 = Web3(Web3.HTTPProvider(ethereum_node_url))
         
-        # Account-Objekt initialisieren
         self.account = Account.from_key(self.private_key)
         self.address = self.account.address
         
@@ -90,11 +80,10 @@ class OracleKeyManager:
         
         Verwende diese Methode einmalig, um einen Oracle-Schlüssel zu erstellen.
         """
-        acct = Account.create('ENTROPY SEED')  # Hier könnte ein besserer Seed verwendet werden
+        acct = Account.create('ENTROPY SEED')
         private_key = acct.key
         address = acct.address
         
-        # Keystore erstellen (verschlüsselter private key)
         encrypted_key = Account.encrypt(private_key, password)
         
         if output_path:
@@ -128,19 +117,23 @@ class OracleKeyManager:
             
         Returns:
             tx_hash: Der Hash der gesendeten Transaktion
-        """        # Fix: Increase gas price by 50% to avoid "replacement transaction underpriced" error
+        """    
         if 'gasPrice' in transaction:
             transaction['gasPrice'] = int(transaction['gasPrice'] * 1.5)
             
-        # Add a random nonce increment (0-1000) to avoid nonce conflicts
-        import random
-        if 'nonce' in transaction:
-            transaction['nonce'] += random.randint(0, 1000)
-            
+        current_nonce = self.web3.eth.get_transaction_count(self.address)
+        transaction['nonce'] = current_nonce
+        
         signed_tx = self.sign_transaction(transaction)
         tx_hash = self.web3.eth.send_raw_transaction(signed_tx.raw_transaction)
         
-        # Fix 2: Use Web3.to_hex utility function directly as it's not a method of the Web3 instance
+        try:
+            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not get transaction receipt: {str(e)}")
+        
         return Web3.to_hex(tx_hash)
     
     def get_address(self):
