@@ -101,12 +101,55 @@
                     </div>
                 </div>
             </div>
-            
-            <div id="deployment-success" class="alert alert-success" style="display: none;">
+              <div id="deployment-success" class="alert alert-success" style="display: none;">
                 <i class="bi bi-check-circle-fill me-2"></i>
                 <h5 class="alert-heading">Bereitstellung erfolgreich!</h5>
                 <p>Der Smart Contract wurde erfolgreich bereitgestellt unter:</p>
                 <div class="contract-address" id="new-contract-address"></div>
+                
+                <!-- Oracle Setup Section -->
+                <div id="oracle-setup-section" class="mt-4 p-3 border rounded bg-light">
+                    <h6 class="mb-3">
+                        <i class="bi bi-shield-check me-2"></i>Oracle-Adresse setzen
+                    </h6>
+                    <p class="small mb-3">
+                        Setzen Sie jetzt die Oracle-Adresse für den Smart Contract. Das Oracle wird für die Bestätigung von Lieferungen verwendet.
+                    </p>
+                    
+                    <div class="mb-3">
+                        <label for="oracle-address" class="form-label">Oracle Ethereum-Adresse</label>
+                        <input type="text" class="form-control" id="oracle-address" 
+                               placeholder="0x..." pattern="0x[a-fA-F0-9]{40}">
+                        <div class="form-text">Die Ethereum-Adresse des Oracle-Services.</div>
+                    </div>
+                    
+                    <button id="set-oracle-button" class="btn btn-warning btn-sm">
+                        <i class="bi bi-shield-plus me-2"></i>Oracle setzen
+                    </button>
+                    
+                    <div id="oracle-status" class="alert alert-info mt-3" style="display: none;">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                                <span class="visually-hidden">Oracle wird gesetzt...</span>
+                            </div>
+                            <div>
+                                <span>Oracle-Adresse wird gesetzt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="oracle-success" class="alert alert-success mt-3" style="display: none;">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong>Oracle erfolgreich gesetzt!</strong>
+                        <p class="mb-0 mt-2">Der Smart Contract ist jetzt vollständig konfiguriert und einsatzbereit.</p>
+                    </div>
+                    
+                    <div id="oracle-error" class="alert alert-danger mt-3" style="display: none;">
+                        <i class="bi bi-x-circle-fill me-2"></i>
+                        <strong>Fehler beim Setzen des Oracles</strong>
+                        <p id="oracle-error-message" class="mb-0 mt-2"></p>
+                    </div>
+                </div>
             </div>
             
             <div id="deployment-error" class="alert alert-danger" style="display: none;">
@@ -144,9 +187,11 @@
                 </li>
                 <li>
                     <p><strong>Bestätigung abwarten:</strong> Warten Sie auf die Bestätigung der Transaktion in der Blockchain.</p>
+                </li>                <li>
+                    <p><strong>Adresse speichern:</strong> Nach erfolgreicher Bereitstellung wird die Vertragsadresse automatisch für Ihre Plattform konfiguriert.</p>
                 </li>
                 <li>
-                    <p><strong>Adresse speichern:</strong> Nach erfolgreicher Bereitstellung wird die Vertragsadresse automatisch für Ihre Plattform konfiguriert.</p>
+                    <p><strong>Oracle konfigurieren:</strong> Setzen Sie optional eine Oracle-Adresse für die automatische Lieferungsbestätigung.</p>
                 </li>
             </ol>
         </div>
@@ -204,9 +249,11 @@
                         // Vertragsadresse anzeigen
                         const contractAddress = receipt.contractAddress;
                         document.getElementById('new-contract-address').textContent = contractAddress;
-                        
-                        // Adresse an den Server senden
+                          // Adresse an den Server senden
                         await updateContractAddress(contractAddress);
+                        
+                        // Oracle-Setup aktivieren
+                        setupOracleHandlers(contractAddress);
                     })
                     .on('error', (error) => {
                         console.error('Fehler bei der Bereitstellung:', error);
@@ -237,6 +284,74 @@
             } catch (error) {
                 console.error('Fehler beim Senden der Adresse an den Server:', error);
             }
+        }        
+        function setupOracleHandlers(contractAddress) {
+            // Oracle-Setup-Button aktivieren
+            const setOracleButton = document.getElementById('set-oracle-button');
+            setOracleButton.addEventListener('click', () => setOracle(contractAddress));
+        }
+        
+        async function setOracle(contractAddress) {
+            const oracleAddress = document.getElementById('oracle-address').value;
+            
+            if (!oracleAddress || !oracleAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+                showOracleError('Bitte geben Sie eine gültige Oracle Ethereum-Adresse ein.');
+                return;
+            }
+            
+            try {
+                // UI-Status aktualisieren
+                document.getElementById('set-oracle-button').disabled = true;
+                document.getElementById('oracle-status').style.display = 'block';
+                
+                // Oracle-Setup-Transaktion vorbereiten
+                const response = await fetch('{% url "prepare_set_oracle" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `deployer_address=${deployerAddress}&oracle_address=${oracleAddress}&contract_address=${contractAddress}`
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showOracleError(data.message || 'Fehler beim Vorbereiten der Oracle-Transaktion');
+                    return;
+                }
+                
+                // Transaktion mit MetaMask senden
+                const web3 = new Web3(window.ethereum);
+                const txData = JSON.parse(data.transaction);
+                
+                web3.eth.sendTransaction(txData)
+                    .on('transactionHash', (hash) => {
+                        console.log(`Oracle-Setup Transaktions-Hash: ${hash}`);
+                    })
+                    .on('receipt', (receipt) => {
+                        console.log('Oracle gesetzt:', receipt);
+                        // Erfolg anzeigen
+                        document.getElementById('oracle-status').style.display = 'none';
+                        document.getElementById('oracle-success').style.display = 'block';
+                    })
+                    .on('error', (error) => {
+                        console.error('Fehler beim Setzen des Oracles:', error);
+                        showOracleError(error.message || 'Unbekannter Fehler beim Setzen des Oracles');
+                    });
+                    
+            } catch (error) {
+                console.error('Fehler:', error);
+                showOracleError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        function showOracleError(message) {
+            document.getElementById('oracle-status').style.display = 'none';
+            document.getElementById('oracle-error').style.display = 'block';
+            document.getElementById('oracle-error-message').textContent = message;
+            document.getElementById('set-oracle-button').disabled = false;
         }
         
         function showError(message) {

@@ -271,9 +271,9 @@ class BlockchainService:
         print(f"Contract ID: {contract_id}, Status: {status}")
         status_map = {
             0: 'Created',
-            1: 'Signed',
+            1: 'Signed',            
             2: 'Completed',
-            3: 'Cancelled'
+            3: 'Cancelled'        
         }
         return status_map.get(status, 'Unknown')
     
@@ -282,9 +282,9 @@ class BlockchainService:
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
             
-        return self.contract.functions.getContractIPFSHash(contract_id).call()
+        return self.contract.functions.getContractHash(contract_id).call()
         
-    def withdrawFunds(self, partner_address):
+    def withdrawFunds(self, partner_address, contract_id):
         """Withdraw available funds from the contract"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
@@ -303,8 +303,8 @@ class BlockchainService:
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
-        # Prepare the withdrawal transaction
-        tx = self.contract.functions.withdrawFunds().build_transaction({
+        # Prepare the withdrawal transaction - using the new method name from the contract
+        tx = self.contract.functions.withdrawFundsFrom(contract_id).build_transaction({
             'from': partner_address,
             'nonce': self.web3.eth.get_transaction_count(partner_address),
             'gas': 2000000,  # Adjust as needed
@@ -429,26 +429,25 @@ class BlockchainService:
         
         # Return the transaction for signing in the frontend
         return tx
-        
+    
     def approve_delivery_as_creator(self, creator_address, contract_id):
-        """Approve delivery as the creator on the blockchain"""
+        """Approve delivery as the contract creator"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
-            
+        
         # Ensure address is in checksum format
         try:
-            # Stelle sicher, dass die Adresse nicht None oder leer ist
             if not creator_address:
                 raise ValueError("Creator address is empty")
                 
-            # Stelle sicher, dass die Adresse mit 0x beginnt
             if not creator_address.startswith('0x'):
                 creator_address = '0x' + creator_address
                 
             creator_address = self.web3.to_checksum_address(creator_address)
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
-              # Prepare the transaction to approve delivery as creator
+        
+        # Prepare the transaction to approve delivery
         tx = self.contract.functions.approveDeliveryAsCreator(contract_id).build_transaction({
             'from': creator_address,
             'nonce': self.web3.eth.get_transaction_count(creator_address),
@@ -456,15 +455,7 @@ class BlockchainService:
             'gasPrice': self.web3.eth.gas_price
         })
         
-        # For now, return the transaction data for potential frontend signing
-        # TODO: Implement actual transaction sending when private keys are available
-        print(f"Delivery approval transaction prepared for contract {contract_id}")
-        
-        return {
-            'success': True,
-            'transaction': tx,
-            'message': f'Delivery approval prepared for blockchain'
-        }
+        return tx
     
     def send_transaction(self, transaction, private_key):
         """
@@ -520,3 +511,75 @@ class BlockchainService:
             # Return prepared transaction for frontend signing
             transaction_data['sent_to_blockchain'] = False
             return transaction_data
+        
+    def get_pending_withdrawals(self, address):
+        """Get pending withdrawal amount for an address"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure address is in checksum format
+        try:
+            if not address:
+                raise ValueError("Address is empty")
+                
+            if not address.startswith('0x'):
+                address = '0x' + address
+                
+            address = self.web3.to_checksum_address(address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
+        # Get pending withdrawals amount
+        return self.contract.functions.pendingWithdrawals(address).call()
+    
+    def get_contract_details_extended(self, contract_id):
+        """Get extended contract details including delivery status"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+            
+        contract_details = self.contract.functions.contracts(contract_id).call()
+          # Format the contract details based on the new Solidity contract structure
+        formatted_details = {
+            'id': contract_details[0],
+            'amount': contract_details[1],
+            'creator': contract_details[2],
+            'counterparty': contract_details[3],
+            'status': self.get_contract_status(contract_id),
+            'contractHash': contract_details[5],
+            'deliveryTrackingHash': contract_details[6],
+            'deliveryRequired': contract_details[7],
+            'deliveryConfirmed': contract_details[8],
+            'deliveryApprovedByCreator': contract_details[9]
+        }
+        
+        return formatted_details
+    
+    def set_oracle(self, deployer_address, oracle_address):
+        """Set the oracle address for the contract"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        # Ensure addresses are in checksum format
+        try:
+            if not deployer_address or not oracle_address:
+                raise ValueError("Deployer or oracle address is empty")
+                
+            if not deployer_address.startswith('0x'):
+                deployer_address = '0x' + deployer_address
+            if not oracle_address.startswith('0x'):
+                oracle_address = '0x' + oracle_address
+                
+            deployer_address = self.web3.to_checksum_address(deployer_address)
+            oracle_address = self.web3.to_checksum_address(oracle_address)
+        except ValueError as e:
+            raise ValueError(f"Invalid Ethereum address: {str(e)}")
+        
+        # Prepare the transaction to set oracle
+        tx = self.contract.functions.setOracle(oracle_address).build_transaction({
+            'from': deployer_address,
+            'nonce': self.web3.eth.get_transaction_count(deployer_address),
+            'gas': 2000000,
+            'gasPrice': self.web3.eth.gas_price
+        })
+        
+        return tx

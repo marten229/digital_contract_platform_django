@@ -38,125 +38,125 @@ class DHLTrackingService:
         try:
             headers = {
                 'DHL-API-Key': self.api_key,
-                'Accept': 'application/json'
+                'Content-Type': 'application/json'
             }
             
-            if self.api_secret:
-                headers['DHL-API-Secret'] = self.api_secret
+            url = f"{self.base_url}/track/{tracking_number}"
+            response = requests.get(url, headers=headers)
             
-            response = requests.get(
-                f"{self.base_url}/track?trackingNumber={tracking_number}", 
-                headers=headers
-            )
-            
-            # Check if the request was successful
             if response.status_code == 200:
                 data = response.json()
+                # Process the response and return standardized format
+                return self.parse_dhl_response(data)
+            else:
+                print(f"DHL API Error: {response.status_code} - {response.text}")
+                return {'status': 'error', 'message': 'Failed to fetch tracking data'}
                 
-                # Map DHL API response to our simplified format
-                shipments = data.get('shipments', [])
-                if shipments:
-                    shipment = shipments[0]  # Get first shipment
-                    status = self._map_dhl_status(shipment.get('status', {}).get('statusCode', ''))
-                    events = []
-                    
-                    for event in shipment.get('events', []):
-                        events.append({
-                            'timestamp': event.get('timestamp', ''),
-                            'status': event.get('description', ''),
-                            'location': event.get('location', {}).get('address', {}).get('addressLocality', '')
-                        })
-                    
-                    return {
-                        'tracking_number': tracking_number,
-                        'status': status,
-                        'estimated_delivery': shipment.get('estimatedTimeOfDelivery', ''),
-                        'last_update': events[0].get('timestamp') if events else timezone.now().isoformat(),
-                        'location': events[0].get('location') if events else '',
-                        'events': events
-                    }
-            
-            # If we reach here, there was an error or no shipments found
-            print(f"DHL API Error: {response.status_code} - {response.text}")
-            return self.get_dummy_tracking_info(tracking_number, status='unknown')
-            
         except Exception as e:
-            print(f"Error calling DHL API: {str(e)}")
-            # Fallback to dummy data in case of errors
-            return self.get_dummy_tracking_info(tracking_number, status='unknown')
+            print(f"Error fetching tracking info: {str(e)}")
+            return {'status': 'error', 'message': str(e)}
     
-    def _map_dhl_status(self, dhl_status_code):
-        """Maps DHL status codes to our simplified status values"""
-        # Map the DHL status codes to our simplified status values
-        # This is a simplified mapping and should be expanded based on actual DHL codes
-        status_mapping = {
-            'pre-transit': 'initialized',
-            'transit': 'in_transit',
-            'delivered': 'delivered',
-            'out-for-delivery': 'out_for_delivery',
-            'failure': 'failed',
-            'unknown': 'unknown'
-        }
+    def get_dummy_tracking_info(self, tracking_number):
+        """
+        Return dummy tracking information for testing purposes
+        """
+        # For testing purposes, we'll simulate that packages are delivered
+        # In a real implementation, this would query the actual DHL API
         
-        # Default to 'in_transit' if we don't recognize the status
-        return status_mapping.get(dhl_status_code.lower(), 'in_transit')
-    
-    def get_dummy_tracking_info(self, tracking_number, status=None):
-        """
-        Returns simulated tracking data for development/testing
-        """
-        # For development/demo purposes, return simulated data
+        # Check if we have a contract with this tracking number that should be delivered
+        from .models import Contract
+        try:
+            contract = Contract.objects.get(tracking_number=tracking_number)
+            # If the contract status is already package_delivered, keep it delivered
+            if contract.status == 'package_delivered':
+                status = 'delivered'
+            else:
+                # For new packages, simulate a progression
+                dummy_statuses = ['in_transit', 'out_for_delivery', 'delivered']
+                # Use a simple progression based on when the contract was created
+                # For demo purposes, let's assume packages are delivered after some time
+                status_index = hash(tracking_number) % len(dummy_statuses)
+                status = dummy_statuses[status_index]
+                
+                # Override to delivered for testing Oracle functionality
+                if contract.has_dhl_tracking and not contract.delivery_oracle_confirmed:
+                    status = 'delivered'
+        except Contract.DoesNotExist:
+            status = 'delivered'  # Default to delivered for testing
+        
         return {
             'tracking_number': tracking_number,
-            'status': status or 'delivered',  # Options: in_transit, out_for_delivery, delivered
-            'estimated_delivery': '2025-05-05T12:00:00Z',
+            'status': status,
             'last_update': timezone.now().isoformat(),
-            'location': 'Sorting center',
+            'location': 'Test Location',
+            'estimated_delivery': timezone.now().date().isoformat(),
             'events': [
                 {
                     'timestamp': timezone.now().isoformat(),
-                    'status': 'Package received at sorting center',
-                    'location': 'Berlin Sorting Center'
+                    'status': status,
+                    'location': 'Test Location',
+                    'description': f'Package is {status}'
                 }
             ]
         }
     
+    def parse_dhl_response(self, data):
+        """
+        Parse DHL API response into standardized format
+        """
+        # This will depend on the actual DHL API response format
+        # For now, return a placeholder structure
+        return {
+            'tracking_number': data.get('trackingNumber', ''),
+            'status': data.get('status', 'unknown').lower(),
+            'last_update': data.get('lastUpdate', ''),
+            'location': data.get('location', ''),
+            'estimated_delivery': data.get('estimatedDelivery', ''),
+            'events': data.get('events', [])
+        }
+    
     def update_contract_status(self, contract):
         """
-        Update the contract status based on the current tracking status
+        Update a contract's tracking status based on the latest DHL data
         """
-        if not contract.has_dhl_tracking or not contract.tracking_number:
-            return
+        if not contract.tracking_number:
+            return None
             
         tracking_info = self.get_tracking_info(contract.tracking_number)
         
-        # Update contract with tracking info
-        contract.package_status = tracking_info.get('status', 'unknown')
+        if tracking_info.get('status') == 'error':
+            return tracking_info
+        
+        # Update contract fields
+        old_status = contract.package_status
+        contract.package_status = tracking_info.get('status')
         contract.last_tracking_update = timezone.now()
         
-        # If package is delivered, update contract status
-        if tracking_info.get('status') == 'delivered':
+        # Update the overall contract status if package is delivered
+        if tracking_info.get('status') == 'delivered' and contract.status != 'package_delivered':
             contract.status = 'package_delivered'
-            # Automatic fulfillment for seller - awaiting confirmation
         
         contract.save()
+        
+        # Log status change if it's different
+        if old_status != contract.package_status:
+            print(f"Contract {contract.id} status updated: {old_status} -> {contract.package_status}")
         
         return tracking_info
     
     def check_for_updates(self):
         """
-        Bulk check for tracking updates on all contracts with DHL tracking enabled
+        Check for tracking updates on all contracts with DHL tracking enabled
         """
-        # Find all contracts with DHL tracking that haven't been marked as delivered yet
+        # Get all contracts with tracking enabled
         tracking_contracts = Contract.objects.filter(
             has_dhl_tracking=True,
             tracking_number__isnull=False,
-        ).exclude(
-            Q(status='package_delivered') | 
-            Q(status='delivery_confirmed')
+            status__in=['package_shipped', 'package_delivered']
         )
         
         updates = []
+        
         for contract in tracking_contracts:
             tracking_info = self.update_contract_status(contract)
             updates.append({
@@ -215,6 +215,10 @@ class DHLTrackingService:
         """
         if not contract.has_dhl_tracking or not contract.tracking_number:
             return False, "No tracking information available"
+            
+        # Generate tracking hash if not already present
+        if not contract.tracking_hash:
+            contract.tracking_hash = self.generate_tracking_hash(contract.tracking_number)
             
         # Get the latest tracking info
         tracking_info = self.get_tracking_info(contract.tracking_number)

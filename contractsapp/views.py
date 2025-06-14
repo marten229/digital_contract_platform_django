@@ -270,10 +270,13 @@ def finish_contract_configuration(request, pk):
         messages.error(request, 'Ungültige Signaturpositionen. Bitte versuchen Sie es erneut.')
         return redirect('contract_configuration', pk=pk)
     contract.has_dhl_tracking = 'has_dhl_tracking' in request.POST
-    tracking_number = request.POST.get('tracking_number', '').strip()
-    
+    tracking_number = request.POST.get('tracking_number', '').strip()    
     if tracking_number:
+        from .dhl_tracking import DHLTrackingService
+        tracking_service = DHLTrackingService()
+        
         contract.tracking_number = tracking_number
+        contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
         contract.package_status = 'initialized'
         tracking_details = f"DHL Tracking aktiviert mit Tracking-Nummer: {tracking_number}"
     elif contract.has_dhl_tracking:
@@ -767,7 +770,11 @@ def update_blockchain_status(request, pk):
     if tracking_set:
         # Save tracking number to database ONLY after successful blockchain transaction
         if tracking_number:
+            from .dhl_tracking import DHLTrackingService
+            tracking_service = DHLTrackingService()
+            
             contract.tracking_number = tracking_number
+            contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
             contract.status = 'package_shipped'
             contract.save()
             
@@ -866,7 +873,7 @@ def withdraw_funds(request, pk):
     """
     if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
-
+    
     contract = get_object_or_404(Contract, pk=pk)
 
     if request.user.ethereum_address != contract.partner_address:
@@ -877,7 +884,7 @@ def withdraw_funds(request, pk):
 
     blockchain_service = BlockchainService()
     try:
-        tx = blockchain_service.withdrawFunds(request.user.ethereum_address)
+        tx = blockchain_service.withdrawFunds(request.user.ethereum_address, contract.blockchain_contract_id)
         return JsonResponse({'success': True, 'transaction': json.dumps(dict(tx))})
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Fehler: {str(e)}'})
@@ -886,14 +893,7 @@ def withdraw_funds(request, pk):
 @login_required
 def deploy_contract(request):
     """
-    <summary>
-     Admin-only view to deploy the main smart contract to the blockchain.
-     Requires superuser privileges. On GET, displays the current contract address and a form to specify the deployer address.
-     On POST, validates the deployer address and calls the BlockchainService to prepare the deployment transaction.
-     Renders the transaction details for the admin to execute via their wallet (e.g., MetaMask).
-     </summary>
-    <param name="request">The HttpRequest object, potentially containing 'deployer_address' in POST data.</param>
-    <returns>An HttpResponse object rendering the 'deploy_contract.html' template, possibly including transaction details.</returns>
+    Admin-only view to deploy the main smart contract to the blockchain.
     """
     if not request.user.is_superuser:
         messages.error(request, "Nur Administratoren können den Smart Contract bereitstellen.")
@@ -903,14 +903,13 @@ def deploy_contract(request):
 
     if request.method == 'POST':
         deployer_address = request.POST.get('deployer_address')
-
+        
         if not deployer_address or not deployer_address.startswith('0x'):
             messages.error(request, "Bitte geben Sie eine gültige Ethereum-Adresse ein.")
             return render(request, 'contractsapp/deploy_contract.html')
 
         try:
             tx = blockchain_service.deploy_contract(deployer_address)
-
             tx_dict = dict(tx)
 
             if 'data' in tx_dict and isinstance(tx_dict['data'], bytes):
@@ -928,9 +927,14 @@ def deploy_contract(request):
             messages.error(request, f"Fehler bei der Vorbereitung der Bereitstellung: {str(e)}")
 
     current_address = blockchain_service.get_contract_address()
+    
+    # Get default oracle address from settings if available
+    from django.conf import settings
+    default_oracle_address = getattr(settings, 'DEFAULT_ORACLE_ADDRESS', '')
 
     return render(request, 'contractsapp/deploy_contract.html', {
-        'current_address': current_address
+        'current_address': current_address,
+        'default_oracle_address': default_oracle_address
     })
 
 
@@ -1328,7 +1332,7 @@ def withdraw_contract_funds(request, pk):
     from django.conf import settings
 
     user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
-
+    
     contract = get_object_or_404(Contract, pk=pk, partner_address=user_eth_address)
     blockchain_service = BlockchainService()
 
@@ -1356,7 +1360,8 @@ def withdraw_contract_funds(request, pk):
     if request.method == 'POST':
         try:
             tx = blockchain_service.withdrawFunds(
-                partner_address=contract.partner_address
+                partner_address=contract.partner_address,
+                contract_id=contract.blockchain_contract_id
             )
 
             ContractActivity.log(
@@ -1699,3 +1704,56 @@ def add_tracking_number(request, pk):
                 'show_blockchain_form': True,
             }
             return render(request, 'contractsapp/add_tracking.html', context)
+
+
+@login_required
+def prepare_set_oracle(request):
+    """
+    View to prepare the setOracle transaction for the smart contract.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({'success': False, 'message': 'Nur Administratoren können das Oracle setzen.'})
+    
+    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
+    
+    deployer_address = request.POST.get('deployer_address')
+    oracle_address = request.POST.get('oracle_address')
+    contract_address = request.POST.get('contract_address')
+    
+    if not deployer_address or not oracle_address or not contract_address:
+        return JsonResponse({'success': False, 'message': 'Alle Adressen sind erforderlich'})
+    
+    # Validate addresses
+    if not (deployer_address.startswith('0x') and oracle_address.startswith('0x') and contract_address.startswith('0x')):
+        return JsonResponse({'success': False, 'message': 'Ungültige Ethereum-Adressen'})
+    
+    try:
+        blockchain_service = BlockchainService()
+        
+        # Aktualisiere die Contract-Adresse im Service
+        blockchain_service.set_contract_address(contract_address)
+        
+        # Bereite die setOracle-Transaktion vor
+        tx = blockchain_service.set_oracle(deployer_address, oracle_address)
+        
+        # Konvertiere Bytes zu Hex für JSON-Serialisierung
+        processed_tx = {}
+        for key, value in tx.items():
+            if isinstance(value, bytes):
+                processed_tx[key] = value.hex()
+            else:
+                processed_tx[key] = value
+        
+        transaction_json = json.dumps(processed_tx)
+        
+        return JsonResponse({
+            'success': True,
+            'transaction': transaction_json
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'Fehler beim Vorbereiten der Oracle-Transaktion: {str(e)}'
+        })
