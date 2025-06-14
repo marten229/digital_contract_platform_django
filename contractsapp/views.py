@@ -1584,43 +1584,65 @@ def confirm_delivery(request, pk):
         is_confirmed = request.POST.get('is_confirmed') == 'true'
         delivery_notes = request.POST.get('delivery_notes', '')
         
-        tracking_service = DHLTrackingService()
-        success, message = tracking_service.confirm_delivery(
-            contract, 
-            confirmed=is_confirmed, 
-            notes=delivery_notes
-        )
-        
-        if success and is_confirmed:
-            # Initiiere die Blockchain-Transaktion zur Bestätigung der Lieferung
+        if is_confirmed:
+            # Prepare blockchain transaction for MetaMask
             blockchain_service = BlockchainService()
             try:
-                tx_data = blockchain_service.approve_delivery_as_creator(
+                tx = blockchain_service.approve_delivery_as_creator(
                     user_eth_address,
                     contract.blockchain_contract_id
                 )
                 
-                # Transaktion wurde vorbereitet (noch nicht auf Blockchain gesendet)
-                print(f"Lieferbestätigung vorbereitet: {tx_data}")
+                # Process transaction for MetaMask (same pattern as submit_to_blockchain)
+                processed_tx = {}
+                for key, value in tx.items():
+                    if isinstance(value, bytes):
+                        processed_tx[key] = value.hex()
+                    else:
+                        processed_tx[key] = value
                 
-                if tx_data.get('success'):
-                    print(f"Blockchain-Nachricht: {tx_data.get('message')}")
+                # Add contract address if missing
+                if 'to' not in processed_tx and blockchain_service.contract_address:
+                    processed_tx['to'] = blockchain_service.contract_address
                 
-                # Create activity log
+                transaction_json = json.dumps(processed_tx)
+                
+                # Log the activity
                 ContractActivity.log(
                     contract=contract,
                     user=request.user,
                     user_role='creator',
                     action='delivery_confirmed',
-                    details=delivery_notes if delivery_notes else "Keine Anmerkungen"                )                
-                messages.success(request, "Lieferungsbestätigung wurde vorbereitet. (Hinweis: Transaktion noch nicht auf Blockchain gesendet)")
-                return redirect('contract_detail', pk=pk)
+                    details=delivery_notes if delivery_notes else "Lieferbestätigung vorbereitet für MetaMask"
+                )
+                
+                # Update tracking service
+                tracking_service = DHLTrackingService()
+                tracking_service.confirm_delivery(
+                    contract, 
+                    confirmed=is_confirmed, 
+                    notes=delivery_notes
+                )
+                
+                return render(request, 'contractsapp/confirm_delivery.html', {
+                    'contract': contract,
+                    'transaction': transaction_json,
+                    'is_confirmation': True,
+                    'delivery_notes': delivery_notes
+                })
                 
             except Exception as e:
                 messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
                 return redirect('contract_detail', pk=pk)
-        elif not is_confirmed:
-            # Wenn nicht bestätigt, handle Ablehnung der Lieferung
+        else:
+            # Handle delivery rejection
+            tracking_service = DHLTrackingService()
+            success, message = tracking_service.confirm_delivery(
+                contract, 
+                confirmed=is_confirmed, 
+                notes=delivery_notes
+            )
+            
             ContractActivity.log(
                 contract=contract,
                 user=request.user,
@@ -1629,10 +1651,7 @@ def confirm_delivery(request, pk):
                 details=delivery_notes if delivery_notes else "Keine Anmerkungen"
             )
             messages.success(request, "Lieferung wurde abgelehnt.")
-        else:
-            messages.error(request, message)
-            
-        return redirect('contract_detail', pk=pk)
+            return redirect('contract_detail', pk=pk)
     
     return render(request, 'contractsapp/confirm_delivery.html', {'contract': contract})
 

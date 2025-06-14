@@ -13,6 +13,69 @@
                     <h5>{{ contract.title }}</h5>
                 </div>
                 <div class="card-body">
+                    {% if is_confirmation %}
+                    <div class="alert alert-info">
+                        <strong>Transaktion vorbereitet:</strong> Bitte bestätigen Sie die Transaktion in MetaMask, um die Lieferung auf der Blockchain zu bestätigen.
+                    </div>
+                    
+                    <div id="blockchain-confirmation-area">
+                        <h4 class="mb-3">Lieferung auf der Blockchain bestätigen</h4>
+                        <p>
+                            Sie sind dabei, die Lieferungsbestätigung auf der Ethereum-Blockchain zu registrieren. 
+                            Bitte verwenden Sie Ihre MetaMask-Wallet, um die Transaktion zu bestätigen.
+                        </p>
+                        
+                        <div class="d-grid gap-2 mb-4">
+                            <button id="confirm-button" class="btn btn-primary btn-lg">
+                                <i class="bi bi-check-circle me-2"></i>
+                                Lieferung bestätigen (MetaMask)
+                            </button>
+                        </div>
+                        
+                        <div id="confirmation-status" class="alert alert-info d-none">
+                            <div class="status-info d-flex align-items-center">
+                                <div class="spinner-border text-primary me-3" role="status">
+                                    <span class="visually-hidden">Wird verarbeitet...</span>
+                                </div>
+                                <div>
+                                    <h5 class="alert-heading mb-1">Transaktion wird verarbeitet...</h5>
+                                    <p class="mb-0">Bitte warten Sie, während die Lieferungsbestätigung an die Blockchain übermittelt wird.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="confirmation-success" class="alert alert-success d-none">
+                            <h5 class="alert-heading">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                Lieferung erfolgreich bestätigt!
+                            </h5>
+                            <p>Die Lieferungsbestätigung wurde erfolgreich auf der Ethereum-Blockchain registriert.</p>
+                            <hr>
+                            <p class="mb-0">
+                                <strong>Transaktions-Hash:</strong> 
+                                <span id="transaction-hash" class="d-block mt-2 small text-break"></span>
+                            </p>
+                            <div class="mt-3">
+                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary">
+                                    Zurück zum Vertrag
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <div id="confirmation-error" class="alert alert-danger d-none">
+                            <h5 class="alert-heading">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                Fehler bei der Bestätigung
+                            </h5>
+                            <p id="error-message">Ein Fehler ist aufgetreten bei der Übermittlung an die Blockchain.</p>
+                            <div class="mt-3">
+                                <button id="retry-button" class="btn btn-outline-danger">
+                                    Erneut versuchen
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
                     <div class="alert alert-info">
                         <strong>Info:</strong> DHL hat die Lieferung des Pakets bestätigt. Bitte überprüfen Sie, ob der Inhalt vollständig und korrekt ist.
                     </div>
@@ -64,9 +127,148 @@
                             <button type="submit" class="btn btn-primary">Lieferung bestätigen</button>
                         </div>
                     </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Hidden elements to pass data to JS -->
+<div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+{% if is_confirmation %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const confirmButton = document.getElementById('confirm-button');
+        const retryButton = document.getElementById('retry-button');
+        
+        // Transaction data from Django
+        let txData = {{ transaction|safe }};
+        
+        if (confirmButton) {
+            confirmButton.onclick = function() {
+                confirmDelivery();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                confirmDelivery();
+                return false;
+            };
+        }
+
+        async function confirmDelivery() {
+            // Check if MetaMask is installed
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            // Check if transaction data is available
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
+                return;
+            }
+            
+            try {
+                // Update UI status
+                document.getElementById('confirm-button').disabled = true;
+                document.getElementById('confirmation-status').classList.remove('d-none');
+                
+                // Connect to MetaMask
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Check if current address matches creator address
+                const userAddress = accounts[0];
+                const creatorAddress = "{{ contract.creator_address }}";
+                
+                if (userAddress.toLowerCase() !== creatorAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragserstellers (${creatorAddress})`);
+                    return;
+                }
+                
+                // Prepare transaction for Web3.js
+                const web3Tx = {...txData};
+                
+                // Send transaction with MetaMask
+                web3.eth.sendTransaction(web3Tx)
+                    .on('transactionHash', function(hash) {
+                        // Transaction hash generated
+                        console.log('Transaction hash:', hash);
+                    })
+                    .on('receipt', async function(receipt) {
+                        // Show success UI
+                        document.getElementById('confirmation-status').classList.add('d-none');
+                        document.getElementById('confirmation-success').classList.remove('d-none');
+                        
+                        // Display hash
+                        document.getElementById('transaction-hash').textContent = receipt.transactionHash;
+                        
+                        // Update contract status
+                        await updateContractStatus(receipt.transactionHash);
+                    })
+                    .on('error', function(error) {
+                        showError(error.message || 'Unbekannter Fehler bei der Bestätigung der Lieferung');
+                    });
+            } catch (error) {
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        async function updateContractStatus(txHash) {
+            try {
+                const formData = new FormData();
+                formData.append('tx_hash', txHash);
+                formData.append('action', 'delivery_confirmed');
+                
+                const response = await fetch("{% url 'contract_detail' contract.pk %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    console.log('Contract status updated successfully');
+                } else {
+                    console.error('Error updating contract status');
+                }
+            } catch (error) {
+                console.error('Error communicating with server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('confirmation-status').classList.add('d-none');
+            document.getElementById('confirmation-error').classList.remove('d-none');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('confirm-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endif %}
 {% endblock %}
