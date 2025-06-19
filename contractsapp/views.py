@@ -1447,10 +1447,6 @@ def void_blockchain_contract(request, pk):
         messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
         return redirect('contract_detail', pk=pk)
 
-    if contract.blockchain_status == 'Completed':
-        messages.error(request, "Abgeschlossene Verträge können nicht nichtig gemacht werden.")
-        return redirect('contract_detail', pk=pk)
-
     if contract.blockchain_status == 'Cancelled':
         messages.info(request, "Dieser Vertrag wurde bereits als nichtig markiert.")
         return redirect('contract_detail', pk=pk)

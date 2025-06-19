@@ -277,12 +277,6 @@ class BlockchainService:
         }
         return status_map.get(status, 'Unknown')
     
-    def get_contract_hash(self, contract_id):
-        """Get the contract hash from the blockchain"""
-        if not self.contract:
-            raise ValueError("Smart contract not properly initialized")
-            
-        return self.contract.functions.getContractHash(contract_id).call()
         
     def withdrawFunds(self, partner_address, contract_id):
         """Withdraw available funds from the contract"""
