@@ -1,0 +1,202 @@
+"""
+DHL Tracking Service für den Oracle Service
+
+Eigenständige DHL-Tracking-Funktionalität die unabhängig von der
+Hauptanwendung läuft und nur die notwendigen Tracking-Informationen abruft.
+"""
+
+import requests
+import logging
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, Optional
+from config import OracleConfig
+
+logger = logging.getLogger(__name__)
+
+class DHLTrackingService:
+    """
+    Service zur Abfrage von DHL-Tracking-Informationen
+    
+    Dieser Service läuft eigenständig und hat keine Django-Abhängigkeiten.
+    """
+    
+    def __init__(self):
+        self.config = OracleConfig()
+        self.base_url = self.config.DHL_API_BASE_URL
+        self.api_key = self.config.DHL_API_KEY
+        self.api_secret = self.config.DHL_API_SECRET
+        self.use_dummy = self.config.DHL_USE_DUMMY
+        
+        logger.info(f"DHL Tracking Service initialisiert (Dummy Mode: {self.use_dummy})")
+    
+    def get_tracking_info(self, tracking_number: str) -> Dict[str, Any]:
+        """
+        Holt Tracking-Informationen für eine bestimmte Tracking-Nummer
+        
+        Args:
+            tracking_number: Die DHL-Tracking-Nummer
+            
+        Returns:
+            Dictionary mit Tracking-Informationen
+        """
+        if self.use_dummy:
+            return self._get_dummy_tracking_info(tracking_number)
+        else:
+            return self._get_real_tracking_info(tracking_number)
+    
+    def _get_real_tracking_info(self, tracking_number: str) -> Dict[str, Any]:
+        """
+        Holt echte Tracking-Informationen von der DHL API
+        """
+        try:
+            headers = {
+                'DHL-API-Key': self.api_key,
+                'Content-Type': 'application/json'
+            }
+            
+            url = f"{self.base_url}/track/{tracking_number}"
+            response = requests.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self._parse_dhl_response(data)
+            else:
+                logger.error(f"DHL API Error: {response.status_code} - {response.text}")
+                return {
+                    'status': 'error',
+                    'message': f'DHL API Error: {response.status_code}',
+                    'tracking_number': tracking_number
+                }
+                
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Netzwerk-Fehler bei DHL API: {str(e)}")
+            return {
+                'status': 'error',
+                'message': f'Netzwerk-Fehler: {str(e)}',
+                'tracking_number': tracking_number
+            }
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei DHL API: {str(e)}")
+            return {
+                'status': 'error',
+                'message': f'Unerwarteter Fehler: {str(e)}',
+                'tracking_number': tracking_number
+            }
+    
+    def _get_dummy_tracking_info(self, tracking_number: str) -> Dict[str, Any]:
+        """
+        Erstellt Dummy-Tracking-Informationen für Tests
+        """
+        
+        return {
+            'tracking_number': tracking_number,
+            'status': 'delivered',
+            'last_update': datetime.now().isoformat(),
+            'location': 'Test-Standort',
+            'estimated_delivery': datetime.now().date().isoformat(),
+            'events': [
+                {
+                    'timestamp': datetime.now().isoformat(),
+                    'status': 'delivered',
+                    'location': 'Test-Standort',
+                    'description': f'Paket ist delivered'
+                }
+            ]
+        }
+    
+    def _parse_dhl_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parst die DHL API-Antwort in ein standardisiertes Format
+        """
+        # Dies hängt vom tatsächlichen DHL API-Antwortformat ab
+        # Placeholder-Implementierung
+        return {
+            'tracking_number': data.get('trackingNumber', ''),
+            'status': data.get('status', 'unknown').lower(),
+            'last_update': data.get('lastUpdate', ''),
+            'location': data.get('location', ''),
+            'estimated_delivery': data.get('estimatedDelivery', ''),
+            'events': data.get('events', [])
+        }
+    
+    def generate_tracking_hash(self, tracking_number: str, contract_id: int) -> str:
+        """
+        Generiert einen Tracking-Hash, der mit dem Smart Contract kompatibel ist
+        
+        Verwendet die gleiche Methode wie in der Hauptanwendung:
+        keccak256(abi.encode(contract_id, tracking_number))
+        
+        Args:
+            tracking_number: Die DHL-Tracking-Nummer
+            contract_id: Die Blockchain-Contract-ID
+            
+        Returns:
+            Hex-String des Hashes (mit 0x-Präfix)
+        """
+        try:
+            from eth_abi import encode
+            from eth_utils import keccak
+            
+            # Encode wie in Solidity: abi.encode(uint256, string)
+            encoded_data = encode(['uint256', 'string'], [contract_id, tracking_number])
+            
+            # Keccak256 Hash anwenden
+            hashed_value = keccak(encoded_data)
+            
+            # Als 0x-prefixed hex string zurückgeben
+            return '0x' + hashed_value.hex()
+            
+        except ImportError:
+            logger.error("eth_abi oder eth_utils nicht installiert - verwende SHA256 Fallback")
+            # Fallback für den Fall, dass eth_abi nicht verfügbar ist
+            combined = f"{contract_id}:{tracking_number}"
+            hash_value = hashlib.sha256(combined.encode()).hexdigest()
+            return '0x' + hash_value
+        except Exception as e:
+            logger.error(f"Fehler beim Generieren des Tracking-Hash: {str(e)}")
+            # Fallback
+            combined = f"{contract_id}:{tracking_number}"
+            hash_value = hashlib.sha256(combined.encode()).hexdigest()
+            return '0x' + hash_value
+    
+    def is_delivered(self, tracking_info: Dict[str, Any]) -> bool:
+        """
+        Prüft ob ein Paket laut Tracking-Info zugestellt wurde
+        
+        Args:
+            tracking_info: Tracking-Informationen
+            
+        Returns:
+            True wenn zugestellt, False sonst
+        """
+        if tracking_info.get('status') == 'error':
+            return False
+        
+        return tracking_info.get('status', '').lower() == 'delivered'
+    
+    def validate_tracking_number(self, tracking_number: str) -> bool:
+        """
+        Validiert eine DHL-Tracking-Nummer
+        
+        Args:
+            tracking_number: Die zu validierende Tracking-Nummer
+            
+        Returns:
+            True wenn gültig, False sonst
+        """
+        if not tracking_number or len(tracking_number.strip()) == 0:
+            return False
+        
+        # Einfache Validierung - in Realität würde man das DHL-Format prüfen
+        tracking_number = tracking_number.strip()
+        
+        # DHL-Tracking-Nummern sind typischerweise 10-12 Zeichen
+        if len(tracking_number) < 8 or len(tracking_number) > 20:
+            return False
+        
+        # Sollte alphanumerisch sein
+        if not tracking_number.replace('-', '').replace(' ', '').isalnum():
+            return False
+        
+        return True

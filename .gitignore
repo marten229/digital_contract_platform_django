@@ -140,3 +140,7 @@ GitHub.sublime-settings
 
 #PlantUML
 *.puml
+
+# Oracle-spezifische temporäre Dateien
+oracle_temp/
+temp_keys/
