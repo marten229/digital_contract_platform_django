@@ -82,7 +82,7 @@ def get_oracle_user():
 def process_oracle_confirmations(debug=False):
     """
     Process delivery confirmations as Oracle for contracts that have been delivered
-    Using direct key management instead of MetaMask for automation
+    Using direct key management
     """
     from contractsapp.oracle_key_manager import OracleKeyManager
     import traceback
