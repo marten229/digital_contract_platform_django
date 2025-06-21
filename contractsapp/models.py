@@ -83,9 +83,8 @@ class Contract(models.Model):
     delivery_confirmation = models.BooleanField(default=False, verbose_name="Lieferung bestätigt")
     delivery_notes = models.TextField(null=True, blank=True, verbose_name="Lieferhinweise")
     # Neues Feld für die Oracle-Bestätigung
-    delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")
-    # Speichert den Tracking-Hash für die Blockchain-Verifikation
-    tracking_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="Tracking-Hash")
+    delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")    # Speichert den Tracking-Hash für die Blockchain-Verifikation
+    tracking_hash = models.CharField(max_length=70, null=True, blank=True, verbose_name="Tracking-Hash")
     
     def __str__(self):
         return self.title
@@ -184,34 +183,84 @@ class Contract(models.Model):
             'signed_by_creator': 'status-signed-creator',
             'signed_by_partner': 'status-signed-partner',
             'completed': 'status-completed',
-            'blockchain_published': 'status-blockchain',
+            'blockchain_published': 'status-blockchain',            
             'rejected': 'status-rejected',
         }
         result = status_classes.get(self.status, 'status-default')
         return result
         
     def update_blockchain_status(self):
-        """Updates the blockchain status for this contract"""
+        """Updates the blockchain status and delivery information for this contract"""
         if self.blockchain_contract_id:
             try:
                 from .blockchain import BlockchainService
                 blockchain_service = BlockchainService()
                 
                 # Get the current status from the blockchain
+                old_blockchain_status = self.blockchain_status
                 self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
-                  # Wenn der Vertrag erfolgreich auf der Blockchain ist und der Status noch nicht aktualisiert wurde
+                  # Check if Oracle has confirmed delivery on the blockchain
+                try:
+                    # Get complete contract details including delivery status
+                    contract_details = blockchain_service.get_contract_details_extended(self.blockchain_contract_id)
+                    
+                    # Check if Oracle has confirmed delivery
+                    delivery_confirmed_by_oracle = contract_details.get('deliveryConfirmed', False)
+                    print(f"Oracle confirmed delivery for contract {self.blockchain_contract_id}: {delivery_confirmed_by_oracle} and {self.delivery_oracle_confirmed}")
+                    if delivery_confirmed_by_oracle and not self.delivery_oracle_confirmed:
+                        self.delivery_oracle_confirmed = True
+                        if self.status != 'package_delivered':
+                            self.status = 'package_delivered'
+                        self.status = 'package_delivered'
+                        self.package_status = 'delivered'
+                        self.last_tracking_update = timezone.now()
+                        
+                        # Safely handle tracking hash with length validation
+                        tracking_hash_value = contract_details.get('deliveryTrackingHash', None)
+                        print(f"Debug: Tracking hash value type: {type(tracking_hash_value)}, value: {tracking_hash_value}, length: {len(str(tracking_hash_value)) if tracking_hash_value else 0}")
+                        if tracking_hash_value:
+                            # Ensure the tracking hash doesn't exceed the field limit
+                            if len(str(tracking_hash_value)) <= 70:
+                                self.tracking_hash = tracking_hash_value
+                            else:
+                                print(f"Warning: Tracking hash too long ({len(str(tracking_hash_value))} chars): {tracking_hash_value}")
+                                # Log but don't set invalid value
+                                self.tracking_hash = None
+                        else:
+                            self.tracking_hash = None
+                        ContractActivity.log(
+                            contract=self,
+                            action='status_change',
+                            user_role='system',
+                            details=f"Lieferung wurde vom Oracle auf der Blockchain bestätigt"
+                        )
+                        
+                except Exception as oracle_e:
+                    # Oracle check might fail if contract doesn't exist or network issues
+                    print(f"Oracle check failed for contract {self.blockchain_contract_id}: {oracle_e}")
+                
+                # Update general contract status based on blockchain status
                 if self.blockchain_status in ['Created', 'Signed', 'Completed'] and self.status != 'blockchain_published' and \
                    self.status not in ['package_shipped', 'package_delivered', 'delivery_confirmed']:
                     self.status = 'blockchain_published'
-                    # Log the activity
-                    from .models import ContractActivity
                     ContractActivity.log(
                         contract=self,
                         action='status_change',
+                        user_role='system',
                         details=f"Vertragsstatus auf 'Auf Blockchain veröffentlicht' geändert (Blockchain-Status: {self.blockchain_status})"
                     )
                 
-                self.save(update_fields=['blockchain_status', 'status'])
+                # Log blockchain status change if it changed
+                if old_blockchain_status != self.blockchain_status:
+                    ContractActivity.log(
+                        contract=self,
+                        action='status_change',
+                        user_role='system',
+                        details=f"Blockchain-Status aktualisiert: {old_blockchain_status} -> {self.blockchain_status}"
+                    )
+                
+                # Use update_fields to avoid potential issues with large fields during save
+                self.save(update_fields=['blockchain_status', 'status', 'package_status', 'tracking_hash', 'delivery_oracle_confirmed'])
                 return True
             except Exception as e:
                 print(f"Error updating blockchain status: {e}")

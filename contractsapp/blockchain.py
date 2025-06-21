@@ -356,7 +356,7 @@ class BlockchainService:
         # Return the transaction for signing in the frontend
         return tx
         
-    def set_delivery_tracking(self, partner_address, contract_id, tracking_hash):
+    def set_delivery_tracking(self, partner_address, contract_id, tracking_number):
         """Set the delivery tracking hash for a contract on the blockchain"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
@@ -377,7 +377,7 @@ class BlockchainService:
         
         # Prepare the transaction to set delivery tracking
         # Note: Smart contract expects tracking number string, but we pass the hash for privacy
-        tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_hash).build_transaction({
+        tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_number).build_transaction({
             'from': partner_address,
             'nonce': self.web3.eth.get_transaction_count(partner_address),
             'gas': 2000000,
@@ -386,7 +386,7 @@ class BlockchainService:
         
         # Return the transaction data for frontend signing
         print(f"Tracking transaction prepared for contract {contract_id}")
-        print(f"Tracking hash to be sent to blockchain: {tracking_hash}")
+        print(f"Tracking number to be sent to blockchain: {tracking_number}")
         
         return {
             'success': True,
@@ -522,17 +522,28 @@ class BlockchainService:
             address = self.web3.to_checksum_address(address)
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
-        
-        # Get pending withdrawals amount
+          # Get pending withdrawals amount
         return self.contract.functions.pendingWithdrawals(address).call()
-    
+
     def get_contract_details_extended(self, contract_id):
         """Get extended contract details including delivery status"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
             
         contract_details = self.contract.functions.contracts(contract_id).call()
-          # Format the contract details based on the new Solidity contract structure
+        # Format the contract details based on the new Solidity contract structure
+        
+        # Properly handle deliveryTrackingHash conversion from bytes32 to hex string
+        delivery_tracking_hash = contract_details[6]
+        if delivery_tracking_hash and delivery_tracking_hash != b'\x00' * 32:
+            # Convert bytes32 to hex string
+            if isinstance(delivery_tracking_hash, bytes):
+                delivery_tracking_hash = '0x' + delivery_tracking_hash.hex()
+            else:
+                delivery_tracking_hash = str(delivery_tracking_hash)
+        else:
+            delivery_tracking_hash = None
+            
         formatted_details = {
             'id': contract_details[0],
             'amount': contract_details[1],
@@ -540,7 +551,7 @@ class BlockchainService:
             'counterparty': contract_details[3],
             'status': self.get_contract_status(contract_id),
             'contractHash': contract_details[5],
-            'deliveryTrackingHash': contract_details[6],
+            'deliveryTrackingHash': delivery_tracking_hash,
             'deliveryRequired': contract_details[7],
             'deliveryConfirmed': contract_details[8],
             'deliveryApprovedByCreator': contract_details[9]

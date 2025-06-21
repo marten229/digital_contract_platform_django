@@ -276,7 +276,7 @@ def finish_contract_configuration(request, pk):
         tracking_service = DHLTrackingService()
         
         contract.tracking_number = tracking_number
-        contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
+        contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number, contract.blockchain_contract_id)
         contract.package_status = 'initialized'
         tracking_details = f"DHL Tracking aktiviert mit Tracking-Nummer: {tracking_number}"
     elif contract.has_dhl_tracking:
@@ -774,7 +774,7 @@ def update_blockchain_status(request, pk):
             tracking_service = DHLTrackingService()
             
             contract.tracking_number = tracking_number
-            contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
+            contract.tracking_hash = tracking_service.generate_tracking_hash(tracking_number, contract.blockchain_contract_id)
             contract.status = 'package_shipped'
             contract.save()
             
@@ -1684,20 +1684,15 @@ def add_tracking_number(request, pk):
             return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
         
         if submit_to_blockchain:
-            # Erstelle einen Hash der Tracking-Nummer für die Blockchain
-            tracking_service = DHLTrackingService()
-            tracking_hash = tracking_service.generate_tracking_hash(tracking_number)
-            
-            # Initiiere die Blockchain-Transaktion (OHNE Datenbank-Update)
             # Die Tracking-Nummer wird erst nach erfolgreicher Transaktion gespeichert
             blockchain_service = BlockchainService()
             try:
                 tx_data = blockchain_service.set_delivery_tracking(
                     user_eth_address, 
                     contract.blockchain_contract_id, 
-                    tracking_hash
+                    tracking_number,  # ← Korrigiert: verwende tracking_number aus POST, nicht contract.tracking_number
                 )
-                  # Render the template with transaction data for MetaMask signing
+                # Render the template with transaction data for MetaMask signing
                 # NOTE: Tracking number is NOT saved to database yet - only after successful blockchain transaction
                 context = {
                     'contract': contract,

@@ -58,7 +58,6 @@ class BlockchainInterface:
             'contracts', 
             'DigitalContractPlatform.json'
         )
-        
         try:
             with open(abi_path, 'r') as f:
                 contract_data = json.load(f)
@@ -77,7 +76,7 @@ class BlockchainInterface:
         Args:
             oracle_address: Ethereum-Adresse des Oracle
             contract_id: Blockchain-Contract-ID
-            tracking_number: Originale Tracking-Nummer (für Smart Contract Hash-Verifikation)
+            tracking_number: Tracking-Nummer (wird normalisiert)
             
         Returns:
             Vorbereitete Transaktion
@@ -86,14 +85,34 @@ class BlockchainInterface:
             # Adresse in Checksum-Format konvertieren
             oracle_address = self.web3.to_checksum_address(oracle_address)
             
+            # Tracking-Nummer normalisieren
+            tracking_number = tracking_number.strip() if tracking_number else ""
+            
+            if not tracking_number:
+                raise ValueError("Tracking-Nummer darf nicht leer sein")
+            
+            logger.info(f"Bereite Oracle-Bestätigung vor: Contract {contract_id}, Tracking '{tracking_number}'")
+            
             # Der Smart Contract erwartet die originale Tracking-Nummer
             # Er berechnet dann intern den Hash: keccak256(abi.encode(contract_id, tracking_number))
             # und vergleicht diesen mit dem gespeicherten Hash
             
+            # Debug: Hash-Vergleich vor Transaktion
+            try:
+                from eth_abi import encode
+                from eth_utils import keccak
+                
+                encoded_data = encode(['uint256', 'string'], [contract_id, tracking_number])
+                expected_hash = '0x' + keccak(encoded_data).hex()
+                logger.info(f"Erwarteter Hash für Smart Contract Vergleich: {expected_hash}")
+                
+            except Exception as e:
+                logger.warning(f"Hash-Debug fehlgeschlagen: {str(e)}")
+            
             # Transaktion vorbereiten
             transaction = self.contract.functions.confirmDeliveryByOracle(
                 contract_id, 
-                tracking_number  # Originale Tracking-Nummer für Smart Contract
+                tracking_number  # Originale (normalisierte) Tracking-Nummer für Smart Contract
             ).build_transaction({
                 'from': oracle_address,
                 'nonce': self.web3.eth.get_transaction_count(oracle_address),
@@ -234,13 +253,12 @@ class OracleKeyManager:
         
         Args:
             transaction: Die Transaktionsdaten
-            
-        Returns:
+              Returns:
             Signierte Transaktion (raw transaction)
         """
         try:
             signed_tx = self.web3.eth.account.sign_transaction(transaction, self.private_key)
-            return signed_tx.raw_transaction
+            return signed_tx.rawTransaction
         except Exception as e:
             logger.error(f"Fehler beim Signieren der Transaktion: {str(e)}")
             raise

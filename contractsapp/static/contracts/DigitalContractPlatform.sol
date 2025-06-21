@@ -174,4 +174,7 @@ contract ContractManager is ReentrancyGuard {
         return contracts[_contractId].status;
     }
 
+    function getContractHash(uint256 _contractId) public view returns (string memory) {
+        return contracts[_contractId].contractHash;
+    }
 }

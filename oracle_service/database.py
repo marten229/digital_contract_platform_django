@@ -1,9 +1,12 @@
 """
-Datenbank-Interface für den Oracle Service
+Datenbank-Interface für den Oracle Service (READ-ONLY)
 
-Dieses Modul stellt eine Verbindung zur PostgreSQL-Datenbank der 
-Digital Contract Platform her und stellt Methoden zum Abrufen 
-und Aktualisieren von Contract-Informationen bereit.
+Dieses Modul stellt eine schreibgeschützte Verbindung zur PostgreSQL-Datenbank der 
+Digital Contract Platform her und stellt nur Lesemethoden zum Abrufen von 
+Contract-Informationen bereit.
+
+WICHTIG: Der Oracle Service schreibt NICHT in die Datenbank, sondern sendet
+alle Updates nur über die Blockchain!
 """
 
 import logging
@@ -47,12 +50,16 @@ class Contract(Base):
     last_updated = Column(DateTime)
 
 class DatabaseInterface:
-    """Interface für die Datenbankoperationen des Oracle Service"""
+    """
+    READ-ONLY Interface für die Datenbankoperationen des Oracle Service
+    
+    Wichtig: Alle Schreiboperationen sind deaktiviert. Der Oracle Service
+    liest nur aus der Datenbank und sendet Updates über die Blockchain.
+    """
     
     def __init__(self):
         self.config = OracleConfig()
-        database_url = self.config.get_database_url()
-        
+        database_url = self.config.get_database_url()        
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(bind=self.engine)
         
@@ -66,6 +73,10 @@ class DatabaseInterface:
         """
         Holt alle Verträge, die auf Oracle-Bestätigung warten
         
+        Da der Oracle Service Read-Only ist, prüfen wir nur die grundlegenden
+        Voraussetzungen aus der Datenbank. Die tatsächliche Delivery-Prüfung
+        erfolgt über das DHL-Tracking im Oracle Service.
+        
         Returns:
             Liste von Contract-Objekten
         """
@@ -73,9 +84,10 @@ class DatabaseInterface:
             contracts = session.query(Contract).filter(
                 Contract.has_dhl_tracking == True,
                 Contract.tracking_number.isnot(None),
-                Contract.status == 'package_delivered',
                 Contract.delivery_oracle_confirmed == False,
-                Contract.blockchain_contract_id.isnot(None)
+                Contract.blockchain_contract_id.isnot(None),
+                # Verträge die mindestens 'package_shipped' sind oder bereits geliefert
+                Contract.status.in_(['package_shipped', 'package_delivered'])
             ).all()
             
             # Detach from session so they can be used outside
@@ -96,103 +108,12 @@ class DatabaseInterface:
                 Contract.has_dhl_tracking == True,
                 Contract.tracking_number.isnot(None),
                 Contract.status.in_(['package_shipped', 'package_delivered'])
-            ).all()
-            
+            ).all()            
             # Detach from session
             for contract in contracts:
                 session.expunge(contract)
             
             return contracts
-    
-    def update_contract_oracle_confirmation(self, contract_id: int, confirmed: bool = True) -> bool:
-        """
-        Markiert einen Vertrag als Oracle-bestätigt
-        
-        Args:
-            contract_id: ID des Vertrags
-            confirmed: Bestätigungsstatus
-            
-        Returns:
-            True wenn erfolgreich, False sonst
-        """
-        try:
-            with self.get_session() as session:
-                contract = session.query(Contract).filter(Contract.id == contract_id).first()
-                if contract:
-                    contract.delivery_oracle_confirmed = confirmed
-                    session.commit()
-                    logger.info(f"Contract {contract_id} Oracle-Bestätigung auf {confirmed} gesetzt")
-                    return True
-                else:
-                    logger.warning(f"Contract {contract_id} nicht gefunden")
-                    return False
-        except Exception as e:
-            logger.error(f"Fehler beim Aktualisieren der Oracle-Bestätigung für Contract {contract_id}: {str(e)}")
-            return False
-    
-    def update_tracking_status(self, contract_id: int, status: str, last_update: datetime = None) -> bool:
-        """
-        Aktualisiert den Tracking-Status eines Vertrags
-        
-        Args:
-            contract_id: ID des Vertrags
-            status: Neuer Tracking-Status
-            last_update: Zeitpunkt der letzten Aktualisierung
-            
-        Returns:
-            True wenn erfolgreich, False sonst
-        """
-        try:
-            with self.get_session() as session:
-                contract = session.query(Contract).filter(Contract.id == contract_id).first()
-                if contract:
-                    old_status = contract.package_status
-                    contract.package_status = status
-                    contract.last_tracking_update = last_update or datetime.now()
-                    
-                    # Update overall contract status if package is delivered
-                    if status == 'delivered' and contract.status != 'package_delivered':
-                        contract.status = 'package_delivered'
-                        logger.info(f"Contract {contract_id} Status auf 'package_delivered' gesetzt")
-                    
-                    session.commit()
-                    
-                    if old_status != status:
-                        logger.info(f"Contract {contract_id} Tracking-Status: {old_status} -> {status}")
-                    
-                    return True
-                else:
-                    logger.warning(f"Contract {contract_id} nicht gefunden")
-                    return False
-        except Exception as e:
-            logger.error(f"Fehler beim Aktualisieren des Tracking-Status für Contract {contract_id}: {str(e)}")
-            return False
-    
-    def set_tracking_hash(self, contract_id: int, tracking_hash: str) -> bool:
-        """
-        Setzt den Tracking-Hash für einen Vertrag
-        
-        Args:
-            contract_id: ID des Vertrags
-            tracking_hash: Der generierte Tracking-Hash
-            
-        Returns:
-            True wenn erfolgreich, False sonst
-        """
-        try:
-            with self.get_session() as session:
-                contract = session.query(Contract).filter(Contract.id == contract_id).first()
-                if contract:
-                    contract.tracking_hash = tracking_hash
-                    session.commit()
-                    logger.info(f"Tracking-Hash für Contract {contract_id} gesetzt")
-                    return True
-                else:
-                    logger.warning(f"Contract {contract_id} nicht gefunden")
-                    return False
-        except Exception as e:
-            logger.error(f"Fehler beim Setzen des Tracking-Hash für Contract {contract_id}: {str(e)}")
-            return False
     
     def get_contract_by_id(self, contract_id: int) -> Optional[Contract]:
         """

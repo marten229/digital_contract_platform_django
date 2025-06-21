@@ -152,8 +152,7 @@ class DHLTrackingService:
         tracking_contracts = Contract.objects.filter(
             has_dhl_tracking=True,
             tracking_number__isnull=False,
-            status__in=['package_shipped', 'package_delivered']
-        )
+            status__in=['package_shipped', 'package_delivered']        )
         
         updates = []
         
@@ -162,23 +161,35 @@ class DHLTrackingService:
             updates.append({
                 'contract': contract,
                 'tracking_info': tracking_info
-            })
-            
+            })            
         return updates
         
-    def generate_tracking_hash(self, tracking_number):
+    def generate_tracking_hash(self, tracking_number, contract_id=None):
         """
         Generate a hashed value of the tracking number for blockchain storage
         Uses abi.encode equivalent hashing to prevent hash collisions
+        
+        Args:
+            tracking_number: DHL tracking number (wird normalisiert)
+            contract_id: Blockchain contract ID (required for proper hash verification)
         """
-        # Using keccak256(abi.encode(tracking_number)) equivalent in Python
-        # This is compatible with the Solidity contract's verification method
+        # Using keccak256(abi.encode(contract_id, tracking_number)) equivalent in Python
+        # This matches the Solidity contract's hash generation method
         from eth_abi import encode
         from eth_utils import keccak
         
-        # Encode the tracking number as a string (bytes32)
-        # This mimics abi.encode in Solidity
-        encoded_data = encode(['string'], [tracking_number])
+        if contract_id is None:
+            raise ValueError("contract_id is required for tracking hash generation")
+        
+        # Tracking-Nummer normalisieren (Leerzeichen entfernen) - WICHTIG für Hash-Konsistenz
+        tracking_number = tracking_number.strip() if tracking_number else ""
+        
+        if not tracking_number:
+            raise ValueError("Tracking-Nummer darf nicht leer sein")
+        
+        # Encode contract_id and tracking_number like in Solidity: abi.encode(uint256, string)
+        # This mimics the Smart Contract's hash generation exactly
+        encoded_data = encode(['uint256', 'string'], [contract_id, tracking_number])
         
         # Apply keccak256 hash
         hashed_value = keccak(encoded_data)
@@ -215,10 +226,9 @@ class DHLTrackingService:
         """
         if not contract.has_dhl_tracking or not contract.tracking_number:
             return False, "No tracking information available"
-            
-        # Generate tracking hash if not already present
+              # Generate tracking hash if not already present
         if not contract.tracking_hash:
-            contract.tracking_hash = self.generate_tracking_hash(contract.tracking_number)
+            contract.tracking_hash = self.generate_tracking_hash(contract.tracking_number, contract.blockchain_contract_id)
             
         # Get the latest tracking info
         tracking_info = self.get_tracking_info(contract.tracking_number)
