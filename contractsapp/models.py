@@ -36,6 +36,8 @@ class Contract(models.Model):
         ('package_shipped', 'Paket versendet'),
         ('package_delivered', 'Paket geliefert'),
         ('delivery_confirmed', 'Lieferung bestätigt'),
+        ('delivery_approved', 'Lieferung genehmigt'),
+        ('agreement_fulfilled', 'Vereinbarung erfüllt'),
         ('rejected', 'Abgelehnt'),
     )
     title = models.CharField(max_length=255, verbose_name="Vertragstitel")
@@ -160,11 +162,11 @@ class Contract(models.Model):
                     
                     # Protokollieren für Debugging
                     print(f"Vertrag {self.pk} gespeichert: {self.pdf_file.name}")
-            except Exception as e:
-                # Fehler protokollieren
+            except Exception as e:                # Fehler protokollieren
                 import traceback
                 print(f"Fehler beim Speichern des Vertrags {self.pk}: {e}")
                 print(traceback.format_exc())
+
     def get_status_display_german(self):
         """Gibt eine benutzerfreundliche deutsche Beschreibung des aktuellen Status zurück"""
         status_map = dict(self.STATUS_CHOICES)
@@ -183,7 +185,12 @@ class Contract(models.Model):
             'signed_by_creator': 'status-signed-creator',
             'signed_by_partner': 'status-signed-partner',
             'completed': 'status-completed',
-            'blockchain_published': 'status-blockchain',            
+            'blockchain_published': 'status-blockchain',
+            'package_shipped': 'status-package-shipped',
+            'package_delivered': 'status-package-delivered',
+            'delivery_confirmed': 'status-delivery-confirmed',
+            'delivery_approved': 'status-delivery-approved',
+            'agreement_fulfilled': 'status-agreement-fulfilled',
             'rejected': 'status-rejected',
         }
         result = status_classes.get(self.status, 'status-default')
@@ -198,20 +205,20 @@ class Contract(models.Model):
                 
                 # Get the current status from the blockchain
                 old_blockchain_status = self.blockchain_status
-                self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
-                  # Check if Oracle has confirmed delivery on the blockchain
+                self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)                  # Check if Oracle has confirmed delivery on the blockchain based on status
                 try:
                     # Get complete contract details including delivery status
                     contract_details = blockchain_service.get_contract_details_extended(self.blockchain_contract_id)
                     
-                    # Check if Oracle has confirmed delivery
-                    delivery_confirmed_by_oracle = contract_details.get('deliveryConfirmed', False)
-                    print(f"Oracle confirmed delivery for contract {self.blockchain_contract_id}: {delivery_confirmed_by_oracle} and {self.delivery_oracle_confirmed}")
+                    # Check if status indicates Oracle has confirmed delivery (DeliveryConfirmed or higher)
+                    blockchain_status = contract_details.get('status', '')
+                    delivery_confirmed_by_oracle = blockchain_status in ['DeliveryConfirmed', 'DeliveryApproved', 'AgreementFulfilled', 'Completed']
+                    print(f"Oracle confirmed delivery for contract {self.blockchain_contract_id}: {delivery_confirmed_by_oracle} (status: {blockchain_status})")
+                    
                     if delivery_confirmed_by_oracle and not self.delivery_oracle_confirmed:
                         self.delivery_oracle_confirmed = True
                         if self.status != 'package_delivered':
                             self.status = 'package_delivered'
-                        self.status = 'package_delivered'
                         self.package_status = 'delivered'
                         self.last_tracking_update = timezone.now()
                         
@@ -238,9 +245,8 @@ class Contract(models.Model):
                 except Exception as oracle_e:
                     # Oracle check might fail if contract doesn't exist or network issues
                     print(f"Oracle check failed for contract {self.blockchain_contract_id}: {oracle_e}")
-                
-                # Update general contract status based on blockchain status
-                if self.blockchain_status in ['Created', 'Signed', 'Completed'] and self.status != 'blockchain_published' and \
+                  # Update general contract status based on blockchain status
+                if self.blockchain_status in ['Created', 'Signed', 'DeliverySet', 'DeliveryConfirmed', 'DeliveryApproved', 'AgreementFulfilled', 'Completed'] and self.status != 'blockchain_published' and \
                    self.status not in ['package_shipped', 'package_delivered', 'delivery_confirmed']:
                     self.status = 'blockchain_published'
                     ContractActivity.log(

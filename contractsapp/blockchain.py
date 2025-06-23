@@ -261,7 +261,6 @@ class BlockchainService:
         
         # Return the transaction for signing in the frontend
         return tx
-    
     def get_contract_status(self, contract_id):
         """Get the status of a contract from the blockchain"""
         if not self.contract:
@@ -271,9 +270,13 @@ class BlockchainService:
         print(f"Contract ID: {contract_id}, Status: {status}")
         status_map = {
             0: 'Created',
-            1: 'Signed',            
-            2: 'Completed',
-            3: 'Cancelled'        
+            1: 'Signed',
+            2: 'DeliverySet',
+            3: 'DeliveryConfirmed',
+            4: 'DeliveryApproved',
+            5: 'AgreementFulfilled',
+            6: 'Completed',
+            7: 'Cancelled'
         }
         return status_map.get(status, 'Unknown')
     
@@ -451,79 +454,21 @@ class BlockchainService:
         
         return tx
     
-    def send_transaction(self, transaction, private_key):
-        """
-        Send a prepared transaction to the blockchain.
-        This method should only be used when private keys are available.
-        """
-        try:
-            # Sign the transaction
-            signed_tx = self.web3.eth.account.sign_transaction(transaction, private_key)
-            
-            # Send the signed transaction
-            tx_hash = self.web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-            
-            # Wait for transaction receipt
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            
-            return {
-                'success': True,
-                'transaction_hash': tx_hash.hex(),
-                'block_number': receipt.blockNumber,
-                'gas_used': receipt.gasUsed
-            }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
-    
-    def set_delivery_tracking_and_send(self, partner_address, contract_id, tracking_hash, private_key=None):
-        """
-        Set delivery tracking and optionally send the transaction immediately if private key is provided
-        """
-        # Prepare the transaction
-        transaction_data = self.set_delivery_tracking(partner_address, contract_id, tracking_hash)
-        
-        if private_key and transaction_data.get('success'):
-            # Send the transaction if private key is available
-            send_result = self.send_transaction(transaction_data['transaction'], private_key)
-            if send_result['success']:
-                return {
-                    'success': True,
-                    'sent_to_blockchain': True,
-                    'transaction_hash': send_result['transaction_hash'],
-                    'message': f'Tracking hash sent to blockchain: {send_result["transaction_hash"]}'
-                }
-            else:
-                return {
-                    'success': False,
-                    'sent_to_blockchain': False,
-                    'error': send_result['error']
-                }
-        else:
-            # Return prepared transaction for frontend signing
-            transaction_data['sent_to_blockchain'] = False
-            return transaction_data
-        
-    def get_pending_withdrawals(self, address):
-        """Get pending withdrawal amount for an address"""
+    def get_withdrawal_balance(self, address):
+        """Get the pending withdrawal balance for an address"""
         if not self.contract:
             raise ValueError("Smart contract not properly initialized")
         
-        # Ensure address is in checksum format
         try:
-            if not address:
-                raise ValueError("Address is empty")
-                
             if not address.startswith('0x'):
                 address = '0x' + address
                 
             address = self.web3.to_checksum_address(address)
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
-          # Get pending withdrawals amount
-        return self.contract.functions.pendingWithdrawals(address).call()
+        
+        balance = self.contract.functions.pendingWithdrawals(address).call()
+        return balance
 
     def get_contract_details_extended(self, contract_id):
         """Get extended contract details including delivery status"""
@@ -542,8 +487,7 @@ class BlockchainService:
             else:
                 delivery_tracking_hash = str(delivery_tracking_hash)
         else:
-            delivery_tracking_hash = None
-            
+            delivery_tracking_hash = None        
         formatted_details = {
             'id': contract_details[0],
             'amount': contract_details[1],
@@ -552,9 +496,7 @@ class BlockchainService:
             'status': self.get_contract_status(contract_id),
             'contractHash': contract_details[5],
             'deliveryTrackingHash': delivery_tracking_hash,
-            'deliveryRequired': contract_details[7],
-            'deliveryConfirmed': contract_details[8],
-            'deliveryApprovedByCreator': contract_details[9]
+            'deliveryRequired': contract_details[7]
         }
         
         return formatted_details

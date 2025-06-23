@@ -4,7 +4,16 @@ pragma solidity 0.8.30;
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 contract ContractManager is ReentrancyGuard {
-    enum ContractStatus { Created, Signed, Completed, Cancelled }
+    enum ContractStatus {
+        Created,
+        Signed,
+        DeliverySet,
+        DeliveryConfirmed,
+        DeliveryApproved,
+        AgreementFulfilled,
+        Completed,
+        Cancelled
+    }
 
     struct ManagedContract {
         uint256 id;
@@ -15,8 +24,6 @@ contract ContractManager is ReentrancyGuard {
         string contractHash;
         bytes32 deliveryTrackingHash;
         bool deliveryRequired;
-        bool deliveryConfirmed;
-        bool deliveryApprovedByCreator;
     }
 
     address public oracle;
@@ -56,11 +63,9 @@ contract ContractManager is ReentrancyGuard {
         require(!oracleSet, "Oracle already set");
         require(_oracle != address(0), "Invalid oracle");
 
-        if (!oracleSet) {
-            oracle = _oracle;
-            oracleSet = true;
-            emit OracleSet(_oracle);
-        }
+        oracle = _oracle;
+        oracleSet = true;
+        emit OracleSet(_oracle);
     }
 
     function createContract(
@@ -70,7 +75,7 @@ contract ContractManager is ReentrancyGuard {
     ) public payable {
         require(_counterparty != address(0), "0 addr not allowed");
         require(msg.value == _amount, "ETH mismatch");
-        require(bytes(_contractHash).length > 10, "Invalid contract hash");
+        require(bytes(_contractHash).length == 66, "Invalid contract hash");
 
         contractCounter++;
         ManagedContract storage newContract = contracts[contractCounter];
@@ -99,35 +104,31 @@ contract ContractManager is ReentrancyGuard {
 
         mContract.deliveryTrackingHash = keccak256(abi.encode(_contractId, _trackingNumber));
         mContract.deliveryRequired = true;
+        mContract.status = ContractStatus.DeliverySet;
 
         emit TrackingHashSet(_contractId, mContract.deliveryTrackingHash);
     }
 
     function confirmDeliveryByOracle(uint256 _contractId, string memory _trackingNumber) public nonReentrant onlyOracle {
         ManagedContract storage mContract = contracts[_contractId];
+        require(mContract.status == ContractStatus.DeliverySet, "Wrong status");
         require(mContract.deliveryRequired, "No delivery");
-        require(mContract.status == ContractStatus.Signed, "Not Signed");
-        require(!mContract.deliveryConfirmed, "Already confirmed");
 
         require(
             mContract.deliveryTrackingHash == keccak256(abi.encode(_contractId, _trackingNumber)),
             "Hash mismatch"
         );
 
-        mContract.deliveryConfirmed = true;
+        mContract.status = ContractStatus.DeliveryConfirmed;
         emit DeliveryConfirmed(_contractId);
     }
 
     function approveDeliveryAsCreator(uint256 _contractId) public onlyCreator(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
-        require(mContract.deliveryRequired, "No delivery");
-        require(mContract.status == ContractStatus.Signed, "Not Signed");
-        require(mContract.deliveryConfirmed, "Delivery missing");
-        require(!mContract.deliveryApprovedByCreator, "Already approved");
+        require(mContract.status == ContractStatus.DeliveryConfirmed, "Wrong status");
 
-        mContract.deliveryApprovedByCreator = true;
-        mContract.status = ContractStatus.Completed;
-        pendingWithdrawals[mContract.counterparty] = pendingWithdrawals[mContract.counterparty] + mContract.amount;
+        mContract.status = ContractStatus.DeliveryApproved;
+        pendingWithdrawals[mContract.counterparty] += mContract.amount;
 
         emit DeliveryApproved(_contractId);
         emit PaymentReleased(_contractId, mContract.counterparty, mContract.amount);
@@ -135,33 +136,37 @@ contract ContractManager is ReentrancyGuard {
 
     function confirmCompletion(uint256 _contractId) public nonReentrant onlyCreator(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
-        require(mContract.status == ContractStatus.Signed, "Not Signed");
-        require(!mContract.deliveryRequired, "Use delivery flow");
+        require(mContract.status == ContractStatus.Signed, "Not signed");
+        require(!mContract.deliveryRequired, "Delivery flow required");
 
-        mContract.status = ContractStatus.Completed;
-        pendingWithdrawals[mContract.counterparty] = pendingWithdrawals[mContract.counterparty] + mContract.amount;
+        mContract.status = ContractStatus.AgreementFulfilled;
+        pendingWithdrawals[mContract.counterparty] += mContract.amount;
 
         emit PaymentReleased(_contractId, mContract.counterparty, mContract.amount);
     }
 
-    function withdrawFundsFrom(uint256 _contractId) public nonReentrant {
+    function withdrawFundsFrom(uint256 _contractId) public nonReentrant onlyCounterparty(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
-        require(mContract.status == ContractStatus.Completed, "Not completed");
-        require(mContract.counterparty == msg.sender, "Not recipient");
+        require(
+            mContract.status == ContractStatus.AgreementFulfilled ||
+            mContract.status == ContractStatus.DeliveryApproved,
+            "Not withdrawable"
+        );
 
         uint256 amount = mContract.amount;
-        require(pendingWithdrawals[msg.sender] != 0, "No balance");
+        require(pendingWithdrawals[msg.sender] >= amount, "No balance");
 
-        pendingWithdrawals[msg.sender] = pendingWithdrawals[msg.sender] - amount;
-        (bool success, ) = payable(msg.sender).call{value: amount}("");
-        require(success, "Withdraw failed");
+        pendingWithdrawals[msg.sender] -= amount;
+        payable(msg.sender).transfer(amount);
+
+        mContract.status = ContractStatus.Completed;
 
         emit FundsWithdrawn(_contractId, msg.sender, amount);
     }
 
     function deactivateContract(uint256 _contractId) public onlyCreator(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
-        require(mContract.status != ContractStatus.Cancelled, "Already cancelled");
+        require(mContract.status != ContractStatus.Completed, "Already completed");
 
         mContract.contractHash = "";
         mContract.deliveryTrackingHash = "";

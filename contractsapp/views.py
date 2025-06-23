@@ -86,11 +86,11 @@ def contract_list(request):
         contract_id__in=set(all_contract_pks)
     ).select_related('contract').order_by('-timestamp')[:10]
     contracts_to_update = creator_contracts.exclude(blockchain_status__isnull=True) | \
-                          partner_contracts.exclude(blockchain_status__isnull=True)
+                          partner_contracts.exclude(blockchain_status__isnull=True)    
     for contract in contracts_to_update:
         contract.update_blockchain_status()
 
-        if contract.blockchain_status == 'Completed':
+        if contract.blockchain_status in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
             try:
                 from django.db import connection
                 with connection.cursor() as cursor:
@@ -359,7 +359,7 @@ def contract_detail(request, pk):
     if contract.blockchain_contract_id:
         contract.update_blockchain_status()
 
-        if contract.blockchain_status == 'Completed':
+        if contract.blockchain_status in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
             try:
                 from django.db import connection
                 with connection.cursor() as cursor:
@@ -879,8 +879,8 @@ def withdraw_funds(request, pk):
     if request.user.ethereum_address != contract.partner_address:
         return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
 
-    if contract.blockchain_status != 'Completed':
-        return JsonResponse({'success': False, 'message': 'Vertrag ist nicht abgeschlossen'})
+    if contract.blockchain_status not in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
+        return JsonResponse({'success': False, 'message': 'Vertrag ist noch nicht bereit für Geldabhebung'})
 
     blockchain_service = BlockchainService()
     try:
@@ -1237,7 +1237,7 @@ def confirm_contract_completion(request, pk):
     if contract.blockchain_status != 'Signed':
         if contract.blockchain_status == 'Created':
             messages.info(request, "Dieser Vertrag muss zuerst vom Partner auf der Blockchain signiert werden.")
-        elif contract.blockchain_status == 'Completed':
+        elif contract.blockchain_status in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
             messages.info(request, "Dieser Vertrag wurde bereits als erfüllt bestätigt.")
         else:
             messages.info(request, "Dieser Vertrag kann nicht als erfüllt bestätigt werden.")
@@ -1340,11 +1340,13 @@ def withdraw_contract_funds(request, pk):
         messages.error(request, "Dieser Vertrag wurde noch nicht auf der Blockchain registriert.")
         return redirect('contract_detail', pk=pk)
 
-    if contract.blockchain_status != 'Completed':
+    if contract.blockchain_status not in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
         if contract.blockchain_status == 'Created':
             messages.info(request, "Dieser Vertrag muss zuerst signiert werden, bevor Gelder abgehoben werden können.")
         elif contract.blockchain_status == 'Signed':
             messages.info(request, "Der Vertrag muss zuerst vom Ersteller als erfüllt bestätigt werden.")
+        elif contract.blockchain_status in ['DeliverySet', 'DeliveryConfirmed']:
+            messages.info(request, "Die Lieferung muss erst genehmigt werden, bevor Gelder abgehoben werden können.")
         else:
             messages.info(request, "Aus diesem Vertrag können keine Gelder abgehoben werden.")
         return redirect('contract_detail', pk=pk)

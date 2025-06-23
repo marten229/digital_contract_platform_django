@@ -125,6 +125,50 @@
     color: #fff;
 }
 
+/* New status classes for blockchain workflow */
+.status-package-shipped {
+    background-color: #fd7e14;
+    color: #fff;
+}
+.status-package-delivered {
+    background-color: #20c997;
+    color: #fff;
+}
+.status-delivery-confirmed {
+    background-color: #17a2b8;
+    color: #fff;
+}
+.status-delivery-approved {
+    background-color: #28a745;
+    color: #fff;
+}
+.status-agreement-fulfilled {
+    background-color: #6f42c1;
+    color: #fff;
+}
+
+/* New status classes for extended blockchain workflow */
+.status-package-shipped {
+    background-color: #fd7e14;
+    color: #fff;
+}
+.status-package-delivered {
+    background-color: #20c997;
+    color: #fff;
+}
+.status-delivery-confirmed {
+    background-color: #0dcaf0;
+    color: #fff;
+}
+.status-delivery-approved {
+    background-color: #198754;
+    color: #fff;
+}
+.status-agreement-fulfilled {
+    background-color: #6f42c1;
+    color: #fff;
+}
+
 .activity-list {
     margin-top: 1.5rem;
 }

@@ -104,6 +104,13 @@
 .status-signed-partner { background-color: #f8d7da; color: #842029; }
 .status-completed { background-color: #d1e7dd; color: #0f5132; }
 .status-rejected { background-color: #f8d7da; color: #842029; }
+/* New status classes for extended blockchain workflow */
+.status-package-shipped { background-color: #fd7e14; color: #fff; }
+.status-package-delivered { background-color: #20c997; color: #fff; }
+.status-delivery-confirmed { background-color: #17a2b8; color: #fff; }
+.status-delivery-approved { background-color: #28a745; color: #fff; }
+.status-agreement-fulfilled { background-color: #6f42c1; color: #fff; }
+.status-blockchain { background-color: #6610f2; color: #fff; }
 
 .activity-timeline {
     margin-top: 2rem;
