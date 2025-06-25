@@ -26,8 +26,8 @@ from .dhl_tracking import DHLTrackingService
 def contract_list(request):
     """
     <summary>
-     Displays the main dashboard for the logged-in user, showing lists of contracts categorized by status and role (creator/partner).
-     It fetches contracts associated with the user's Ethereum address, updates their blockchain status if applicable, and retrieves recent activities.
+     Displays the main dashboard for the logged-in user with improved categorization without duplicates.
+     Contracts are organized by lifecycle stage rather than technical properties.
     </summary>
     <param name="request">The HttpRequest object containing user session and authentication data.</param>
     <returns>An HttpResponse object rendering the 'contract_list.html' template with categorized contract lists and recent activities.</returns>
@@ -35,61 +35,13 @@ def contract_list(request):
     user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
 
     creator_contracts = Contract.objects.filter(creator_address=user_eth_address)
-
     partner_contracts = Contract.objects.filter(partner_address=user_eth_address)
+    all_contracts = creator_contracts | partner_contracts
 
-    pending_contracts = creator_contracts.filter(
-        Q(status='uploaded') |
-        Q(status='configured') |
-        Q(status='invitation_sent') |
-        Q(status='viewed_by_partner') |
-        Q(status='partner_verified')
-    )
-
-    in_progress_contracts = creator_contracts.filter(
-        Q(status='signed_by_creator') |
-        Q(status='signed_by_partner')
-    )    
-    completed_contracts = creator_contracts.filter(status='completed')
-    rejected_contracts = creator_contracts.filter(status='rejected')
-
-    # Blockchain-Verträge inkl. solcher mit Versandstatus (package_shipped, package_delivered, delivery_confirmed)
-    blockchain_contracts = creator_contracts.filter(
-        Q(status='blockchain_published') |
-        Q(status='package_shipped') |
-        Q(status='package_delivered') |
-        Q(status='delivery_confirmed')
-    )
-    blockchain_partner_contracts = partner_contracts.filter(
-        Q(status='blockchain_published') |
-        Q(status='package_shipped') |
-        Q(status='package_delivered') |
-        Q(status='delivery_confirmed')
-    )
-
-    pending_partner_contracts = partner_contracts.filter(
-        Q(status='invitation_sent') |
-        Q(status='viewed_by_partner') |
-        Q(status='partner_verified') |
-        Q(status='configured') |
-        Q(status='signed_by_creator')
-
-    )
-
-
-    signed_by_partner_contracts = partner_contracts.filter(status='signed_by_partner')
-
-    completed_partner_contracts = partner_contracts.filter(status='completed')    
-    all_contract_pks = list(creator_contracts.values_list('pk', flat=True)) + \
-                       list(partner_contracts.values_list('pk', flat=True))
-    recent_activities = ContractActivity.objects.filter(
-        contract_id__in=set(all_contract_pks)
-    ).select_related('contract').order_by('-timestamp')[:10]
-    contracts_to_update = creator_contracts.exclude(blockchain_status__isnull=True) | \
-                          partner_contracts.exclude(blockchain_status__isnull=True)    
+    # Update blockchain status for contracts that have it
+    contracts_to_update = all_contracts.exclude(blockchain_status__isnull=True)    
     for contract in contracts_to_update:
         contract.update_blockchain_status()
-
         if contract.blockchain_status in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
             try:
                 from django.db import connection
@@ -99,50 +51,77 @@ def contract_list(request):
                     if result and result[0]:
                         contract.funds_withdrawn = True
             except Exception as e:
-                print(f"Fehler beim Aktualisieren des funds_withdrawn Status: {e}")    # Filter contracts with DHL tracking status
-    all_contracts = creator_contracts | partner_contracts
+                print(f"Fehler beim Aktualisieren des funds_withdrawn Status: {e}")
     
-    # Contracts with tracking number but no DHL status yet (just shipped)
-    shipped_contracts = all_contracts.filter(
-        status='package_shipped',
-        tracking_number__isnull=False
+    # 🔄 AKTIVE VERTRÄGE (In Bearbeitung)
+    active_contracts = all_contracts.filter(
+        Q(status='uploaded') |
+        Q(status='configured') |
+        Q(status='invitation_sent') |
+        Q(status='viewed_by_partner') |
+        Q(status='partner_verified') |
+        Q(status='signed_by_creator') |
+        Q(status='signed_by_partner') |
+        Q(status='completed')  # Completed but not yet published to blockchain
     ).exclude(
-        Q(package_status='in_transit') |
-        Q(package_status='out_for_delivery') |
-        Q(package_status='delivered') |
-        Q(package_status='failed')
-    )
-    
-    # Contracts with DHL tracking that are in different shipping statuses
-    in_transit_contracts = all_contracts.filter(has_dhl_tracking=True, package_status='in_transit')
-    out_for_delivery_contracts = all_contracts.filter(has_dhl_tracking=True, package_status='out_for_delivery')
-    
-    # Get all delivered contracts, including those that are awaiting confirmation and those that are already confirmed
-    delivered_contracts = all_contracts.filter(
-        has_dhl_tracking=True,
-        package_status='delivered'
+        Q(status='blockchain_published') |
+        Q(status='package_shipped') |
+        Q(status='package_delivered') |
+        Q(status='delivery_confirmed') |
+        Q(status='delivery_approved') |
+        Q(status='agreement_fulfilled')
+    )    # � ERFÜLLUNGSPHASE - Digitale Blockchain-Verträge (ohne Lieferung)
+    digital_execution_contracts = all_contracts.filter(
+        Q(status='blockchain_published') |
+        Q(status='delivery_approved') |
+        Q(status='agreement_fulfilled')
     ).filter(
-        Q(status='package_delivered') | Q(status='delivery_confirmed')
+        Q(has_dhl_tracking=False) | Q(has_dhl_tracking__isnull=True)
+    ).exclude(
+        Q(blockchain_status='Completed') & Q(funds_withdrawn=True)
     )
-    
-    failed_delivery_contracts = all_contracts.filter(has_dhl_tracking=True, package_status='failed')
+
+    # 📦 ERFÜLLUNGSPHASE - Lieferverträge (mit physischer Lieferung)
+    delivery_contracts = all_contracts.filter(
+        Q(status='blockchain_published') |
+        Q(status='package_shipped') |
+        Q(status='package_delivered') |
+        Q(status='delivery_confirmed') |
+        Q(status='delivery_approved') |
+        Q(status='agreement_fulfilled')
+    ).filter(
+        has_dhl_tracking=True  # Nur Verträge mit aktiviertem DHL-Tracking
+    ).exclude(
+        Q(blockchain_status='Completed') & Q(funds_withdrawn=True)
+    )
+
+    # ✅ ABGESCHLOSSENE VERTRÄGE
+    completed_contracts = all_contracts.filter(
+        Q(blockchain_status='Completed') |
+        (Q(funds_withdrawn=True) & Q(blockchain_status__in=['AgreementFulfilled', 'DeliveryApproved', 'Completed']))
+    )
+
+    # ❌ PROBLEMATISCHE/ABGEBROCHENE VERTRÄGE  
+    problematic_contracts = all_contracts.filter(
+        Q(status='rejected') |
+        Q(package_status='failed') |
+        Q(blockchain_status='Cancelled')
+    )
+
+    # Recent activities
+    all_contract_pks = list(all_contracts.values_list('pk', flat=True))
+    recent_activities = ContractActivity.objects.filter(
+        contract_id__in=set(all_contract_pks)
+    ).select_related('contract').order_by('-timestamp')[:10]
+
     context = {
-        'pending_contracts': pending_contracts,
-        'in_progress_contracts': in_progress_contracts,
+        'active_contracts': active_contracts,
+        'digital_execution_contracts': digital_execution_contracts,
+        'delivery_contracts': delivery_contracts,
         'completed_contracts': completed_contracts,
-        'rejected_contracts': rejected_contracts,
-        'all_contracts': all_contracts,
-        'pending_partner_contracts': pending_partner_contracts,
-        'signed_by_partner_contracts': signed_by_partner_contracts,
-        'shipped_contracts': shipped_contracts,
-        'in_transit_contracts': in_transit_contracts,
-        'out_for_delivery_contracts': out_for_delivery_contracts, 
-        'delivered_contracts': delivered_contracts,
-        'failed_delivery_contracts': failed_delivery_contracts,
-        'completed_partner_contracts': completed_partner_contracts,
-        'blockchain_contracts': blockchain_contracts,
-        'blockchain_partner_contracts': blockchain_partner_contracts,
+        'problematic_contracts': problematic_contracts,
         'recent_activities': recent_activities,
+        'all_contracts': all_contracts,
     }
 
     return render(request, 'contractsapp/contract_list.html', context)
@@ -1524,41 +1503,6 @@ def void_blockchain_contract(request, pk):
         'explorer_url': explorer_url,
         'tx_explorer_base': tx_explorer_base
     })
-
-
-@login_required
-def update_tracking_status(request, pk):
-    """
-    Manually updates the tracking status for a contract
-    """
-    contract = get_object_or_404(Contract, pk=pk)
-    
-    # Check if user is the creator of this contract
-    user_eth_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
-    if contract.creator_address != user_eth_address:
-        messages.error(request, "Sie haben keine Berechtigung, diesen Vertrag zu aktualisieren.")
-        return redirect('contract_detail', pk=pk)
-    
-    # Only update if contract has DHL tracking enabled and a tracking number
-    if not contract.has_dhl_tracking or not contract.tracking_number:
-        messages.error(request, "Dieser Vertrag hat kein DHL-Tracking aktiviert.")
-        return redirect('contract_detail', pk=pk)
-    
-    # Update tracking status
-    tracking_service = DHLTrackingService()
-    tracking_info = tracking_service.update_contract_status(contract)
-    
-    # Create activity log
-    ContractActivity.log(
-        contract=contract,
-        user=request.user,
-        action='tracking_updated',
-        details=f"Tracking-Status aktualisiert: {contract.package_status}"
-    )
-    
-    messages.success(request, f"Tracking-Status aktualisiert: {contract.package_status}")
-    return redirect('contract_detail', pk=pk)
-
 
 @login_required
 def confirm_delivery(request, pk):

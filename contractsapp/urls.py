@@ -20,7 +20,6 @@ urlpatterns = [
     path('deploy-contract/', views.deploy_contract, name='deploy_contract'),
     path('update-contract-address/', views.update_contract_address, name='update_contract_address'),
     
-    path('contract/<int:pk>/update_tracking/', views.update_tracking_status, name='update_tracking'),
     path('contract/<int:pk>/confirm_delivery/', views.confirm_delivery, name='confirm_delivery'),
     path('contract/<int:pk>/add_tracking/', views.add_tracking_number, name='add_tracking_number'),
     path('prepare-set-oracle/', views.prepare_set_oracle, name='prepare_set_oracle'),

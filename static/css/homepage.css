@@ -17,17 +17,31 @@
     font-weight: 600;
 }
 
+/* ========== UNIFIED ACTIVITY STYLES ========== */
 .activity-list {
-    margin-top: 1rem;
+    margin-top: 1.5rem;
 }
 
 .activity-item {
-    padding: 0.75rem;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #f0f0f0;
+    padding: 12px 0;
 }
 
 .activity-item:last-child {
     border-bottom: none;
+}
+
+.activity-content {
+    margin-top: 8px;
+}
+
+.activity-content a {
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.activity-content a:hover {
+    text-decoration: underline;
 }
 
 .activity-time {
@@ -35,10 +49,7 @@
     color: #6c757d;
 }
 
-.activity-content {
-    margin-top: 0.25rem;
-}
-
-.user-role-creator { color: #0d6efd; }
-.user-role-partner { color: #198754; }
-.user-role-system { color: #6c757d; }
+/* User role colors - unified with contract list */
+.user-role-creator { color: #28a745; font-weight: 500; }
+.user-role-partner { color: #17a2b8; font-weight: 500; }
+.user-role-system { color: #6c757d; font-weight: 500; }

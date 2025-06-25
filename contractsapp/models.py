@@ -212,8 +212,7 @@ class Contract(models.Model):
                     
                     # Check if status indicates Oracle has confirmed delivery (DeliveryConfirmed or higher)
                     blockchain_status = contract_details.get('status', '')
-                    delivery_confirmed_by_oracle = blockchain_status in ['DeliveryConfirmed', 'DeliveryApproved', 'AgreementFulfilled', 'Completed']
-                    print(f"Oracle confirmed delivery for contract {self.blockchain_contract_id}: {delivery_confirmed_by_oracle} (status: {blockchain_status})")
+                    delivery_confirmed_by_oracle = blockchain_status in ['DeliveryConfirmed', 'DeliveryApproved', 'Completed']
                     
                     if delivery_confirmed_by_oracle and not self.delivery_oracle_confirmed:
                         self.delivery_oracle_confirmed = True
@@ -224,14 +223,12 @@ class Contract(models.Model):
                         
                         # Safely handle tracking hash with length validation
                         tracking_hash_value = contract_details.get('deliveryTrackingHash', None)
-                        print(f"Debug: Tracking hash value type: {type(tracking_hash_value)}, value: {tracking_hash_value}, length: {len(str(tracking_hash_value)) if tracking_hash_value else 0}")
                         if tracking_hash_value:
                             # Ensure the tracking hash doesn't exceed the field limit
                             if len(str(tracking_hash_value)) <= 70:
                                 self.tracking_hash = tracking_hash_value
                             else:
                                 print(f"Warning: Tracking hash too long ({len(str(tracking_hash_value))} chars): {tracking_hash_value}")
-                                # Log but don't set invalid value
                                 self.tracking_hash = None
                         else:
                             self.tracking_hash = None

@@ -24,10 +24,6 @@ class BlockchainService:
         # Von den Einstellungen laden, falls verfügbar
         self.contract_address = getattr(settings, 'CONTRACT_ADDRESS', None)
         
-        # DEBUG: Print connection and contract status for troubleshooting
-        print(f"Verbindung zu Ethereum-Node: {self.web3.is_connected()}")
-        print(f"Contract-Adresse: {self.contract_address}")
-        
         # Contract-Instanz initialisieren, falls eine Adresse verfügbar ist
         self.contract = None
         if self.contract_address:
@@ -48,7 +44,6 @@ class BlockchainService:
                     address=self.contract_address,
                     abi=self.contract_abi
                 )
-                print(f"Smart Contract erfolgreich initialisiert: {self.contract_address}")
                 return True
             except Exception as e:
                 print(f"Fehler bei der Contract-Initialisierung: {str(e)}")
@@ -267,7 +262,6 @@ class BlockchainService:
             raise ValueError("Smart contract not properly initialized")
             
         status = self.contract.functions.getContractStatus(contract_id).call()
-        print(f"Contract ID: {contract_id}, Status: {status}")
         status_map = {
             0: 'Created',
             1: 'Signed',
@@ -386,10 +380,6 @@ class BlockchainService:
             'gas': 2000000,
             'gasPrice': self.web3.eth.gas_price
         })
-        
-        # Return the transaction data for frontend signing
-        print(f"Tracking transaction prepared for contract {contract_id}")
-        print(f"Tracking number to be sent to blockchain: {tracking_number}")
         
         return {
             'success': True,

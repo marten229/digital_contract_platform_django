@@ -85,12 +85,19 @@
                         <div class="activity-timeline">
                             {% for activity in activities %}
                                 <div class="activity-item">
-                                    <div class="d-flex align-items-center">
-                                        <span class="user-role-{{ activity.user_role }}">
+                                    <div class="d-flex align-items-center">                                        <span class="user-role-{{ activity.user_role }}">
                                             {% if activity.user_role == 'creator' %}
-                                                <i class="bi bi-person-fill"></i> Ersteller
+                                                {% if contract.creator_address == user.ethereum_address %}
+                                                    <i class="bi bi-person-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-person-fill"></i> Ersteller
+                                                {% endif %}
                                             {% elif activity.user_role == 'partner' %}
-                                                <i class="bi bi-people-fill"></i> Partner
+                                                {% if contract.partner_address == user.ethereum_address %}
+                                                    <i class="bi bi-people-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-people-fill"></i> Partner
+                                                {% endif %}
                                             {% else %}
                                                 <i class="bi bi-gear-fill"></i> System
                                             {% endif %}

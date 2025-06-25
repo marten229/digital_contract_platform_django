@@ -85,33 +85,41 @@
     }
 }
 
+/* ========== UNIFIED STATUS BADGES ========== */
 .status-badge {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
     border-radius: 0.25rem;
-    font-size: 0.875rem;
-    font-weight: 500;
     margin-bottom: 1rem;
 }
 
-.status-draft { background-color: #e2e3e5; color: #41464b; }
-.status-uploaded { background-color: #e2e3e5; color: #41464b; }
-.status-configured { background-color: #cff4fc; color: #055160; }
-.status-invitation { background-color: #d1e7dd; color: #0f5132; }
-.status-viewed { background-color: #fff3cd; color: #664d03; }
-.status-verified { background-color: #cfe2ff; color: #084298; }
-.status-signed-creator { background-color: #f8d7da; color: #842029; }
-.status-signed-partner { background-color: #f8d7da; color: #842029; }
-.status-completed { background-color: #d1e7dd; color: #0f5132; }
-.status-rejected { background-color: #f8d7da; color: #842029; }
-/* New status classes for extended blockchain workflow */
+/* Status badge colors - unified with contract list */
+.status-pending { background-color: #ffc107; color: #212529; }
+.status-accepted { background-color: #0d6efd; color: #fff; }
+.status-completed { background-color: #198754; color: #fff; }
+.status-rejected { background-color: #dc3545; color: #fff; }
+.status-draft { background-color: #6c757d; color: #fff; }
+.status-uploaded { background-color: #0dcaf0; color: #fff; }
+.status-configured { background-color: #ffc107; color: #212529; }
+.status-invitation { background-color: #6610f2; color: #fff; }
+.status-viewed { background-color: #20c997; color: #fff; }
+.status-verified { background-color: #198754; color: #fff; }
+.status-signed-creator { background-color: #0d6efd; color: #fff; }
+.status-signed-partner { background-color: #6f42c1; color: #fff; }
+.status-blockchain { background-color: #fd7e14; color: #fff; font-weight: 600; }
 .status-package-shipped { background-color: #fd7e14; color: #fff; }
 .status-package-delivered { background-color: #20c997; color: #fff; }
-.status-delivery-confirmed { background-color: #17a2b8; color: #fff; }
-.status-delivery-approved { background-color: #28a745; color: #fff; }
+.status-delivery-confirmed { background-color: #0dcaf0; color: #fff; }
+.status-delivery-approved { background-color: #198754; color: #fff; }
 .status-agreement-fulfilled { background-color: #6f42c1; color: #fff; }
-.status-blockchain { background-color: #6610f2; color: #fff; }
 
+/* ========== UNIFIED ACTIVITY TIMELINE ========== */
 .activity-timeline {
     margin-top: 2rem;
     border-left: 2px solid #ccc;
@@ -121,6 +129,12 @@
 .activity-item {
     position: relative;
     margin-bottom: 1.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 12px;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
 }
 
 .activity-item:before {
@@ -134,18 +148,28 @@
     background: #0d6efd;
 }
 
-.activity-item .activity-time {
+.activity-time {
     font-size: 0.8rem;
     color: #6c757d;
 }
 
-.activity-item .activity-content {
+.activity-content {
     background: #f8f9fa;
     padding: 1rem;
     border-radius: 0.25rem;
     margin-top: 0.5rem;
 }
 
-.user-role-creator { color: #0d6efd; }
-.user-role-partner { color: #198754; }
-.user-role-system { color: #6c757d; }
+.activity-content a {
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.activity-content a:hover {
+    text-decoration: underline;
+}
+
+/* User role colors - unified with contract list */
+.user-role-creator { color: #28a745; font-weight: 500; }
+.user-role-partner { color: #17a2b8; font-weight: 500; }
+.user-role-system { color: #6c757d; font-weight: 500; }
