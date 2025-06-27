@@ -69,14 +69,14 @@ class BlockchainInterface:
             logger.error(f"Fehler beim Parsen der Contract ABI: {str(e)}")
             raise
     
-    def prepare_oracle_confirmation_transaction(self, oracle_address: str, contract_id: int, tracking_number: str) -> Dict[str, Any]:
+    def prepare_oracle_confirmation_transaction(self, oracle_address: str, contract_id: int, tracking_number_hash: str) -> Dict[str, Any]:
         """
         Bereitet eine Oracle-Bestätigungstransaktion vor
         
         Args:
             oracle_address: Ethereum-Adresse des Oracle
             contract_id: Blockchain-Contract-ID
-            tracking_number: Tracking-Nummer (wird normalisiert)
+            tracking_number: Tracking-Nummer (wird zu Hash konvertiert)
             
         Returns:
             Vorbereitete Transaktion
@@ -86,33 +86,31 @@ class BlockchainInterface:
             oracle_address = self.web3.to_checksum_address(oracle_address)
             
             # Tracking-Nummer normalisieren
-            tracking_number = tracking_number.strip() if tracking_number else ""
+            tracking_number_hash = tracking_number_hash.strip() if tracking_number_hash else ""
             
-            if not tracking_number:
+            if not tracking_number_hash:
                 raise ValueError("Tracking-Nummer darf nicht leer sein")
             
-            logger.info(f"Bereite Oracle-Bestätigung vor: Contract {contract_id}, Tracking '{tracking_number}'")
+            if tracking_number_hash.startswith("0x"):
+                tracking_number_hash = tracking_number_hash[2:]
             
-            # Der Smart Contract erwartet die originale Tracking-Nummer
-            # Er berechnet dann intern den Hash: keccak256(abi.encode(contract_id, tracking_number))
-            # und vergleicht diesen mit dem gespeicherten Hash
+            logger.info(f"Bereite Oracle-Bestätigung vor: Contract {contract_id}, Tracking Hash'{tracking_number_hash}'")
             
-            # Debug: Hash-Vergleich vor Transaktion
-            try:
-                from eth_abi import encode
-                from eth_utils import keccak
-                
-                encoded_data = encode(['uint256', 'string'], [contract_id, tracking_number])
-                expected_hash = '0x' + keccak(encoded_data).hex()
-                logger.info(f"Erwarteter Hash für Smart Contract Vergleich: {expected_hash}")
-                
-            except Exception as e:
-                logger.warning(f"Hash-Debug fehlgeschlagen: {str(e)}")
+
+            # Umwandlung in bytes32 Format für den Smart Contract
+            # Stellen sicher, dass wir genau 32 Bytes haben (64 Hex-Zeichen)
+            if len(tracking_number_hash) > 64:
+                tracking_number_hash = tracking_number_hash[:64]
+            elif len(tracking_number_hash) < 64:
+                tracking_number_hash = tracking_number_hash.zfill(64)
+
+            # Konvertieren zu bytes32
+            tracking_number_hash = "0x" + tracking_number_hash
             
             # Transaktion vorbereiten
             transaction = self.contract.functions.confirmDeliveryByOracle(
                 contract_id, 
-                tracking_number  # Originale (normalisierte) Tracking-Nummer für Smart Contract
+                tracking_number_hash  # Hash der Tracking-Nummer für Smart Contract
             ).build_transaction({
                 'from': oracle_address,
                 'nonce': self.web3.eth.get_transaction_count(oracle_address),
@@ -157,7 +155,7 @@ class BlockchainInterface:
         Args:
             oracle_address: Ethereum-Adresse des Oracle
             contract_id: Blockchain-Contract-ID
-            tracking_number: Originale Tracking-Nummer
+            tracking_number: Tracking-Nummer (wird zu Hash konvertiert)
             
         Returns:
             Geschätzte Gas-Menge
@@ -165,9 +163,12 @@ class BlockchainInterface:
         try:
             oracle_address = self.web3.to_checksum_address(oracle_address)
             
+            # Hash der Tracking-Nummer berechnen
+            tracking_hash = self.web3.keccak(text=tracking_number.strip())
+            
             gas_estimate = self.contract.functions.confirmDeliveryByOracle(
                 contract_id, 
-                tracking_number
+                tracking_hash
             ).estimate_gas({'from': oracle_address})
             
             # Sicherheitspuffer hinzufügen (20%)

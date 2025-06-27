@@ -123,19 +123,17 @@ class DHLTrackingService:
         """
         Generiert einen Tracking-Hash, der mit dem Smart Contract kompatibel ist
         
-        Verwendet die gleiche Methode wie in der Hauptanwendung:
-        keccak256(abi.encode(contract_id, tracking_number))
+        Verwendet keccak256 Hash der Tracking-Nummer direkt
         
         Args:
             tracking_number: Die DHL-Tracking-Nummer (wird normalisiert)
-            contract_id: Die Blockchain-Contract-ID
+            contract_id: Die Blockchain-Contract-ID (für Kompatibilität)
             
         Returns:
-            Hex-String des Hashes (mit 0x-Präfix)
+            Hex-String des Hashes (als bytes32)
         """
         try:
-            from eth_abi import encode
-            from eth_utils import keccak
+            from web3 import Web3
             
             # Tracking-Nummer normalisieren (Leerzeichen entfernen)
             tracking_number = tracking_number.strip() if tracking_number else ""
@@ -145,22 +143,19 @@ class DHLTrackingService:
             
             logger.info(f"Hash-Generierung: contract_id={contract_id}, tracking_number='{tracking_number}'")
             
-            # Encode wie in Solidity: abi.encode(uint256, string)
-            # Wichtig: Reihenfolge muss exakt mit Smart Contract übereinstimmen
-            encoded_data = encode(['uint256', 'string'], [contract_id, tracking_number])
-            logger.info(f"Encoded data length: {len(encoded_data)} bytes")
+            # Create Web3 instance for keccak calculation
+            web3_instance = Web3()
             
-            # Keccak256 Hash anwenden
-            hashed_value = keccak(encoded_data)
+            # Calculate keccak256 hash of tracking number
+            tracking_bytes = tracking_number.encode('utf-8')
+            hash_value = web3_instance.keccak(tracking_bytes)
             
-            # Als 0x-prefixed hex string zurückgeben
-            result = '0x' + hashed_value.hex()
-            logger.info(f"Generierter Hash: {result}")
-            return result
+            logger.info(f"Generierter Hash: {hash_value.hex()}")
+            return hash_value
             
         except ImportError:
-            logger.error("eth_abi oder eth_utils nicht installiert - verwende SHA256 Fallback")
-            # Fallback für den Fall, dass eth_abi nicht verfügbar ist
+            logger.error("web3 nicht verfügbar - verwende SHA256 Fallback")
+            # Fallback für den Fall, dass web3 nicht verfügbar ist
             tracking_number = tracking_number.strip() if tracking_number else ""
             combined = f"{contract_id}:{tracking_number}"
             hash_value = hashlib.sha256(combined.encode()).hexdigest()

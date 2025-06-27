@@ -23,7 +23,7 @@ django.setup()
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
-from contractsapp.oracle_key_manager import OracleKeyManager
+from oracle_service.oracle_key_manager import OracleKeyManager
 
 User = get_user_model()
 

@@ -255,14 +255,30 @@
                         // Hash und Contract-ID anzeigen
                         document.getElementById('transaction-hash').textContent = receipt.transactionHash;
                         
-                        // Contract-ID verwenden
-                        let contractId = txData.contract_id || null;
+                        // Contract-ID aus Events extrahieren
+                        let contractId = null;
+                        
+                        // Suche nach ContractCreated Event in den Receipt Logs
+                        if (receipt.logs && receipt.logs.length > 0) {
+                            for (let log of receipt.logs) {
+                                // ContractCreated Event hat 3 topics: event signature + contractId + creator + counterparty
+                                if (log.topics && log.topics.length >= 2) {
+                                    // Das zweite Topic ist die contractId (als hex)
+                                    const contractIdHex = log.topics[1];
+                                    contractId = parseInt(contractIdHex, 16);
+                                    console.log('Contract ID aus Event extrahiert:', contractId);
+                                    break;
+                                }
+                            }
+                        }
                         
                         if (contractId) {
                             document.getElementById('contract-id').textContent = contractId;
                             await updateBlockchainStatus(receipt.transactionHash, contractId);
                         } else {
-                            document.getElementById('contract-id').textContent = "Nicht verfügbar";
+                            document.getElementById('contract-id').textContent = "Event nicht gefunden";
+                            console.warn('Kein ContractCreated Event in Receipt gefunden');
+                            await updateBlockchainStatus(receipt.transactionHash, null);
                         }
                     })
                     .on('error', function(error) {

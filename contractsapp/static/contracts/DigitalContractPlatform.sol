@@ -21,7 +21,7 @@ contract ContractManager is ReentrancyGuard {
         address payable creator;
         address payable counterparty;
         ContractStatus status;
-        string contractHash;
+        bytes32 contractHash;
         bytes32 deliveryTrackingHash;
         bool deliveryRequired;
     }
@@ -70,12 +70,11 @@ contract ContractManager is ReentrancyGuard {
 
     function createContract(
         address payable _counterparty,
-        string memory _contractHash,
+        bytes32 _contractHash,
         uint256 _amount
     ) public payable {
         require(_counterparty != address(0), "0 addr not allowed");
         require(msg.value == _amount, "ETH mismatch");
-        require(bytes(_contractHash).length == 66, "Invalid contract hash");
 
         contractCounter++;
         ManagedContract storage newContract = contracts[contractCounter];
@@ -97,25 +96,25 @@ contract ContractManager is ReentrancyGuard {
         emit ContractSigned(_contractId);
     }
 
-    function setDeliveryTracking(uint256 _contractId, string memory _trackingNumber) public onlyCounterparty(_contractId) {
+    function setDeliveryTracking(uint256 _contractId, bytes32 _trackingNumberHash) public onlyCounterparty(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
         require(mContract.status == ContractStatus.Signed, "Not Signed");
         require(!mContract.deliveryRequired, "Already set");
 
-        mContract.deliveryTrackingHash = keccak256(abi.encode(_contractId, _trackingNumber));
+        mContract.deliveryTrackingHash = _trackingNumberHash;
         mContract.deliveryRequired = true;
         mContract.status = ContractStatus.DeliverySet;
 
         emit TrackingHashSet(_contractId, mContract.deliveryTrackingHash);
     }
 
-    function confirmDeliveryByOracle(uint256 _contractId, string memory _trackingNumber) public nonReentrant onlyOracle {
+    function confirmDeliveryByOracle(uint256 _contractId, bytes32 _trackingNumberHash) public onlyOracle {
         ManagedContract storage mContract = contracts[_contractId];
         require(mContract.status == ContractStatus.DeliverySet, "Wrong status");
         require(mContract.deliveryRequired, "No delivery");
 
         require(
-            mContract.deliveryTrackingHash == keccak256(abi.encode(_contractId, _trackingNumber)),
+            mContract.deliveryTrackingHash == _trackingNumberHash,
             "Hash mismatch"
         );
 
@@ -134,7 +133,7 @@ contract ContractManager is ReentrancyGuard {
         emit PaymentReleased(_contractId, mContract.counterparty, mContract.amount);
     }
 
-    function confirmCompletion(uint256 _contractId) public nonReentrant onlyCreator(_contractId) {
+    function confirmCompletion(uint256 _contractId) public onlyCreator(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
         require(mContract.status == ContractStatus.Signed, "Not signed");
         require(!mContract.deliveryRequired, "Delivery flow required");
@@ -168,8 +167,8 @@ contract ContractManager is ReentrancyGuard {
         ManagedContract storage mContract = contracts[_contractId];
         require(mContract.status != ContractStatus.Completed, "Already completed");
 
-        mContract.contractHash = "";
-        mContract.deliveryTrackingHash = "";
+        delete mContract.contractHash;
+        delete mContract.deliveryTrackingHash;
         mContract.status = ContractStatus.Cancelled;
 
         emit ContractDeactivated(_contractId);
@@ -177,9 +176,5 @@ contract ContractManager is ReentrancyGuard {
 
     function getContractStatus(uint256 _contractId) public view returns (ContractStatus) {
         return contracts[_contractId].status;
-    }
-
-    function getContractHash(uint256 _contractId) public view returns (string memory) {
-        return contracts[_contractId].contractHash;
     }
 }

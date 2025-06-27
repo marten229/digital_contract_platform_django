@@ -213,6 +213,9 @@ class Contract(models.Model):
                     # Check if status indicates Oracle has confirmed delivery (DeliveryConfirmed or higher)
                     blockchain_status = contract_details.get('status', '')
                     delivery_confirmed_by_oracle = blockchain_status in ['DeliveryConfirmed', 'DeliveryApproved', 'Completed']
+
+                    if self.tracking_number and not blockchain_status in ['DeliverySet', 'DeliveryConfirmed', 'DeliveryApproved', 'Completed']:
+                        self.tracking_number = None
                     
                     if delivery_confirmed_by_oracle and not self.delivery_oracle_confirmed:
                         self.delivery_oracle_confirmed = True
@@ -243,7 +246,7 @@ class Contract(models.Model):
                     # Oracle check might fail if contract doesn't exist or network issues
                     print(f"Oracle check failed for contract {self.blockchain_contract_id}: {oracle_e}")
                   # Update general contract status based on blockchain status
-                if self.blockchain_status in ['Created', 'Signed', 'DeliverySet', 'DeliveryConfirmed', 'DeliveryApproved', 'AgreementFulfilled', 'Completed'] and self.status != 'blockchain_published' and \
+                if self.blockchain_status in ['Created', 'Signed', 'AgreementFulfilled', 'Completed'] and self.status != 'blockchain_published' and \
                    self.status not in ['package_shipped', 'package_delivered', 'delivery_confirmed']:
                     self.status = 'blockchain_published'
                     ContractActivity.log(

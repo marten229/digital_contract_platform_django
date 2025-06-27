@@ -11,7 +11,7 @@
 <div class="container py-5">
     <div class="row mb-4">        <div class="col">
             <h1>📄 Meine Verträge</h1>
-            <p class="text-muted">Übersicht Ihrer Verträge nach Erfüllungsart organisiert - ohne Doppelungen</p>
+            <p class="text-muted">Übersicht Ihrer Verträge
         </div>
         <div class="col-auto">
             <a href="{% url 'contract_upload' %}" class="btn btn-primary upload-btn">
@@ -95,7 +95,7 @@
                                         </a>
                                     {% elif contract.status == 'configured' or contract.status == 'invitation_sent' %}
                                         <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">
-                                            <i class="bi bi-pen"></i> Signieren
+                                            <i class="bi bi-pen"></i> Jetzt Signieren
                                         </a>
                                     {% elif contract.status == 'signed_by_partner' %}
                                         <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-success btn-sm">
@@ -103,7 +103,7 @@
                                         </a>
                                     {% elif contract.status == 'completed' %}
                                         <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-link-45deg"></i> Zur Blockchain
+                                            <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
                                         </a>
                                     {% endif %}
                                 {% else %}
@@ -115,7 +115,8 @@
                                     {% elif contract.status == 'signed_by_creator' %}
                                         <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-success btn-sm">
                                             <i class="bi bi-pen-fill"></i> Jetzt signieren
-                                        </a>                                    {% elif contract.status == 'partner_verified' %}
+                                        </a>                                    
+                                    {% elif contract.status == 'partner_verified' %}
                                         <span class="badge status-pending">Warten auf Creator-Signatur</span>
                                     {% endif %}
                                 {% endif %}
@@ -142,7 +143,8 @@
                                 <div class="status-badges">
                                     <span class="badge primary-status {{ contract.get_status_class }}">
                                         {{ contract.get_status_display_german }}
-                                    </span>                                    {% if contract.blockchain_status %}
+                                    </span>                                    
+                                    {% if contract.blockchain_status %}
                                         <span class="badge sub-status status-blockchain">{{ contract.blockchain_status }}</span>
                                     {% endif %}
                                 </div>
@@ -167,7 +169,7 @@
                                     {% if contract.blockchain_contract_id %}
                                     <div class="info-item">
                                         <i class="bi bi-link-45deg info-icon"></i>
-                                        <span class="info-label">Blockchain ID:</span>
+                                        <span class="info-label">Vertrags ID:</span>
                                         <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
                                     </div>
                                     {% endif %}
@@ -198,8 +200,9 @@
                                     <!-- Creator Actions for Digital Contracts -->
                                     {% if contract.blockchain_status == 'Signed' %}
                                         <a href="{% url 'confirm_contract_completion' contract.pk %}" class="btn btn-outline-success btn-sm">
-                                            <i class="bi bi-check-circle"></i> Erfüllung bestätigen
-                                        </a>                                    {% elif contract.blockchain_status == 'Created' %}
+                                            <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
+                                        </a>                                    
+                                    {% elif contract.blockchain_status == 'Created' %}
                                         <span class="badge status-pending">Partner muss signieren</span>
                                     {% elif contract.blockchain_status == 'AgreementFulfilled' %}
                                         <span class="badge status-completed">Erfüllung bestätigt</span>
@@ -209,9 +212,10 @@
                                     <!-- Partner Actions for Digital Contracts -->
                                     {% if contract.blockchain_status == 'Created' %}
                                         <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-success btn-sm">
-                                            <i class="bi bi-pen-fill"></i> Blockchain signieren
-                                        </a>                                    {% elif contract.blockchain_status == 'Signed' %}
-                                        <span class="badge status-accepted">Warten auf Erfüllung</span>                                    {% elif contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'Completed' %}
+                                            <i class="bi bi-pen-fill"></i> Vertrag auf Blockchain bestätigen
+                                        </a>                                    
+                                    {% elif contract.blockchain_status == 'Signed' %}
+                                        <span class="badge status-accepted">Warten auf Vertragserfüllung</span>                                    {% elif contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'Completed' %}
                                         {% if not contract.funds_withdrawn %}
                                             <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
                                                 <i class="bi bi-cash-coin"></i> Geld abheben
@@ -253,7 +257,8 @@
                                         {% elif contract.package_status == 'failed' %}
                                             <span class="badge sub-status status-rejected">❌ Lieferproblem</span>
                                         {% endif %}
-                                    {% endif %}                                    {% if contract.blockchain_status %}
+                                    {% endif %}                                    
+                                    {% if contract.blockchain_status %}
                                         <span class="badge sub-status status-blockchain">⛓️ {{ contract.blockchain_status }}</span>
                                     {% endif %}
                                 </div>
@@ -288,7 +293,7 @@
                                     {% if contract.blockchain_contract_id %}
                                     <div class="info-item">
                                         <i class="bi bi-link-45deg info-icon"></i>
-                                        <span class="info-label">Blockchain ID:</span>
+                                        <span class="info-label">Vertrags ID:</span>
                                         <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
                                     </div>
                                     {% endif %}
@@ -319,8 +324,9 @@
                                         </a>
                                     {% elif contract.status == 'delivery_confirmed' and not contract.blockchain_contract_id %}
                                         <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-primary btn-sm">
-                                            <i class="bi bi-link-45deg"></i> Zur Blockchain
-                                        </a>                                    {% elif contract.blockchain_status == 'Signed' %}
+                                            <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
+                                        </a>                                    
+                                    {% elif contract.blockchain_status == 'Signed' %}
                                         <span class="badge status-accepted">Warten auf Versand</span>
                                     {% elif contract.blockchain_status == 'DeliveryApproved' %}
                                         <span class="badge status-delivery-approved">Lieferung genehmigt</span>
@@ -330,10 +336,11 @@
                                     <!-- Partner Actions for Delivery Contracts -->
                                     {% if contract.blockchain_status == 'Created' %}
                                         <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-success btn-sm">
-                                            <i class="bi bi-pen-fill"></i> Blockchain signieren
-                                        </a>                                    {% elif contract.blockchain_status == 'Signed' and not contract.tracking_number and contract.has_dhl_tracking %}
+                                            <i class="bi bi-pen-fill"></i> Vertrag auf Blockchain bestätigen
+                                        </a>                                    
+                                    {% elif contract.blockchain_status == 'Signed' and not contract.tracking_number and contract.has_dhl_tracking %}
                                         <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
-                                            <i class="bi bi-truck"></i> Tracking hinzufügen
+                                            <i class="bi bi-truck"></i> Sendungsnummer hinzufügen
                                         </a>
                                     {% endif %}
                                     
@@ -394,7 +401,7 @@
                                     {% if contract.blockchain_contract_id %}
                                     <div class="info-item">
                                         <i class="bi bi-link-45deg info-icon"></i>
-                                        <span class="info-label">Blockchain ID:</span>
+                                        <span class="info-label">Vertrags ID:</span>
                                         <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
                                     </div>
                                     {% endif %}

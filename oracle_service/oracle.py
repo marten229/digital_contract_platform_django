@@ -66,19 +66,11 @@ class OracleService:
                         logger.warning(f"Tracking-Fehler für Contract {contract.id}: {tracking_info.get('message')}")
                         continue
                     
-                    # Status prüfen (nur lesen, nicht mehr in DB schreiben)
+                    # Status prüfen (nur lesen, nicht in DB schreiben)
                     new_status = tracking_info.get('status')
                     if new_status and new_status != contract.package_status:
                         updated_count += 1
                         logger.info(f"Contract {contract.id}: Status-Änderung erkannt '{contract.package_status}' -> '{new_status}' (nur Blockchain-Update)")
-                        
-                        # Tracking-Hash generieren falls Status 'delivered'
-                        if new_status == 'delivered' and not contract.tracking_hash:
-                            tracking_hash = self.dhl_service.generate_tracking_hash(
-                                contract.tracking_number,
-                                contract.blockchain_contract_id
-                            )
-                            logger.info(f"Tracking-Hash für Contract {contract.id} generiert (nur für Blockchain)")
                     
                 except Exception as e:
                     logger.error(f"Fehler beim Prüfen von Contract {contract.id}: {str(e)}")
@@ -141,69 +133,28 @@ class OracleService:
                         error_count += 1
                         continue
                     
-                    # Hash mit der EXAKTEN Tracking-Nummer aus der DB berechnen
-                    try:
-                        from eth_abi import encode
-                        from eth_utils import keccak
-                        
-                        # Hash berechnen mit exakt der Tracking-Nummer aus der DB
-                        encoded_data = encode(['uint256', 'string'], [contract.blockchain_contract_id, tracking_number])
-                        calculated_hash = '0x' + keccak(encoded_data).hex()
-                        
-                        logger.info(f"  - Berechneter Hash: {calculated_hash}")
-                        logger.info(f"  - Hash Match: {'✅ JA' if calculated_hash == contract.tracking_hash else '❌ NEIN'}")
-                        
-                        if calculated_hash != contract.tracking_hash:
-                            logger.error(f"❌ HASH MISMATCH DETECTED!")
-                            logger.error(f"   Expected: {contract.tracking_hash}")
-                            logger.error(f"   Calculated: {calculated_hash}")
-                            logger.error(f"   Tracking Number: '{tracking_number}'")
-                            logger.error(f"   Contract ID: {contract.blockchain_contract_id}")
-                            
-                            # Teste verschiedene Varianten
-                            variants = [
-                                ("stripped", tracking_number.strip()),
-                                ("upper", tracking_number.upper()),
-                                ("lower", tracking_number.lower()),
-                            ]
-                            
-                            logger.error(f"   Teste Varianten:")
-                            for name, variant in variants:
-                                variant_encoded = encode(['uint256', 'string'], [contract.blockchain_contract_id, variant])
-                                variant_hash = '0x' + keccak(variant_encoded).hex()
-                                match = "✅" if variant_hash == contract.tracking_hash else "❌"
-                                logger.error(f"     {match} {name}: '{variant}' -> {variant_hash}")
-                            
-                            error_count += 1
-                            continue
-                        
-                    except Exception as e:
-                        logger.error(f"❌ Fehler bei Hash-Berechnung: {str(e)}")
-                        error_count += 1
-                        continue
-                    
                     if not debug:
+                        # Tracking-Hash dynamisch generieren (ohne DB-Speicherung)
+                        tracking_hash = self.dhl_service.generate_tracking_hash(
+                            tracking_number,
+                            contract.blockchain_contract_id
+                        )
+                        
+                        # Hash zu String konvertieren falls nötig
+                        if hasattr(tracking_hash, 'hex'):
+                            tracking_hash_str = tracking_hash.hex()
+                        else:
+                            tracking_hash_str = str(tracking_hash)
+                        
+                        logger.info(f"Dynamisch generierter Tracking-Hash für Contract {contract.blockchain_contract_id}: {tracking_hash_str}")
+                        
                         # Echte Blockchain-Transaktion senden
-                        logger.info(f"Sende Oracle-Bestätigung für Contract {contract.blockchain_contract_id} an Blockchain mit Tracking-Nummer '{tracking_number}'")
-                        
-                        # Debug: Hash-Generierung testen
-                        generated_hash = self.dhl_service.generate_tracking_hash(tracking_number, contract.blockchain_contract_id)
-                        logger.info(f"Debug: Generierter Hash für Contract {contract.blockchain_contract_id} mit Tracking '{tracking_number}': {generated_hash}")
-                        
-                        # Debug: Auch den Hash aus der Hauptanwendung simulieren
-                        try:
-                            from eth_abi import encode
-                            from eth_utils import keccak
-                            encoded_data = encode(['uint256', 'string'], [contract.blockchain_contract_id, tracking_number])
-                            expected_hash = '0x' + keccak(encoded_data).hex()
-                            logger.info(f"Debug: Erwarteter Hash (wie Smart Contract): {expected_hash}")
-                        except Exception as e:
-                            logger.error(f"Debug: Fehler bei Hash-Vergleich: {str(e)}")
+                        logger.info(f"Sende Oracle-Bestätigung für Contract {contract.blockchain_contract_id} an Blockchain")
                         
                         tx_data = self.blockchain.prepare_oracle_confirmation_transaction(
                             oracle_address,
                             contract.blockchain_contract_id,
-                            tracking_number,
+                            tracking_hash_str,
                         )
                         
                         tx_hash = self.key_manager.send_transaction(tx_data)
@@ -214,15 +165,6 @@ class OracleService:
                         generated_hash = self.dhl_service.generate_tracking_hash(tracking_number, contract.blockchain_contract_id)
                         logger.info(f"DEBUG: Hash für Contract {contract.blockchain_contract_id} mit Tracking '{tracking_number}': {generated_hash}")
                         
-                        # Debug: Auch den Hash aus der Hauptanwendung simulieren
-                        try:
-                            from eth_abi import encode
-                            from eth_utils import keccak
-                            encoded_data = encode(['uint256', 'string'], [contract.blockchain_contract_id, tracking_number])
-                            expected_hash = '0x' + keccak(encoded_data).hex()
-                            logger.info(f"DEBUG: Erwarteter Hash (wie Smart Contract): {expected_hash}")
-                        except Exception as e:
-                            logger.error(f"DEBUG: Fehler bei Hash-Vergleich: {str(e)}")
                     
                     # Kein Datenbankupdate mehr - nur Blockchain-Bestätigung
                     success_count += 1

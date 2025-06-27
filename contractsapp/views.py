@@ -828,6 +828,47 @@ def update_blockchain_status(request, pk):
 
         except (ValueError, TypeError) as e:
             print(f"Fehler bei der Konvertierung der Contract-ID: {e}")
+    elif blockchain_tx_hash and not contract.blockchain_contract_id:
+        # Fallback: Versuche Contract ID aus Transaction Receipt zu extrahieren
+        try:
+            from .blockchain import BlockchainService
+            blockchain_service = BlockchainService()
+            
+            # Hole Transaction Receipt
+            receipt = blockchain_service.web3.eth.get_transaction_receipt(blockchain_tx_hash)
+            contract_id = blockchain_service.extract_contract_id_from_receipt(receipt)
+            
+            if contract_id:
+                contract.blockchain_contract_id = contract_id
+                contract.status = 'blockchain_published'
+                contract.save(update_fields=['blockchain_contract_id', 'status'])
+                
+                ContractActivity.log(
+                    contract=contract,
+                    action='blockchain_published',
+                    user=request.user,
+                    details=f"Vertrag auf der Blockchain registriert (aus Receipt extrahiert): Contract ID: {contract_id}"
+                )
+                
+                try:
+                    contract.update_blockchain_status()
+                except Exception as e:
+                    print(f"Error updating blockchain status: {e}")
+
+                contract.refresh_from_db()
+
+                return JsonResponse({
+                    'success': True,
+                    'contract_id': contract.blockchain_contract_id,
+                    'tx_hash': blockchain_tx_hash,
+                    'status': contract.blockchain_status or 'Updated',
+                    'message': 'Blockchain-Status erfolgreich aktualisiert (Contract ID aus Receipt extrahiert)'
+                })
+            else:
+                print(f"Konnte Contract ID nicht aus Transaction Receipt extrahieren: {blockchain_tx_hash}")
+                
+        except Exception as e:
+            print(f"Fehler beim Extrahieren der Contract ID aus Receipt: {e}")
             return JsonResponse({'success': False, 'message': f'Ungültige Contract-ID: {str(e)}'})
         except Exception as e:
             import traceback
@@ -1017,11 +1058,14 @@ def submit_to_blockchain(request, pk):
             if not contract.pdf_hash:
                 messages.error(request, "Der Vertrag hat keinen gültigen PDF-Hash. Bitte kontaktieren Sie den Support.")
                 return redirect('contract_detail', pk=pk)
+            
+            if contract.pdf_hash.startswith('0x'):
+                pdf_hash = contract.pdf_hash[2:]
 
             tx = blockchain_service.create_contract(
                 creator_address=contract.creator_address,
                 counterparty_address=contract.partner_address,
-                contract_hash=contract.pdf_hash,
+                contract_hash=pdf_hash,
                 amount_wei=contract.contract_amount
             )
 
@@ -1034,10 +1078,6 @@ def submit_to_blockchain(request, pk):
             )
 
             tx_dict = dict(tx)
-            contract.blockchain_contract_id = tx_dict.get('contract_id')
-
-            if contract.blockchain_contract_id:
-                contract.save(update_fields=['blockchain_contract_id'])
 
             processed_tx = {}
             for key, value in tx_dict.items():
@@ -1507,7 +1547,7 @@ def void_blockchain_contract(request, pk):
 @login_required
 def confirm_delivery(request, pk):
     """
-    Seller confirms that the package has been delivered correctly
+    Buyer confirms that the package has been delivered correctly
     """
     contract = get_object_or_404(Contract, pk=pk)
     
@@ -1638,8 +1678,10 @@ def add_tracking_number(request, pk):
                     contract.blockchain_contract_id, 
                     tracking_number,  # ← Korrigiert: verwende tracking_number aus POST, nicht contract.tracking_number
                 )
-                # Render the template with transaction data for MetaMask signing
-                # NOTE: Tracking number is NOT saved to database yet - only after successful blockchain transaction
+                contract.tracking_number = tracking_number
+                contract.status = 'package_shipped'
+                contract.save(update_fields=['tracking_number', 'status'])
+
                 context = {
                     'contract': contract,
                     'tracking_number': tracking_number,  # Pass to template for later DB save

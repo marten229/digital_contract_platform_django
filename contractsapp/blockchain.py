@@ -144,6 +144,37 @@ class BlockchainService:
             
         return '0x' + sha256_hash.hexdigest()
     
+    def calculate_tracking_hash(self, tracking_number, contract_id=None):
+        """
+        Generate a hashed value of the tracking number for blockchain storage
+        Uses keccak256 hashing to match the smart contract requirements
+        
+        Args:
+            tracking_number: DHL tracking number (wird normalisiert)
+            contract_id: Blockchain contract ID (required for proper hash verification)
+        """
+        if contract_id is None:
+            raise ValueError("contract_id is required for tracking hash generation")
+        
+        # Tracking-Nummer normalisieren (Leerzeichen entfernen) - WICHTIG für Hash-Konsistenz
+        tracking_number = tracking_number.strip() if tracking_number else ""
+        
+        if not tracking_number:
+            raise ValueError("Tracking-Nummer darf nicht leer sein")
+        
+        # Use keccak256 hash like the smart contract expects
+        from web3 import Web3
+        
+        # Create Web3 instance just for hash calculation
+        web3_instance = Web3()
+        
+        # Calculate keccak256 hash of tracking number
+        tracking_bytes = tracking_number.encode('utf-8')
+        hash_value = web3_instance.keccak(tracking_bytes)
+        
+        # Return as 0x-prefixed hex string
+        return hash_value
+    
     def create_contract(self, creator_address, counterparty_address, contract_hash, amount_wei):
         """Create a new contract on the blockchain"""
         if not self.contract:
@@ -166,10 +197,16 @@ class BlockchainService:
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
+        # Convert contract hash to bytes32 format for smart contract
+        if contract_hash.startswith('0x'):
+            contract_hash_bytes = bytes.fromhex(contract_hash[2:])
+        else:
+            contract_hash_bytes = bytes.fromhex(contract_hash)
+        
         # Prepare the transaction
         tx = self.contract.functions.createContract(
             counterparty_address,
-            contract_hash,
+            contract_hash_bytes,
             amount_wei
         ).build_transaction({
             'from': creator_address,
@@ -179,22 +216,9 @@ class BlockchainService:
             'gasPrice': self.web3.eth.gas_price
         })
         
-        # Erstelle eine Kopie des Transaktions-Dictionaries für zusätzliche Daten
-        tx_with_data = dict(tx)
-        
-        # Erzeuge die vorläufige Contract-ID basierend auf dem aktuellen Contract-Counter
-        try:
-            current_contract_counter = self.contract.functions.contractCounter().call()
-            next_contract_id = current_contract_counter + 1
-            tx_with_data['contract_id'] = next_contract_id
-            print(f"Vorläufige Contract ID: {next_contract_id}")
-        except Exception as e:
-            print(f"Fehler beim Abrufen des Contract Counters: {str(e)}")
-            tx_with_data['contract_id'] = None
-        
-        # The transaction needs to be signed by the creator off-chain
-        # Return the extended transaction for signing in the frontend
-        return tx_with_data
+        # Return the transaction for signing in the frontend
+        # The contract ID will be extracted from the ContractCreated event after the transaction is confirmed
+        return tx
     
     def sign_contract(self, partner_address, contract_id):
         """Sign a contract on the blockchain"""
@@ -372,9 +396,20 @@ class BlockchainService:
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
+        # Convert tracking number to bytes32 hash for privacy
+        tracking_hash = self.calculate_tracking_hash(tracking_number, contract_id)
+
+        # Convert hash to bytes32 format for smart contract
+        if isinstance(tracking_hash, bytes):
+            tracking_hash_bytes = tracking_hash
+        else:
+            if tracking_hash.startswith('0x'):
+                tracking_hash_bytes = bytes.fromhex(tracking_hash[2:])
+            else:
+                tracking_hash_bytes = bytes.fromhex(tracking_hash)
+        
         # Prepare the transaction to set delivery tracking
-        # Note: Smart contract expects tracking number string, but we pass the hash for privacy
-        tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_number).build_transaction({
+        tx = self.contract.functions.setDeliveryTracking(contract_id, tracking_hash_bytes).build_transaction({
             'from': partner_address,
             'nonce': self.web3.eth.get_transaction_count(partner_address),
             'gas': 2000000,
@@ -406,8 +441,17 @@ class BlockchainService:
         except ValueError as e:
             raise ValueError(f"Invalid Ethereum address: {str(e)}")
         
+        # Convert tracking hash to bytes32 format for smart contract
+        if isinstance(tracking_hash, bytes):
+            tracking_hash_bytes = tracking_hash
+        else:
+            if tracking_hash.startswith('0x'):
+                tracking_hash_bytes = bytes.fromhex(tracking_hash[2:])
+            else:
+                tracking_hash_bytes = bytes.fromhex(tracking_hash)
+        
         # Prepare the transaction to confirm delivery by Oracle
-        tx = self.contract.functions.confirmDeliveryByOracle(contract_id, tracking_hash).build_transaction({
+        tx = self.contract.functions.confirmDeliveryByOracle(contract_id, tracking_hash_bytes).build_transaction({
             'from': oracle_address,
             'nonce': self.web3.eth.get_transaction_count(oracle_address),
             'gas': 2000000,
@@ -520,3 +564,40 @@ class BlockchainService:
         })
         
         return tx
+    
+    def extract_contract_id_from_receipt(self, tx_receipt):
+        """Extract the contract ID from the ContractCreated event in the transaction receipt"""
+        if not self.contract:
+            raise ValueError("Smart contract not properly initialized")
+        
+        try:
+            # Get the ContractCreated event from the receipt
+            contract_created_filter = self.contract.events.ContractCreated.create_filter(
+                fromBlock=tx_receipt['blockNumber'],
+                toBlock=tx_receipt['blockNumber']
+            )
+            
+            # Process the receipt to get events
+            events = self.contract.events.ContractCreated().process_receipt(tx_receipt)
+            
+            if events:
+                # Return the contract ID from the first (and should be only) event
+                contract_id = events[0]['args']['contractId']
+                print(f"Contract ID aus Event extrahiert: {contract_id}")
+                return contract_id
+            else:
+                print("Kein ContractCreated Event in der Transaction gefunden")
+                return None
+                
+        except Exception as e:
+            print(f"Fehler beim Extrahieren der Contract ID: {str(e)}")
+            return None
+    
+    def get_contract_id_from_tx_hash(self, tx_hash):
+        """Get contract ID from a transaction hash by checking the transaction receipt"""
+        try:
+            receipt = self.web3.eth.get_transaction_receipt(tx_hash)
+            return self.extract_contract_id_from_receipt(receipt)
+        except Exception as e:
+            print(f"Fehler beim Abrufen der Contract ID aus TX Hash {tx_hash}: {str(e)}")
+            return None
