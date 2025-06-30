@@ -48,8 +48,6 @@
                         <ul class="dropdown-menu dropdown-menu-animation">
                             <li><a class="dropdown-item" href="/contractsapp/">Neuer Vertrag</a></li>
                             <li><a class="dropdown-item" href="/contractsapp/list/">Meine Verträge</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/">Vorlagen</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
@@ -57,10 +55,10 @@
                     </li>
                     {% endif %}
                     <li class="nav-item">
-                        <a class="nav-link" href="/about/">Über uns</a>
+                        <a class="nav-link">Über uns</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/contact/">Kontakt</a>
+                        <a class="nav-link" >Kontakt</a>
                     </li>
                     
                     {% if user.is_authenticated %}
@@ -70,9 +68,6 @@
                                 <i class="bi bi-person-fill me-1"></i> {{ user.username }}
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end dropdown-menu-animation">
-                                <li><a class="dropdown-item" href="/profile/"><i class="bi bi-gear me-2"></i>Profil</a></li>
-                                <li><a class="dropdown-item" href="/wallet/"><i class="bi bi-wallet2 me-2"></i>Wallet</a></li>
-                                <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <form id="logoutForm" method="post" action="{% url 'logout' %}" style="margin:0;padding:0;">
                                         {% csrf_token %}
