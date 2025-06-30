@@ -103,11 +103,14 @@ class Contract(models.Model):
         
         self.creator = None
         self.partner = None
+
+        self.last_updated = timezone.now()
         
         super().save(*args, **kwargs)
         
         self.creator = temp_creator
         self.partner = temp_partner
+
         
         if self.pdf_file:
             try:
@@ -185,6 +188,14 @@ class Contract(models.Model):
 
                     if self.tracking_number and not blockchain_status in ['DeliverySet', 'DeliveryConfirmed', 'DeliveryApproved', 'Completed']:
                         self.tracking_number = None
+                    if self.tracking_number and blockchain_status in ['Completed'] and not self.funds_withdrawn:
+                        self.funds_withdrawn = True
+                        ContractActivity.log(
+                            contract=self,
+                            action='status_change',
+                            user_role='partner',
+                            details=f"Vertragsgelder wurden abgehoben"
+                        )
                     
                     if delivery_confirmed_by_oracle and not self.delivery_oracle_confirmed:
                         self.delivery_oracle_confirmed = True
@@ -229,7 +240,7 @@ class Contract(models.Model):
                         details=f"Blockchain-Status aktualisiert: {old_blockchain_status} -> {self.blockchain_status}"
                     )
                 
-                self.save(update_fields=['blockchain_status', 'status', 'package_status', 'tracking_hash', 'delivery_oracle_confirmed'])
+                self.save(update_fields=['blockchain_status', 'status', 'package_status', 'tracking_hash', 'delivery_oracle_confirmed', 'last_tracking_update', 'funds_withdrawn'])
                 return True
             except Exception as e:
                 print(f"Error updating blockchain status: {e}")

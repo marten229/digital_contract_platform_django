@@ -47,32 +47,6 @@
                     <i class="bi bi-download"></i> PDF herunterladen
                 </a>
             </div>
-
-            {% if user.is_authenticated %}
-                {% with not_creator_signed="signed_by_creator" %}
-                {% with not_partner_signed="signed_by_partner" %}
-                {% with completed="completed" %}
-                {% with blockchain="blockchain_published" %}
-                    {% if is_creator and contract.status != not_creator_signed and contract.status != completed and contract.status != blockchain or is_partner and contract.status != not_partner_signed and contract.status != completed and contract.status != blockchain %}
-                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-primary btn-sm mb-3">Zur Signatur</a>
-                    {% endif %}
-                {% endwith %}                {% endwith %}
-                {% endwith %}
-                {% endwith %}
-            {% endif %}
-            {% if user.is_authenticated and is_creator and contract.status == 'completed' and not contract.blockchain_contract_id %}
-                <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-success btn-sm mb-3">An Blockchain übermitteln</a>
-            {% endif %}            {% if user.is_authenticated and is_partner %}
-                {% if contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'DeliveryApproved' or contract.blockchain_status == 'Completed' %}
-                    {% if not contract.funds_withdrawn %}
-                        <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-warning btn-sm mb-3">Geld abheben</a>
-                    {% endif %}
-                {% endif %}
-            {% endif %}
-            
-            {% if user.is_authenticated and is_creator and contract.blockchain_contract_id and contract.blockchain_status != 'Completed' and contract.blockchain_status != 'Cancelled' %}
-                <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-danger btn-sm mb-3">Vertrag für nichtig erklären</a>
-            {% endif %}
         </div>
         
         <div class="col-md-4">
@@ -85,7 +59,8 @@
                         <div class="activity-timeline">
                             {% for activity in activities %}
                                 <div class="activity-item">
-                                    <div class="d-flex align-items-center">                                        <span class="user-role-{{ activity.user_role }}">
+                                    <div class="d-flex align-items-center">                                        
+                                        <span class="user-role-{{ activity.user_role }}">
                                             {% if activity.user_role == 'creator' %}
                                                 {% if contract.creator_address == user.ethereum_address %}
                                                     <i class="bi bi-person-fill"></i> Sie
@@ -126,18 +101,11 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-5">Ersteller:</dt>
-                        <dd class="col-sm-7">{{ contract.creator_address|truncatechars:15 }}</dd>
-                          <dt class="col-sm-5">Partner:</dt>
-                        <dd class="col-sm-7">{{ contract.partner.username }}</dd>
-                        
-                        {% if contract.partner.email %}
-                            <dt class="col-sm-5">Partner E-Mail:</dt>
-                            <dd class="col-sm-7">{{ contract.partner.email }}</dd>
-                        {% endif %}
+                        <dd class="col-sm-7">{{ contract.creator_address }}</dd>
                         
                         {% if contract.partner_address %}
-                            <dt class="col-sm-5">Partner Adresse:</dt>
-                            <dd class="col-sm-7">{{ contract.partner_address|truncatechars:15 }}</dd>
+                            <dt class="col-sm-5">Partner:</dt>
+                            <dd class="col-sm-7">{{ contract.partner_address }}</dd>
                         {% endif %}
                         
                         <dt class="col-sm-5">Letzte Änderung:</dt>
@@ -185,10 +153,6 @@
                                         <i class="bi bi-check-circle"></i> Lieferung bestätigen
                                     </a>
                                 {% endif %}
-                                
-                                <a href="{% url 'update_tracking' contract.pk %}" class="btn btn-primary btn-sm w-100">
-                                    <i class="bi bi-arrow-clockwise"></i> Tracking aktualisieren
-                                </a>
                             </div>
                         {% endif %}                    {% else %}
                         <p class="text-muted mb-2">Keine Tracking-Nummer hinterlegt.</p>
@@ -211,7 +175,8 @@
                         {% endif %}
                     {% endif %}
                 </div>
-            </div>            {% elif is_creator and contract.status == 'completed' %}
+            </div>            
+            {% elif is_creator and contract.status == 'completed' %}
             <div class="card mt-3">
                 <div class="card-header bg-light">
                     <h5 class="mb-0">DHL Tracking</h5>
@@ -236,40 +201,6 @@
     <p id="loadingMessage">Wird geladen...</p>
 </div>
 
-{% if user.is_authenticated and user.ethereum_address == contract.partner_address %}
-    {% if contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'DeliveryApproved' or contract.blockchain_status == 'Completed' %}
-<script>
-document.getElementById('withdrawBtn').addEventListener('click', function() {
-    // Implementiere hier die Logik zum Abheben von Geldern (z.B. AJAX-Aufruf an eine Django-View)
-    alert('Funktion zum Abheben von Geldern noch nicht implementiert.');
-    // Beispiel für einen AJAX-Aufruf (benötigt jQuery oder fetch API):
-    /*
-    fetch("{% url 'withdraw_funds' contract.pk %}", {
-        method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/json'
-        },
-        // body: JSON.stringify({})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Abhebung erfolgreich! Transaktion: ' + data.transaction);
-        } else {
-            alert('Fehler beim Abheben: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Ein Fehler ist aufgetreten.');
-    });
-    */
-});
-</script>
-    {% endif %}
-{% endif %}
 {% endblock %}
 
 {% block extra_js %}
