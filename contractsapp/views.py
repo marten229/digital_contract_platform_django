@@ -62,7 +62,7 @@ def contract_list(request):
         Q(status='partner_verified') |
         Q(status='signed_by_creator') |
         Q(status='signed_by_partner') |
-        Q(status='completed')  # Completed but not yet published to blockchain
+        Q(status='completed')
     ).exclude(
         Q(status='blockchain_published') |
         Q(status='package_shipped') |
@@ -70,7 +70,8 @@ def contract_list(request):
         Q(status='delivery_confirmed') |
         Q(status='delivery_approved') |
         Q(status='agreement_fulfilled')
-    )    # � ERFÜLLUNGSPHASE - Digitale Blockchain-Verträge (ohne Lieferung)
+    )    
+    # � ERFÜLLUNGSPHASE - Digitale Blockchain-Verträge (ohne Lieferung)
     digital_execution_contracts = all_contracts.filter(
         Q(status='blockchain_published') |
         Q(status='delivery_approved') |
@@ -90,7 +91,7 @@ def contract_list(request):
         Q(status='delivery_approved') |
         Q(status='agreement_fulfilled')
     ).filter(
-        has_dhl_tracking=True  # Nur Verträge mit aktiviertem DHL-Tracking
+        has_dhl_tracking=True
     ).exclude(
         Q(blockchain_status='Completed') & Q(funds_withdrawn=True)
     )
@@ -1722,20 +1723,16 @@ def prepare_set_oracle(request):
     if not deployer_address or not oracle_address or not contract_address:
         return JsonResponse({'success': False, 'message': 'Alle Adressen sind erforderlich'})
     
-    # Validate addresses
     if not (deployer_address.startswith('0x') and oracle_address.startswith('0x') and contract_address.startswith('0x')):
         return JsonResponse({'success': False, 'message': 'Ungültige Ethereum-Adressen'})
     
     try:
         blockchain_service = BlockchainService()
         
-        # Aktualisiere die Contract-Adresse im Service
         blockchain_service.set_contract_address(contract_address)
         
-        # Bereite die setOracle-Transaktion vor
         tx = blockchain_service.set_oracle(deployer_address, oracle_address)
         
-        # Konvertiere Bytes zu Hex für JSON-Serialisierung
         processed_tx = {}
         for key, value in tx.items():
             if isinstance(value, bytes):

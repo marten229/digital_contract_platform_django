@@ -10,15 +10,11 @@ import json
 User = get_user_model()
 
 def contract_pdf_file_path(instance, filename):
-    # Dateiendung (.pdf) vom Dateinamen extrahieren
     ext = filename.split('.')[-1]
     
-    # Wenn das Objekt bereits eine ID hat (bei Updates), verwende diese
     if instance.pk:
         return f'contracts/contract_{instance.pk}.{ext}'
     
-    # Bei der ersten Erstellung müssen wir die ID nach dem Speichern setzen
-    # Verwenden wir einen temporären Namen, der später aktualisiert wird
     return f'contracts/temp_{filename}'
 
 class Contract(models.Model):
@@ -43,16 +39,13 @@ class Contract(models.Model):
     title = models.CharField(max_length=255, verbose_name="Vertragstitel")
     pdf_file = models.FileField(upload_to='contracts/', verbose_name="Vertragsdokument (PDF)")
     uploaded_at = models.DateTimeField(auto_now_add=True)
-      # Beziehungen zu registrierten Benutzern (optional für die Migration)
     creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_contracts', verbose_name="Ersteller", null=True, blank=True)
     partner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='partnered_contracts', verbose_name="Partner", null=True, blank=True)
     
-    # Die primären Felder für Ethereum-Adressen
     creator_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Erstellers", default=None)
     partner_address = models.CharField(max_length=42, verbose_name="Ethereum-Adresse des Partners", 
                                       blank=False, null=False, default=None)
     
-    # Fields for signature positions
     creator_signature_x = models.FloatField(null=True, blank=True)
     creator_signature_y = models.FloatField(null=True, blank=True)
     creator_signature_width = models.FloatField(null=True, blank=True)
@@ -65,27 +58,23 @@ class Contract(models.Model):
     partner_signature_height = models.FloatField(null=True, blank=True)
     partner_signature_page = models.IntegerField(null=True, blank=True)
     
-    # Flag to track if the contract is in configuration state (uploaded but not yet finalized)
     is_configured = models.BooleanField(default=False)
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
     last_updated = models.DateTimeField(auto_now=True)
-      # New blockchain-related fields    
     blockchain_contract_id = models.BigIntegerField(null=True, blank=True, verbose_name="Blockchain-Vertrags-ID")
     pdf_hash = models.CharField(max_length=66, null=True, blank=True, verbose_name="PDF-Hash")
     blockchain_status = models.CharField(max_length=20, null=True, blank=True, verbose_name="Blockchain-Status")
     contract_amount = models.BigIntegerField(null=True, blank=True, verbose_name="Vertragsbetrag (Wei)")
     funds_withdrawn = models.BooleanField(default=False, verbose_name="Gelder wurden abgehoben")
     
-    # DHL tracking fields
     has_dhl_tracking = models.BooleanField(default=False, verbose_name="DHL Tracking aktivieren")
     tracking_number = models.CharField(max_length=50, null=True, blank=True, verbose_name="DHL Tracking-Nummer")
     package_status = models.CharField(max_length=50, null=True, blank=True, verbose_name="Paketstatus")
     last_tracking_update = models.DateTimeField(null=True, blank=True, verbose_name="Letzte Tracking-Aktualisierung")
     delivery_confirmation = models.BooleanField(default=False, verbose_name="Lieferung bestätigt")
     delivery_notes = models.TextField(null=True, blank=True, verbose_name="Lieferhinweise")
-    # Neues Feld für die Oracle-Bestätigung
-    delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")    # Speichert den Tracking-Hash für die Blockchain-Verifikation
+    delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")
     tracking_hash = models.CharField(max_length=70, null=True, blank=True, verbose_name="Tracking-Hash")
     
     def __str__(self):
@@ -101,68 +90,50 @@ class Contract(models.Model):
         return "Unbekannt"
     
     def save(self, *args, **kwargs):
-        # Stelle sicher, dass Ethereum-Adressen von den Benutzerkonten übernommen werden
         if self.creator and self.creator.ethereum_address:
             self.creator_address = self.creator.ethereum_address.lower()
             
         if self.partner and self.partner.ethereum_address:
             self.partner_address = self.partner.ethereum_address.lower()
             
-        # Erst speichern wir das Objekt, um die ID zu bekommen, falls es neu ist
         is_new = self.pk is None
-        
-        # Temporär speichern und dann wiederherstellen der creator/partner-Beziehungen
+    
         temp_creator = self.creator
         temp_partner = self.partner
         
-        # Setze die Felder auf None, damit Django nicht versucht, sie in die Datenbank zu schreiben
         self.creator = None
         self.partner = None
         
-        # Speichern ohne Dateibehandlung, um eine ID zu erhalten
         super().save(*args, **kwargs)
         
-        # Beziehungen wiederherstellen für weitere Code-Verwendung (aber nicht in DB)
         self.creator = temp_creator
         self.partner = temp_partner
         
-        # Nach dem Speichern, wenn ein PDF vorhanden ist, mit der richtigen ID speichern
         if self.pdf_file:
             try:
-                # Nur bei neuen Objekten oder wenn die PDF-Datei verändert wurde
                 if is_new or 'pdf_file' in kwargs.get('update_fields', []):
-                    # Die ContractStorage-Klasse instanziieren
                     contract_storage = ContractStorage()
                     
-                    # Die Datei mit ContractStorage speichern
-                    # Bei einer neuen Datei lesen wir die Datei aus der Feldquelle
                     if hasattr(self.pdf_file, 'file') and hasattr(self.pdf_file.file, 'read'):
-                        # Position am Dateianfang sicherstellen
                         self.pdf_file.file.seek(0)
                         
-                        # Datei mit der Vertrags-ID speichern
                         file_path = contract_storage.save_contract_file(
                             self.pk, 
                             self.pdf_file, 
                             is_signed='signed' in self.pdf_file.name
                         )
                         
-                        # PDF-Dateinamen im Modell aktualisieren
                         self.pdf_file.name = file_path
                         
-                        # If the PDF file has changed, recalculate its hash
                         if hasattr(self.pdf_file, 'file') and hasattr(self.pdf_file.file, 'read'):
-                            # Import here to avoid circular imports
                             from .blockchain import BlockchainService
                             blockchain_service = BlockchainService()
                             self.pdf_hash = blockchain_service.calculate_pdf_hash(self.pdf_file)
                         
-                        # Speichern ohne rekursiven Aufruf der save-Methode
                         super().save(update_fields=['pdf_file', 'pdf_hash'])
                     
-                    # Protokollieren für Debugging
                     print(f"Vertrag {self.pk} gespeichert: {self.pdf_file.name}")
-            except Exception as e:                # Fehler protokollieren
+            except Exception as e:
                 import traceback
                 print(f"Fehler beim Speichern des Vertrags {self.pk}: {e}")
                 print(traceback.format_exc())
@@ -205,12 +176,10 @@ class Contract(models.Model):
                 
                 # Get the current status from the blockchain
                 old_blockchain_status = self.blockchain_status
-                self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)                  # Check if Oracle has confirmed delivery on the blockchain based on status
+                self.blockchain_status = blockchain_service.get_contract_status(self.blockchain_contract_id)
                 try:
-                    # Get complete contract details including delivery status
                     contract_details = blockchain_service.get_contract_details_extended(self.blockchain_contract_id)
                     
-                    # Check if status indicates Oracle has confirmed delivery (DeliveryConfirmed or higher)
                     blockchain_status = contract_details.get('status', '')
                     delivery_confirmed_by_oracle = blockchain_status in ['DeliveryConfirmed', 'DeliveryApproved', 'Completed']
 
@@ -224,10 +193,8 @@ class Contract(models.Model):
                         self.package_status = 'delivered'
                         self.last_tracking_update = timezone.now()
                         
-                        # Safely handle tracking hash with length validation
                         tracking_hash_value = contract_details.get('deliveryTrackingHash', None)
                         if tracking_hash_value:
-                            # Ensure the tracking hash doesn't exceed the field limit
                             if len(str(tracking_hash_value)) <= 70:
                                 self.tracking_hash = tracking_hash_value
                             else:
@@ -243,9 +210,7 @@ class Contract(models.Model):
                         )
                         
                 except Exception as oracle_e:
-                    # Oracle check might fail if contract doesn't exist or network issues
                     print(f"Oracle check failed for contract {self.blockchain_contract_id}: {oracle_e}")
-                  # Update general contract status based on blockchain status
                 if self.blockchain_status in ['Created', 'Signed', 'AgreementFulfilled', 'Completed'] and self.status != 'blockchain_published' and \
                    self.status not in ['package_shipped', 'package_delivered', 'delivery_confirmed']:
                     self.status = 'blockchain_published'
@@ -256,7 +221,6 @@ class Contract(models.Model):
                         details=f"Vertragsstatus auf 'Auf Blockchain veröffentlicht' geändert (Blockchain-Status: {self.blockchain_status})"
                     )
                 
-                # Log blockchain status change if it changed
                 if old_blockchain_status != self.blockchain_status:
                     ContractActivity.log(
                         contract=self,
@@ -265,7 +229,6 @@ class Contract(models.Model):
                         details=f"Blockchain-Status aktualisiert: {old_blockchain_status} -> {self.blockchain_status}"
                     )
                 
-                # Use update_fields to avoid potential issues with large fields during save
                 self.save(update_fields=['blockchain_status', 'status', 'package_status', 'tracking_hash', 'delivery_oracle_confirmed'])
                 return True
             except Exception as e:

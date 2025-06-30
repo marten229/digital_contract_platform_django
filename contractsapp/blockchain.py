@@ -203,7 +203,6 @@ class BlockchainService:
         else:
             contract_hash_bytes = bytes.fromhex(contract_hash)
         
-        # Prepare the transaction
         tx = self.contract.functions.createContract(
             counterparty_address,
             contract_hash_bytes,
@@ -212,7 +211,7 @@ class BlockchainService:
             'from': creator_address,
             'value': amount_wei,
             'nonce': self.web3.eth.get_transaction_count(creator_address),
-            'gas': 2000000,  # Adjust as needed
+            'gas': 2000000,
             'gasPrice': self.web3.eth.gas_price
         })
         
