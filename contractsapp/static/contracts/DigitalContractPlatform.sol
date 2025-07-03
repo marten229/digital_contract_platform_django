@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.30;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract ContractManager is ReentrancyGuard {
     enum ContractStatus {
@@ -32,7 +32,7 @@ contract ContractManager is ReentrancyGuard {
     mapping(uint256 => ManagedContract) public contracts;
     uint256 public contractCounter;
 
-    mapping(address => uint256) public pendingWithdrawals;
+    mapping(address => uint256 amount) public pendingWithdrawals;
 
     event ContractCreated(uint256 indexed contractId, address creator, address counterparty);
     event ContractSigned(uint256 indexed contractId);
@@ -127,7 +127,7 @@ contract ContractManager is ReentrancyGuard {
         require(mContract.status == ContractStatus.DeliveryConfirmed, "Wrong status");
 
         mContract.status = ContractStatus.DeliveryApproved;
-        pendingWithdrawals[mContract.counterparty] += mContract.amount;
+        pendingWithdrawals[mContract.counterparty] = pendingWithdrawals[mContract.counterparty] + mContract.amount;
 
         emit DeliveryApproved(_contractId);
         emit PaymentReleased(_contractId, mContract.counterparty, mContract.amount);
@@ -139,7 +139,7 @@ contract ContractManager is ReentrancyGuard {
         require(!mContract.deliveryRequired, "Delivery flow required");
 
         mContract.status = ContractStatus.AgreementFulfilled;
-        pendingWithdrawals[mContract.counterparty] += mContract.amount;
+        pendingWithdrawals[mContract.counterparty] = pendingWithdrawals[mContract.counterparty] + mContract.amount;
 
         emit PaymentReleased(_contractId, mContract.counterparty, mContract.amount);
     }
@@ -155,17 +155,18 @@ contract ContractManager is ReentrancyGuard {
         uint256 amount = mContract.amount;
         require(pendingWithdrawals[msg.sender] >= amount, "No balance");
 
-        pendingWithdrawals[msg.sender] -= amount;
-        payable(msg.sender).transfer(amount);
+        pendingWithdrawals[msg.sender] = pendingWithdrawals[msg.sender] - amount;
 
         mContract.status = ContractStatus.Completed;
+
+        payable(msg.sender).transfer(amount);
 
         emit FundsWithdrawn(_contractId, msg.sender, amount);
     }
 
     function deactivateContract(uint256 _contractId) public onlyCreator(_contractId) {
         ManagedContract storage mContract = contracts[_contractId];
-        require(mContract.status != ContractStatus.Completed, "Already completed");
+        require(mContract.status == ContractStatus.Completed, "Only Completed");
 
         delete mContract.contractHash;
         delete mContract.deliveryTrackingHash;

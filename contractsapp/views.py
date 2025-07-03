@@ -1449,7 +1449,7 @@ def void_blockchain_contract(request, pk):
     """
     <summary>
      View for the contract creator to initiate the voiding (cancellation) of a contract on the blockchain.
-     Ensures the contract is on the blockchain and its status is not 'Completed' or already 'Cancelled'.
+     Ensures the contract is on the blockchain, has status 'Completed', and funds have not been withdrawn.
      On GET, displays contract details and the voiding form/button.
      On POST, calls the BlockchainService to prepare the `deactivate_contract` transaction.
      Renders the transaction details for the creator to execute via their wallet. Logs activities. Includes Etherscan links.
@@ -1472,6 +1472,11 @@ def void_blockchain_contract(request, pk):
     if contract.blockchain_status == 'Cancelled':
         messages.info(request, "Dieser Vertrag wurde bereits als nichtig markiert.")
         return redirect('contract_detail', pk=pk)
+    
+    # Nur Verträge mit Status "Completed" können nichtig gemacht werden (Smart Contract Bedingung)
+    if contract.blockchain_status != 'Completed':
+        messages.error(request, "Nur vollständig abgeschlossene Verträge können nichtig gemacht werden.")
+        return redirect('contract_detail', pk=pk)
 
     network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
     if network == 'mainnet':
@@ -1482,6 +1487,19 @@ def void_blockchain_contract(request, pk):
         tx_explorer_base = f"https://{network}.etherscan.io/tx/"
 
     if request.method == 'POST':
+        # Zusätzliche Prüfung vor der Blockchain-Transaktion
+        try:
+            # Aktualisiere zunächst den Blockchain-Status
+            contract.update_blockchain_status()
+            
+            # Prüfe erneut nach dem Update die Bedingungen
+            if contract.blockchain_status != 'Completed':
+                messages.error(request, "Nur vollständig abgeschlossene Verträge können nichtig gemacht werden.")
+                return redirect('contract_detail', pk=pk)
+                
+        except Exception as e:
+            print(f"Fehler beim Aktualisieren des Blockchain-Status: {e}")
+        
         try:
             tx = blockchain_service.deactivate_contract(
                 creator_address=contract.creator_address,
@@ -1519,15 +1537,24 @@ def void_blockchain_contract(request, pk):
                 'tx_explorer_base': tx_explorer_base
             })
         except Exception as e:
+            error_message = str(e)
+            
+            if "revert" in error_message.lower():
+                error_message = "Der Smart Contract hat die Stornierung abgelehnt. Möglicherweise ist der Vertrag in einem Zustand, der keine Stornierung erlaubt."
+            elif "insufficient funds" in error_message.lower():
+                error_message = "Unzureichende ETH-Mittel für die Transaktion."
+            elif "invalid address" in error_message.lower():
+                error_message = "Ungültige Ethereum-Adresse."
+            
             ContractActivity.log(
                 contract=contract,
                 action='blockchain_error',
                 user=request.user,
                 user_role='creator',
-                details=f"Fehler bei der Blockchain-Vertragsnichtigkeit: {str(e)}"
+                details=f"Fehler bei der Blockchain-Vertragsnichtigkeit: {error_message}"
             )
 
-            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Vertragsnichtigkeit: {str(e)}")
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Vertragsnichtigkeit: {error_message}")
             return redirect('contract_detail', pk=pk)
 
     ContractActivity.log(
