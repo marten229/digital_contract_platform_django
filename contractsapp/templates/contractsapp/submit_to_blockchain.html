@@ -10,16 +10,16 @@
 {% block content %}
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4">
-        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
-            <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
+        <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
         </a>
         <h1 class="mb-0">Vertrag an Blockchain übermitteln</h1>
     </div>
     
     
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        Ihr Vertrag wurde von allen Parteien unterschrieben und ist bereit, auf der Ethereum-Blockchain registriert zu werden.
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        Ihr Vertrag wurde von allen Parteien unterschrieben und ist bereit für die Blockchain-Registrierung.
         Dies erhöht die Sicherheit und Nachweisbarkeit des Vertrags und ermöglicht die Hinterlegung von Vertragsgeldern.
     </div>
     
@@ -39,11 +39,15 @@
                     </div>
                     <div class="row mb-2">
                         <div class="col-sm-4"><strong>Partner:</strong></div>
-                        <div class="col-sm-8">{{ contract.partner_name }} ({{ contract.partner_address }})</div>
+                        <div class="col-sm-8">{{ contract.partner_address }}</div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-sm-4"><strong>Status:</strong></div>
                         <div class="col-sm-8">{{ contract.get_status_display_german }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragsbetrag:</strong></div>
+                        <div class="col-sm-8">{{ contract.eth_amount|floatformat:4 }} ETH</div>
                     </div>
                     <div class="row mb-2">
                         <div class="col-sm-4"><strong>PDF-Hash:</strong></div>
@@ -55,11 +59,15 @@
                 
                 {% if is_submission %}
                 <div id="blockchain-submission-area">
-                    <h4 class="mb-3">Vertrag auf der Blockchain registrieren</h4>
-                    <p>
-                        Sie sind dabei, den Vertrag auf der Ethereum-Blockchain zu registrieren. 
-                        Bitte verwenden Sie Ihre MetaMask-Wallet, um die Transaktion zu bestätigen.
-                    </p>
+                    <h4 class="mb-3">Blockchain-Registrierung</h4>
+                    <div class="alert alert-info mb-4">
+                        <p class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Ihr Vertrag ist bereit für die Blockchain-Registrierung mit einem Betrag von 
+                            <strong>{{ contract.eth_amount|floatformat:4 }} ETH</strong>.
+                            Klicken Sie auf den Button, um die Transaktion mit MetaMask zu bestätigen.
+                        </p>
+                    </div>
                     
                     <div class="d-grid gap-2 mb-4">
                         <button id="submit-button" class="btn btn-primary btn-lg">
@@ -96,9 +104,10 @@
                             <span id="contract-id"></span>
                         </p>
                         <div class="mt-3">
-                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary">
-                                Zurück zum Vertrag
-                            </a>
+                            <button id="show-next-steps-btn" class="btn btn-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
                         </div>
                     </div>
                     
@@ -116,36 +125,9 @@
                     </div>
                 </div>
                 {% else %}
-                <div id="contract-info-area">
-                    <h4 class="mb-3">Vertragsbetrag</h4>
-                    
-                    {% if contract.contract_amount %}
-                    <div class="alert alert-info">
-                        <p class="mb-0">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Der Vertrag wird mit dem beim Hochladen festgelegten Betrag von 
-                            <strong>{{ contract.eth_amount|floatformat:4 }} ETH</strong> auf der Blockchain registriert.
-                        </p>
-                    </div>
-                    
-                    <div class="d-grid gap-2 mb-4">
-                        <form method="post">
-                            {% csrf_token %}
-                            <input type="hidden" name="use_existing_amount" value="true">
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-currency-exchange me-2"></i>
-                                Mit Blockchain-Registrierung fortfahren
-                            </button>
-                        </form>
-                    </div>
-                    {% else %}
-                    <div class="alert alert-warning">
-                        <p class="mb-0">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.
-                        </p>
-                    </div>
-                    {% endif %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Fehler:</strong> Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.
                 </div>
                 {% endif %}
             </div>
@@ -179,6 +161,9 @@
 <div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
 <div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
 <div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+
+<!-- Modal for next steps after blockchain registration -->
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -274,10 +259,16 @@
                         if (contractId) {
                             document.getElementById('contract-id').textContent = contractId;
                             await updateBlockchainStatus(receipt.transactionHash, contractId);
+                            
+                            // Show the next steps modal after successful registration
+                            showNextStepsModal();
                         } else {
                             document.getElementById('contract-id').textContent = "Event nicht gefunden";
                             console.warn('Kein ContractCreated Event in Receipt gefunden');
                             await updateBlockchainStatus(receipt.transactionHash, null);
+                            
+                            // Show the next steps modal even if contract ID wasn't found
+                            showNextStepsModal();
                         }
                     })
                     .on('error', function(error) {
@@ -336,6 +327,84 @@
                 }
             }
             return cookieValue;
+        }
+        
+        // Function to show the next steps modal
+        function showNextStepsModal() {
+            // Check if this contract has DHL tracking enabled
+            const hasDhlTracking = {{ contract.has_dhl_tracking|yesno:"true,false" }};
+            
+            if (hasDhlTracking) {
+                // DHL tracking contract - explain that partner will need to add tracking number after signing
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Registrierung erfolgreich!',
+                    description: 'Der Vertrag wurde erfolgreich auf der Blockchain registriert. Da es sich um einen Liefervertrag handelt, muss Ihr Partner zuerst den Vertrag bestätigen und dann die DHL-Tracking-Nummer hinzufügen.',
+                    tip: 'Nach der Partnersignatur kann der Partner die Tracking-Nummer hinterlegen und das Paket wird automatisch verfolgt.',
+                    options: [
+                        {
+                            title: 'Vertrag verfolgen',
+                            description: 'Überwachen Sie den Status und warten Sie auf die Partnersignatur'
+                        },
+                        {
+                            title: 'Übersicht',
+                            description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                        }
+                    ],
+                    primaryButtonText: 'Vertrag verfolgen',
+                    primaryButtonIcon: 'bi bi-eye',
+                    primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            } else {
+                // Normal contract without delivery
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Registrierung erfolgreich!',
+                    description: 'Der Vertrag wurde erfolgreich auf der Blockchain registriert. Jetzt muss Ihr Vertragspartner den Vertrag auf der Blockchain bestätigen, um den Prozess abzuschließen.',
+                    tip: 'Ihr Partner wird automatisch benachrichtigt und kann den Vertrag über seine Vertragsübersicht signieren.',
+                    options: [
+                        {
+                            title: 'Vertrag verfolgen',
+                            description: 'Überwachen Sie den Status und warten Sie auf die Partnersignatur'
+                        },
+                        {
+                            title: 'Übersicht',
+                            description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                        }
+                    ],
+                    primaryButtonText: 'Vertrag verfolgen',
+                    primaryButtonIcon: 'bi bi-eye',
+                    primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            }
+        }
+        
+        // Handle the "Nächste Schritte anzeigen" button click
+        const showNextStepsBtn = document.getElementById('show-next-steps-btn');
+        if (showNextStepsBtn) {
+            showNextStepsBtn.addEventListener('click', function() {
+                showNextStepsModal();
+            });
+        }
+        
+        // Handle modal button clicks (old implementation, now handled by reusable component)
+        const goToOverviewBtn = document.getElementById('goToOverviewBtn');
+        const trackContractBtn = document.getElementById('trackContractBtn');
+        
+        if (goToOverviewBtn) {
+            goToOverviewBtn.addEventListener('click', function() {
+                window.location.href = "{% url 'contract_list' %}";
+            });
+        }
+        
+        if (trackContractBtn) {
+            trackContractBtn.addEventListener('click', function() {
+                window.location.href = "{% url 'contract_detail' contract.pk %}";
+            });
         }
     });
 </script>

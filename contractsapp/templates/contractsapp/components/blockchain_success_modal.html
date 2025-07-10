@@ -1,0 +1,103 @@
+<!-- Wiederverwendbare Blockchain Success Modal Komponente -->
+<div class="modal fade" id="blockchainSuccessModal" tabindex="-1" aria-labelledby="blockchainSuccessModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="blockchainSuccessModalLabel">
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    <span id="modalTitle">Blockchain-Transaktion erfolgreich!</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-success">
+                    <h6><i class="bi bi-info-circle me-2"></i>Was passiert als nächstes?</h6>
+                    <p class="mb-0" id="modalDescription">
+                        Die Blockchain-Transaktion wurde erfolgreich abgeschlossen.
+                    </p>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Ihre Optionen:</h6>
+                    <ul class="mb-0" id="modalOptions">
+                        <li><strong>Vertrag verfolgen:</strong> Überwachen Sie den Status und weitere Entwicklungen</li>
+                        <li><strong>Übersicht:</strong> Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-info">
+                    <small>
+                        <i class="bi bi-lightbulb me-2"></i>
+                        <strong>Tipp:</strong> <span id="modalTip">Sie können den aktuellen Status jederzeit in der Vertragsübersicht einsehen.</span>
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="goToOverviewModalBtn">
+                    <i class="bi bi-list-ul me-2"></i>
+                    Zur Übersicht
+                </button>
+                <button type="button" class="btn btn-primary" id="trackContractModalBtn">
+                    <i class="bi bi-eye me-2"></i>
+                    Vertrag verfolgen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Wiederverwendbare Blockchain Success Modal Funktionen
+window.BlockchainSuccessModal = {
+    show: function(config) {
+        const modal = document.getElementById('blockchainSuccessModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalDescription = document.getElementById('modalDescription');
+        const modalOptions = document.getElementById('modalOptions');
+        const modalTip = document.getElementById('modalTip');
+        const goToOverviewBtn = document.getElementById('goToOverviewModalBtn');
+        const trackContractBtn = document.getElementById('trackContractModalBtn');
+        
+        // Konfiguration anwenden
+        if (config.title) modalTitle.textContent = config.title;
+        if (config.description) modalDescription.textContent = config.description;
+        if (config.tip) modalTip.textContent = config.tip;
+        
+        // Optionen aktualisieren
+        if (config.options && config.options.length > 0) {
+            modalOptions.innerHTML = '';
+            config.options.forEach(option => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${option.title}:</strong> ${option.description}`;
+                modalOptions.appendChild(li);
+            });
+        }
+        
+        // Button-Text und -Aktionen anpassen
+        if (config.primaryButtonText) {
+            trackContractBtn.innerHTML = `<i class="${config.primaryButtonIcon || 'bi bi-eye'} me-2"></i>${config.primaryButtonText}`;
+        }
+        
+        if (config.secondaryButtonText) {
+            goToOverviewBtn.innerHTML = `<i class="${config.secondaryButtonIcon || 'bi bi-list-ul'} me-2"></i>${config.secondaryButtonText}`;
+        }
+        
+        // Button-Handler setzen
+        goToOverviewBtn.onclick = function() {
+            if (config.secondaryButtonUrl || config.overviewUrl) {
+                window.location.href = config.secondaryButtonUrl || config.overviewUrl;
+            }
+        };
+        
+        trackContractBtn.onclick = function() {
+            if (config.primaryButtonUrl || config.contractUrl) {
+                window.location.href = config.primaryButtonUrl || config.contractUrl;
+            }
+        };
+        
+        // Modal anzeigen
+        const bootstrapModal = new bootstrap.Modal(modal);
+        bootstrapModal.show();
+    }
+};
+</script>

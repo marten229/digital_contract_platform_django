@@ -93,7 +93,7 @@ def contract_list(request):
     ).filter(
         has_dhl_tracking=True
     ).exclude(
-        Q(blockchain_status='Completed') & Q(funds_withdrawn=True)
+        (Q(blockchain_status='Completed') & Q(funds_withdrawn=True)) | Q(blockchain_status='Cancelled') 
     )
 
     # ✅ ABGESCHLOSSENE VERTRÄGE
@@ -186,7 +186,7 @@ def contract_configuration(request, pk):
      It fetches the contract specified by 'pk' and ensures the current user is the creator.
      If the contract is already configured, it redirects to the detail view.
      Logs the start of the configuration process if the status is 'uploaded'.
-     </summary>
+    </summary>
     <param name="request">The HttpRequest object containing user session data.</param>
     <param name="pk">The primary key of the Contract to be configured.</param>
     <returns>An HttpResponse object rendering the 'contract_configuration.html' template or an HttpResponseRedirect to the 'contract_detail' view.</returns>
@@ -879,38 +879,6 @@ def update_blockchain_status(request, pk):
 
     return JsonResponse({'success': False, 'message': 'Keine Contract-ID erhalten. Die Transaktion wurde möglicherweise nicht bestätigt.'})
 
-
-@login_required
-def withdraw_funds(request, pk):
-    """
-    <summary>
-     Handles AJAX POST requests for the partner to initiate the fund withdrawal process from the blockchain smart contract.
-     Verifies the user is the partner and the contract's blockchain status is 'Completed'.
-     Calls the `withdrawFunds` method of the BlockchainService to prepare the transaction.
-     </summary>
-    <param name="request">The HttpRequest object, expected to be AJAX POST.</param>
-    <param name="pk">The primary key of the Contract from which funds are to be withdrawn.</param>
-    <returns>A JsonResponse containing the prepared transaction details on success, or an error message on failure.</returns>
-    """
-    if request.method != 'POST' or not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return JsonResponse({'success': False, 'message': 'Ungültige Anfrage'})
-    
-    contract = get_object_or_404(Contract, pk=pk)
-
-    if request.user.ethereum_address != contract.partner_address:
-        return JsonResponse({'success': False, 'message': 'Nicht autorisiert'})
-
-    if contract.blockchain_status not in ['AgreementFulfilled', 'DeliveryApproved', 'Completed']:
-        return JsonResponse({'success': False, 'message': 'Vertrag ist noch nicht bereit für Geldabhebung'})
-
-    blockchain_service = BlockchainService()
-    try:
-        tx = blockchain_service.withdrawFunds(request.user.ethereum_address, contract.blockchain_contract_id)
-        return JsonResponse({'success': True, 'transaction': json.dumps(dict(tx))})
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': f'Fehler: {str(e)}'})
-
-
 @login_required
 def deploy_contract(request):
     """
@@ -1025,106 +993,95 @@ def submit_to_blockchain(request, pk):
         messages.info(request, "Dieser Vertrag wurde bereits an die Blockchain übermittelt.")
         return redirect('contract_detail', pk=pk)
 
-    if request.method == 'POST':
-        if not contract.contract_amount:
-            messages.error(request, "Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.")
-            return render(request, 'contractsapp/submit_to_blockchain.html', {
-                'contract': contract,
-                'blockchain_service': blockchain_service
-            })
+    # Prüfe, ob alle erforderlichen Daten vorhanden sind
+    if not contract.contract_amount:
+        messages.error(request, "Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.")
+        return render(request, 'contractsapp/submit_to_blockchain.html', {
+            'contract': contract,
+            'blockchain_service': blockchain_service,
+            'show_error': True
+        })
 
+    if not contract.partner_address:
+        messages.error(request, "Der Vertragspartner muss eine Ethereum-Adresse haben.")
+        return redirect('contract_detail', pk=pk)
+
+    # PDF-Hash prüfen und berechnen falls notwendig
+    if not contract.pdf_hash:
         try:
-            if not contract.partner_address:
-                messages.error(request, "Der Vertragspartner muss eine Ethereum-Adresse haben.")
-                return redirect('contract_detail', pk=pk)
-
-            if not contract.pdf_hash:
-                try:
-                    contract.pdf_hash = blockchain_service.calculate_pdf_hash(contract.pdf_file)
-                    contract.save(update_fields=['pdf_hash'])
-
-                    ContractActivity.log(
-                        contract=contract,
-                        action='blockchain',
-                        user=request.user,
-                        user_role='creator',
-                        details="PDF-Hash wurde neu berechnet für Blockchain-Übermittlung"
-                    )
-
-                    messages.success(request, "PDF-Hash wurde neu berechnet.")
-                except Exception as hash_error:
-                    messages.error(request, f"Fehler beim Berechnen des PDF-Hashes: {str(hash_error)}")
-                    return redirect('contract_detail', pk=pk)
-
-            if not contract.pdf_hash:
-                messages.error(request, "Der Vertrag hat keinen gültigen PDF-Hash. Bitte kontaktieren Sie den Support.")
-                return redirect('contract_detail', pk=pk)
-            
-            if contract.pdf_hash.startswith('0x'):
-                pdf_hash = contract.pdf_hash[2:]
-
-            tx = blockchain_service.create_contract(
-                creator_address=contract.creator_address,
-                counterparty_address=contract.partner_address,
-                contract_hash=pdf_hash,
-                amount_wei=contract.contract_amount
-            )
+            contract.pdf_hash = blockchain_service.calculate_pdf_hash(contract.pdf_file)
+            contract.save(update_fields=['pdf_hash'])
 
             ContractActivity.log(
                 contract=contract,
                 action='blockchain',
                 user=request.user,
                 user_role='creator',
-                details="Blockchain-Transaktion für Vertrag vorbereitet"
+                details="PDF-Hash wurde neu berechnet für Blockchain-Übermittlung"
             )
 
-            tx_dict = dict(tx)
-
-            processed_tx = {}
-            for key, value in tx_dict.items():
-                if isinstance(value, bytes):
-                    processed_tx[key] = value.hex()
-                else:
-                    processed_tx[key] = value
-
-            if 'to' not in processed_tx and blockchain_service.contract_address:
-                processed_tx['to'] = blockchain_service.contract_address
-
-            transaction_json = json.dumps(processed_tx)
-
-            return render(request, 'contractsapp/submit_to_blockchain.html', {
-                'contract': contract,
-                'transaction': transaction_json,
-                'is_submission': True,
-                'blockchain_service': blockchain_service
-            })
-        except Exception as e:
-            ContractActivity.log(
-                contract=contract,
-                action='blockchain_error',
-                user=request.user,
-                user_role='creator',
-                details=f"Fehler bei der Blockchain-Übermittlung: {str(e)}"
-            )
-
-            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Transaktion: {str(e)}")
+            messages.success(request, "PDF-Hash wurde neu berechnet.")
+        except Exception as hash_error:
+            messages.error(request, f"Fehler beim Berechnen des PDF-Hashes: {str(hash_error)}")
             return redirect('contract_detail', pk=pk)
 
-    ContractActivity.log(
-        contract=contract,
-        action='blockchain',
-        user=request.user,
-        user_role='creator',
-        details="Blockchain-Übermittlungsseite geöffnet"
-    )
+    if not contract.pdf_hash:
+        messages.error(request, "Der Vertrag hat keinen gültigen PDF-Hash. Bitte kontaktieren Sie den Support.")
+        return redirect('contract_detail', pk=pk)
 
-    if contract.contract_amount:
-        contract.eth_amount = contract.contract_amount / (10**18)
+    # Blockchain-Transaktion vorbereiten
+    try:
+        pdf_hash = contract.pdf_hash[2:] if contract.pdf_hash.startswith('0x') else contract.pdf_hash
 
-    return render(request, 'contractsapp/submit_to_blockchain.html', {
-        'contract': contract,
-        'blockchain_service': blockchain_service
-    })
+        tx = blockchain_service.create_contract(
+            creator_address=contract.creator_address,
+            counterparty_address=contract.partner_address,
+            contract_hash=pdf_hash,
+            amount_wei=contract.contract_amount
+        )
+
+        ContractActivity.log(
+            contract=contract,
+            action='blockchain',
+            user=request.user,
+            user_role='creator',
+            details="Blockchain-Übermittlungsseite geöffnet - Transaktion vorbereitet"
+        )
+
+        tx_dict = dict(tx)
+
+        processed_tx = {}
+        for key, value in tx_dict.items():
+            if isinstance(value, bytes):
+                processed_tx[key] = value.hex()
+            else:
+                processed_tx[key] = value
+
+        if 'to' not in processed_tx and blockchain_service.contract_address:
+            processed_tx['to'] = blockchain_service.contract_address
+
+        transaction_json = json.dumps(processed_tx)
+
+        if contract.contract_amount:
+            contract.eth_amount = contract.contract_amount / (10**18)
+
+        return render(request, 'contractsapp/submit_to_blockchain.html', {
+            'contract': contract,
+            'transaction': transaction_json,
+            'is_submission': True,
+            'blockchain_service': blockchain_service
+        })
+    except Exception as e:
+        ContractActivity.log(
+            contract=contract,
+            action='blockchain_error',
+            user=request.user,
+            user_role='creator',
+            details=f"Fehler bei der Blockchain-Übermittlung: {str(e)}"
+        )
+
+        messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Transaktion: {str(e)}")
+        return redirect('contract_detail', pk=pk)
 
 
 @login_required
@@ -1156,77 +1113,55 @@ def sign_blockchain_contract(request, pk):
         messages.info(request, "Dieser Vertrag benötigt keine Signatur mehr auf der Blockchain.")
         return redirect('contract_detail', pk=pk)
 
-    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
-    if network == 'mainnet':
-        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
-        tx_explorer_base = "https://etherscan.io/tx/"
-    else:
-        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
-        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
 
-    if request.method == 'POST':
-        try:
-            tx = blockchain_service.sign_contract(
-                partner_address=contract.partner_address,
-                contract_id=contract.blockchain_contract_id
-            )
+    try:
+        tx = blockchain_service.sign_contract(
+            partner_address=contract.partner_address,
+            contract_id=contract.blockchain_contract_id
+        )
 
-            ContractActivity.log(
-                contract=contract,
-                action='blockchain_sign',
-                user=request.user,
-                user_role='partner',
-                details="Blockchain-Signatur für Vertrag vorbereitet"
-            )
+        ContractActivity.log(
+            contract=contract,
+            action='blockchain_sign_view',
+            user=request.user,
+            user_role='partner',
+            details="Blockchain-Signaturseite geöffnet - Transaktion vorbereitet"
+        )
 
-            tx_dict = dict(tx)
+        tx_dict = dict(tx)
 
-            processed_tx = {}
-            for key, value in tx_dict.items():
-                if isinstance(value, bytes):
-                    processed_tx[key] = value.hex()
-                else:
-                    processed_tx[key] = value
+        processed_tx = {}
+        for key, value in tx_dict.items():
+            if isinstance(value, bytes):
+                processed_tx[key] = value.hex()
+            else:
+                processed_tx[key] = value
 
-            if 'to' not in processed_tx and blockchain_service.contract_address:
-                processed_tx['to'] = blockchain_service.contract_address
+        if 'to' not in processed_tx and blockchain_service.contract_address:
+            processed_tx['to'] = blockchain_service.contract_address
 
-            transaction_json = json.dumps(processed_tx)
+        transaction_json = json.dumps(processed_tx)
 
-            return render(request, 'contractsapp/sign_blockchain_contract.html', {
-                'contract': contract,
-                'transaction': transaction_json,
-                'is_submission': True,
-                'blockchain_service': blockchain_service,
-                'explorer_url': explorer_url,
-                'tx_explorer_base': tx_explorer_base
-            })
-        except Exception as e:
-            ContractActivity.log(
-                contract=contract,
-                action='blockchain_error',
-                user=request.user,
-                user_role='partner',
-                details=f"Fehler bei der Blockchain-Signatur: {str(e)}"
-            )
+        if contract.contract_amount:
+            contract.eth_amount = contract.contract_amount / (10**18)
 
-            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Signatur: {str(e)}")
-            return redirect('contract_detail', pk=pk)
+        return render(request, 'contractsapp/sign_blockchain_contract.html', {
+            'contract': contract,
+            'transaction': transaction_json,
+            'is_submission': True,
+            'blockchain_service': blockchain_service,
+        })
+    except Exception as e:
+        ContractActivity.log(
+            contract=contract,
+            action='blockchain_error',
+            user=request.user,
+            user_role='partner',
+            details=f"Fehler bei der Blockchain-Signatur: {str(e)}"
+        )
 
-    ContractActivity.log(
-        contract=contract,
-        action='blockchain_sign_view',
-        user=request.user,
-        user_role='partner',
-        details="Blockchain-Signaturseite geöffnet"
-    )
-
-    return render(request, 'contractsapp/sign_blockchain_contract.html', {
-        'contract': contract,
-        'blockchain_service': blockchain_service,
-        'explorer_url': explorer_url,
-        'tx_explorer_base': tx_explorer_base
-    })
+        messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Signatur: {str(e)}")
+        return redirect('contract_detail', pk=pk)
 
 
 @login_required
@@ -1371,14 +1306,11 @@ def withdraw_contract_funds(request, pk):
             messages.info(request, "Aus diesem Vertrag können keine Gelder abgehoben werden.")
         return redirect('contract_detail', pk=pk)
 
-    network = getattr(settings, 'ETHEREUM_NETWORK', 'sepolia')
-    if network == 'mainnet':
-        explorer_url = f"https://etherscan.io/address/{blockchain_service.contract_address}"
-        tx_explorer_base = "https://etherscan.io/tx/"
-    else:
-        explorer_url = f"https://{network}.etherscan.io/address/{blockchain_service.contract_address}"
-        tx_explorer_base = f"https://{network}.etherscan.io/tx/"
+    # Calculate ETH amount for display
+    if contract.contract_amount:
+        contract.eth_amount = contract.contract_amount / (10**18)
 
+    # Handle form submission and prepare blockchain transaction immediately
     if request.method == 'POST':
         try:
             tx = blockchain_service.withdrawFunds(
@@ -1395,7 +1327,6 @@ def withdraw_contract_funds(request, pk):
             )
 
             tx_dict = dict(tx)
-
             processed_tx = {}
             for key, value in tx_dict.items():
                 if isinstance(value, bytes):
@@ -1413,8 +1344,6 @@ def withdraw_contract_funds(request, pk):
                 'transaction': transaction_json,
                 'is_submission': True,
                 'blockchain_service': blockchain_service,
-                'explorer_url': explorer_url,
-                'tx_explorer_base': tx_explorer_base
             })
         except Exception as e:
             ContractActivity.log(
@@ -1426,7 +1355,10 @@ def withdraw_contract_funds(request, pk):
             )
 
             messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Geldabhebung: {str(e)}")
-            return redirect('contract_detail', pk=pk)
+            return render(request, 'contractsapp/withdraw_contract_funds.html', {
+                'contract': contract,
+                'blockchain_service': blockchain_service,
+            })
 
     ContractActivity.log(
         contract=contract,
@@ -1439,8 +1371,6 @@ def withdraw_contract_funds(request, pk):
     return render(request, 'contractsapp/withdraw_contract_funds.html', {
         'contract': contract,
         'blockchain_service': blockchain_service,
-        'explorer_url': explorer_url,
-        'tx_explorer_base': tx_explorer_base
     })
 
 
@@ -1684,52 +1614,79 @@ def add_tracking_number(request, pk):
         messages.error(request, "Nur der Vertragspartner kann Tracking-Nummern hinzufügen.")
         return redirect('contract_detail', pk=pk)
     
-    # GET request - show the form
-    if request.method == 'GET':
-        return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
+    contract.update_blockchain_status()
     
-    # POST request - process the tracking number
-    if request.method == 'POST':
-        tracking_number = request.POST.get('tracking_number', '')
-        submit_to_blockchain = request.POST.get('submit_to_blockchain', 'false') == 'true'
+    if contract.contract_amount:
+        contract.eth_amount = contract.contract_amount / (10**18)
+
+    if request.method == 'POST' and 'tracking_number' in request.POST and 'submit_to_blockchain' not in request.POST:
+        tracking_number = request.POST.get('tracking_number', '').strip()
         
         if not tracking_number:
             messages.error(request, "Bitte geben Sie eine gültige Tracking-Nummer ein.")
             return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
         
-        if submit_to_blockchain:
-            # Die Tracking-Nummer wird erst nach erfolgreicher Transaktion gespeichert
-            blockchain_service = BlockchainService()
-            try:
-                tx_data = blockchain_service.set_delivery_tracking(
-                    user_eth_address, 
-                    contract.blockchain_contract_id, 
-                    tracking_number,  # ← Korrigiert: verwende tracking_number aus POST, nicht contract.tracking_number
-                )
-                contract.tracking_number = tracking_number
-                contract.status = 'package_shipped'
-                contract.save(update_fields=['tracking_number', 'status'])
+        blockchain_service = BlockchainService()
+        try:
+            tx_result = blockchain_service.set_delivery_tracking(
+                user_eth_address, 
+                contract.blockchain_contract_id, 
+                tracking_number
+            )
+            
+            if isinstance(tx_result, dict) and 'transaction' in tx_result:
+                tx = tx_result['transaction']
+            else:
+                tx = tx_result
+            
+            ContractActivity.log(
+                contract=contract,
+                action='tracking_prepare',
+                user=request.user,
+                user_role='partner',
+                details=f"Tracking-Nummer {tracking_number} - Blockchain-Transaktion vorbereitet"
+            )
+            
+            # Convert transaction to JSON-serializable format
+            tx_dict = dict(tx)
+            processed_tx = {}
+            for key, value in tx_dict.items():
+                if isinstance(value, bytes):
+                    processed_tx[key] = value.hex()
+                else:
+                    processed_tx[key] = value
+            
+            if 'to' not in processed_tx and blockchain_service.contract_address:
+                processed_tx['to'] = blockchain_service.contract_address
+            
+            transaction_json = json.dumps(processed_tx)
 
-                context = {
-                    'contract': contract,
-                    'tracking_number': tracking_number,  # Pass to template for later DB save
-                    'is_submission': True,
-                    'transaction': json.dumps(tx_data.get('transaction')),
-                    'blockchain_service': blockchain_service,
-                }
-                return render(request, 'contractsapp/add_tracking.html', context)
-                
-            except Exception as e:
-                messages.error(request, f"Fehler bei der Blockchain-Transaktion: {str(e)}")
-                return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
-        else:
-            # Just show the form with blockchain submission option
-            context = {
+            contract.tracking_number = tracking_number
+            contract.status = 'package_shipped'
+            contract.save(update_fields=['tracking_number', 'status'])
+            
+            return render(request, 'contractsapp/add_tracking.html', {
                 'contract': contract,
                 'tracking_number': tracking_number,
-                'show_blockchain_form': True,
-            }
-            return render(request, 'contractsapp/add_tracking.html', context)
+                'transaction': transaction_json,
+                'is_submission': True,
+                'blockchain_service': blockchain_service
+            })
+            
+        except Exception as e:
+            ContractActivity.log(
+                contract=contract,
+                action='tracking_error',
+                user=request.user,
+                user_role='partner',
+                details=f"Fehler bei Tracking-Nummer {tracking_number}: {str(e)} - Contract ID: {contract.blockchain_contract_id}, Partner: {user_eth_address}"
+            )
+            
+            messages.error(request, f"Fehler bei der Vorbereitung der Blockchain-Transaktion: {str(e)}")
+            return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
+    
+    # GET request - show the initial form
+    return render(request, 'contractsapp/add_tracking.html', {'contract': contract})
 
 
 @login_required

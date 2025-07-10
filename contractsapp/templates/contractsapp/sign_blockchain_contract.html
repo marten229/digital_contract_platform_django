@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Vertrag auf Blockchain signieren | DigiContract{% endblock %}
+{% block title %}Vertrag auf Blockchain bestätigen | DigiContract{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
@@ -10,16 +10,16 @@
 {% block content %}
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4">
-        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
-            <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
+        <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
         </a>
-        <h1 class="mb-0">Vertrag auf Blockchain signieren</h1>
+        <h1 class="mb-0">Vertrag auf Blockchain bestätigen</h1>
     </div>
     
-    <div class="alert alert-info">
-        <i class="bi bi-info-circle-fill me-2"></i>
-        Der Vertrag wurde vom Ersteller auf der Ethereum-Blockchain registriert und wartet auf Ihre Bestätigung.
-        Durch Ihre Signatur bestätigen Sie den Vertrag auf der Blockchain und aktivieren die Vertragsfunktionen.
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        Der Vertrag wurde vom Ersteller auf der Ethereum-Blockchain registriert und ist bereit für Ihre Bestätigung.
+        Durch Ihre Zustimmung bestätigen Sie den Vertrag auf der Blockchain und aktivieren die Vertragsfunktionen.
     </div>
     
     <div class="row">
@@ -49,7 +49,7 @@
                         <div class="col-sm-8">{{ contract.blockchain_status }}</div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-sm-4"><strong>Blockchain-ID:</strong></div>
+                        <div class="col-sm-4"><strong>Vertrags-ID:</strong></div>
                         <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
                     </div>
                     <div class="row mb-2">
@@ -66,28 +66,21 @@
                     {% endif %}
                 </div>
                 
-                <div class="mt-4 mb-3">
-                    <h4>Smart Contract auf der Blockchain</h4>
-                    <p>
-                        <a href="{{ explorer_url }}" target="_blank" class="btn btn-outline-info btn-sm">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>
-                            Smart Contract im Block Explorer ansehen
-                        </a>
-                    </p>
-                </div>
-                
                 {% if is_submission %}
                 <div id="blockchain-submission-area">
-                    <h4 class="mb-3">Vertrag auf der Blockchain signieren</h4>
-                    <p>
-                        Bitte verwenden Sie Ihre MetaMask-Wallet, um die Transaktion zu bestätigen.
-                        Nach erfolgreicher Bestätigung wird der Vertrag als signiert markiert.
-                    </p>
+                    <h4 class="mb-3">Bestätigung</h4>
+                    <div class="alert alert-info mb-4">
+                        <p class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Der Vertrag ist bereit für Ihre Blockchain-Bestätigung. 
+                            Klicken Sie auf den Button, um die Transaktion mit MetaMask zu bestätigen.
+                        </p>
+                    </div>
                     
                     <div class="d-grid gap-2 mb-4">
                         <button id="submit-button" class="btn btn-primary btn-lg">
                             <i class="bi bi-pen me-2"></i>
-                            Auf der Blockchain signieren
+                            Auf der Blockchain bestätigen
                         </button>
                     </div>
                     
@@ -98,7 +91,7 @@
                             </div>
                             <div>
                                 <h5 class="alert-heading">Transaktion wird verarbeitet...</h5>
-                                <p class="mb-0">Bitte warten Sie, während Ihre Signatur an die Blockchain übermittelt wird.</p>
+                                <p class="mb-0">Bitte warten Sie, während Ihre Bestätigung an die Blockchain übermittelt wird.</p>
                             </div>
                         </div>
                     </div>
@@ -106,27 +99,28 @@
                     <div id="submission-success" class="alert alert-success d-none">
                         <h5 class="alert-heading">
                             <i class="bi bi-check-circle-fill me-2"></i>
-                            Vertrag erfolgreich signiert!
+                            Vertrag erfolgreich bestätigt!
                         </h5>
-                        <p>Der Vertrag wurde erfolgreich auf der Ethereum-Blockchain signiert.</p>
+                        <p>Der Vertrag wurde erfolgreich auf der Ethereum-Blockchain bestätigt.</p>
                         <hr>
                         <p class="mb-0">
                             <strong>Transaktions-Hash:</strong> 
                             <span id="transaction-hash" class="d-block mt-2 contract-hash"></span>
                         </p>
                         <div class="mt-3">
-                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary">
-                                Zurück zum Vertrag
-                            </a>
+                            <button id="show-next-steps-btn" class="btn btn-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
                         </div>
                     </div>
                     
                     <div id="submission-error" class="alert alert-danger d-none">
                         <h5 class="alert-heading">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            Fehler bei der Signatur
+                            Fehler bei der Bestätigung
                         </h5>
-                        <p id="error-message">Ein Fehler ist aufgetreten bei der Signatur auf der Blockchain.</p>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Bestätigung auf der Blockchain.</p>
                         <div class="mt-3">
                             <button id="retry-button" class="btn btn-outline-danger">
                                 Erneut versuchen
@@ -135,16 +129,9 @@
                     </div>
                 </div>
                 {% else %}
-                <div id="contract-info-area">
-                    <div class="d-grid gap-2 mb-4">
-                        <form method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-pen me-2"></i>
-                                Blockchain-Signatur vorbereiten
-                            </button>
-                        </form>
-                    </div>
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Fehler:</strong> Transaktion konnte nicht vorbereitet werden. Bitte versuchen Sie es später erneut.
                 </div>
                 {% endif %}
             </div>
@@ -153,10 +140,10 @@
         <div class="col-lg-4">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">Informationen zur Blockchain-Signatur</h5>
+                    <h5 class="mb-0">Informationen zur Blockchain-Bestätigung</h5>
                 </div>
                 <div class="card-body">
-                    <h6 class="card-subtitle mb-3">Was bedeutet die Blockchain-Signatur?</h6>
+                    <h6 class="card-subtitle mb-3">Was bedeutet die Blockchain-Bestätigung?</h6>
                     <ul class="mb-4">
                         <li>Bestätigung Ihrer Zustimmung zum Vertrag auf der Blockchain</li>
                         <li>Aktivierung der Vertragslogik auf der Blockchain</li>
@@ -164,12 +151,12 @@
                         <li>Ermöglicht die automatische Vertragsabwicklung</li>
                     </ul>
                     
-                    <h6 class="card-subtitle mb-3">Was geschieht nach der Signatur?</h6>
-                    <p>Nach Ihrer Signatur wird der Vertrag auf der Blockchain als "Signed" markiert. 
+                    <h6 class="card-subtitle mb-3">Was geschieht nach der Bestätigung?</h6>
+                    <p>Nach Ihrer Bestätigung wird der Vertrag auf der Blockchain als "Signed" markiert. 
                        Der Vertragsbetrag wird erst freigegeben, wenn beide Parteien den Vertrag erfüllt haben.</p>
                     
                     <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
-                    <p>Für die Signatur auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
+                    <p>Für die Bestätigung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
                        Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
                 </div>
             </div>
@@ -181,6 +168,9 @@
 <div id="partner-address" data-address="{{ contract.partner_address }}" style="display: none;"></div>
 <div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
 <div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+
+<!-- Wiederverwendbare Modal-Komponente einbinden -->
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
 {% endblock %}
 
 {% block extra_js %}
@@ -256,6 +246,9 @@
                         document.getElementById('transaction-hash').textContent = receipt.transactionHash;
                         
                         await updateBlockchainStatus(receipt.transactionHash);
+                        
+                        // Show the next steps modal after successful signing
+                        showNextStepsModal();
                     })
                     .on('error', function(error) {
                         showError(error.message || 'Unbekannter Fehler bei der Signatur des Vertrags');
@@ -310,6 +303,79 @@
                 }
             }
             return cookieValue;
+        }
+        
+        // Function to show the next steps modal specific to signing
+        function showNextStepsModal() {
+            // Check if this contract has DHL tracking enabled
+            const hasDhlTracking = {{ contract.has_dhl_tracking|yesno:"true,false" }};
+            const hasTrackingNumber = {{ contract.tracking_number|default:"null" }} !== null;
+            
+            if (hasDhlTracking && !hasTrackingNumber) {
+                // Contract has DHL tracking but no tracking number yet - partner needs to add it
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Bestätigung erfolgreich!',
+                    description: 'Der Vertrag wurde erfolgreich auf der Blockchain bestätigt. Da es sich um einen Liefervertrag handelt, müssen Sie jetzt die Sendungsnummer hinzufügen, um den Versand zu dokumentieren.',
+                    tip: 'Sobald Sie die Tracking-Nummer hinterlegt haben, wird das Paket automatisch verfolgt.',
+                    options: [
+                        {
+                            title: 'Tracking-Nummer hinzufügen',
+                            description: 'Fügen Sie die DHL-Tracking-Nummer hinzu, um den Versand zu starten'
+                        },
+                        {
+                            title: 'Später hinzufügen',
+                            description: 'Sie können die Tracking-Nummer auch später über die Vertragsübersicht hinzufügen'
+                        }
+                    ],
+                    primaryButtonText: 'Tracking-Nummer hinzufügen',
+                    primaryButtonIcon: 'bi bi-truck',
+                    primaryButtonUrl: "{% url 'add_tracking_number' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            } else {
+                // Normal contract or DHL contract that already has tracking number
+                let description, tip;
+                
+                if (hasDhlTracking && hasTrackingNumber) {
+                    description = 'Der Vertrag wurde erfolgreich auf der Blockchain bestätigt. Die Tracking-Nummer ist bereits hinterlegt. Das Paket wird automatisch verfolgt und der Vertrag wird bei Lieferung als erfüllt markiert.';
+                    tip = 'Sie werden benachrichtigt, sobald das Paket zugestellt wurde.';
+                } else {
+                    description = 'Der Vertrag wurde erfolgreich auf der Blockchain bestätigt. Jetzt muss der Vertragsersteller die Erfüllung des Vertrags bestätigen, um den Prozess abzuschließen.';
+                    tip = 'Sie werden benachrichtigt, sobald der Ersteller die Vertragserfüllung bestätigt hat.';
+                }
+                
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Bestätigung erfolgreich!',
+                    description: description,
+                    tip: tip,
+                    options: [
+                        {
+                            title: 'Vertrag verfolgen',
+                            description: 'Überwachen Sie den Status und weitere Entwicklungen'
+                        },
+                        {
+                            title: 'Übersicht',
+                            description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                        }
+                    ],
+                    primaryButtonText: 'Vertrag verfolgen',
+                    primaryButtonIcon: 'bi bi-eye',
+                    primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            }
+        }
+        
+        // Handle the "Nächste Schritte anzeigen" button click
+        const showNextStepsBtn = document.getElementById('show-next-steps-btn');
+        if (showNextStepsBtn) {
+            showNextStepsBtn.addEventListener('click', function() {
+                showNextStepsModal();
+            });
         }
     });
 </script>

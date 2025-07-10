@@ -86,11 +86,9 @@ class DatabaseInterface:
                 Contract.tracking_number.isnot(None),
                 Contract.delivery_oracle_confirmed == False,
                 Contract.blockchain_contract_id.isnot(None),
-                # Verträge die mindestens 'package_shipped' sind oder bereits geliefert
                 Contract.status.in_(['package_shipped', 'package_delivered'])
             ).all()
             
-            # Detach from session so they can be used outside
             for contract in contracts:
                 session.expunge(contract)
             

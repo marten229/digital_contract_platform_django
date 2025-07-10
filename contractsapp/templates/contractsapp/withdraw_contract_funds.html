@@ -10,8 +10,8 @@
 {% block content %}
 <div class="container py-5">
     <div class="d-flex align-items-center mb-4">
-        <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-secondary me-3">
-            <i class="bi bi-arrow-left"></i> Zurück zum Vertrag
+        <a href="{% url 'contract_list'%}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
         </a>
         <h1 class="mb-0">Vertragsgelder abheben</h1>
     </div>
@@ -49,32 +49,53 @@
                         <div class="col-sm-8">{{ contract.blockchain_status }}</div>
                     </div>
                     <div class="row mb-2">
-                        <div class="col-sm-4"><strong>Blockchain-ID:</strong></div>
+                        <div class="col-sm-4"><strong>Vertrags-ID:</strong></div>
                         <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
                     </div>
                     {% if contract.contract_amount %}
                     <div class="row mb-2">
                         <div class="col-sm-4"><strong>Verfügbarer Betrag:</strong></div>
-                        <div class="col-sm-8">
-                            <span class="h5 text-success">{{ contract.eth_amount|floatformat:4 }} ETH</span>
-                        </div>
+                        <div class="col-sm-8">{{ contract.eth_amount|floatformat:4 }} ETH</div>
                     </div>
                     {% endif %}
                 </div>
                 
-                <div class="mt-4 mb-3">
-                    <h4>Smart Contract auf der Blockchain</h4>
+                {% if not is_submission %}
+                <div id="withdrawal-form-area">
+                    <h4 class="mb-3 mt-4">Vertragsgelder abheben</h4>
                     <p>
-                        <a href="{{ explorer_url }}" target="_blank" class="btn btn-outline-info btn-sm">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>
-                            Smart Contract im Block Explorer ansehen
-                        </a>
+                        Sie können nun die Vertragsgelder von der Blockchain abheben.
+                        Der Betrag wird direkt an Ihr Ethereum-Wallet gesendet.
                     </p>
+                    
+                    <form id="withdrawal-form" method="post" action="{% url 'withdraw_contract_funds' contract.pk %}">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 mb-4">
+                            <button id="withdraw-submit-button" type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-cash-coin me-2"></i>
+                                Vertragsgelder abheben
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="initial-status" class="alert alert-info d-none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border text-primary me-3" role="status">
+                                <span class="visually-hidden">Wird verarbeitet...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading mb-1">Transaktion wird vorbereitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während die Abhebung vorbereitet wird.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                {% endif %}
+                
                 
                 {% if is_submission %}
                 <div id="blockchain-submission-area">
-                    <h4 class="mb-3">Vertragsgelder abheben</h4>
+                    <h4 class="mb-3 mt-4">Vertragsgelder abheben</h4>
                     <p>
                         Sie können nun die Vertragsgelder von der Blockchain abheben.
                         Der Betrag wird direkt an Ihr Ethereum-Wallet gesendet.
@@ -88,13 +109,13 @@
                     </div>
                     
                     <div id="submission-status" class="alert alert-info d-none">
-                        <div class="status-info">
-                            <div class="spinner-border text-primary" role="status">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border text-primary me-3" role="status">
                                 <span class="visually-hidden">Wird verarbeitet...</span>
                             </div>
                             <div>
-                                <h5 class="alert-heading">Transaktion wird verarbeitet...</h5>
-                                <p class="mb-0">Bitte warten Sie, während Ihre Anfrage an die Blockchain übermittelt wird.</p>
+                                <h5 class="alert-heading mb-1">Transaktion wird verarbeitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während die Geldabhebung an die Blockchain übermittelt wird.</p>
                             </div>
                         </div>
                     </div>
@@ -111,9 +132,10 @@
                             <span id="transaction-hash" class="d-block mt-2 contract-hash"></span>
                         </p>
                         <div class="mt-3">
-                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary">
-                                Zurück zum Vertrag
-                            </a>
+                            <button id="show-next-steps" class="btn btn-outline-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
                         </div>
                     </div>
                     
@@ -124,22 +146,10 @@
                         </h5>
                         <p id="error-message">Ein Fehler ist aufgetreten bei der Abhebung der Vertragsgelder.</p>
                         <div class="mt-3">
-                            <button id="retry-button" class="btn btn-outline-danger">
+                            <button id="retry-button" class="btn btn-outline-danger me-2">
                                 Erneut versuchen
                             </button>
                         </div>
-                    </div>
-                </div>
-                {% else %}
-                <div id="contract-info-area">
-                    <div class="d-grid gap-2 mb-4">
-                        <form method="post">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg">
-                                <i class="bi bi-cash-coin me-2"></i>
-                                Geldabhebung vorbereiten
-                            </button>
-                        </form>
                     </div>
                 </div>
                 {% endif %}
@@ -169,6 +179,9 @@
     </div>
 </div>
 
+<!-- Wiederverwendbare Modal-Komponente einbinden -->
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
+
 <!-- Füge diese versteckten Elemente zum HTML hinzu, um Daten an JS zu übergeben -->
 <div id="partner-address" data-address="{{ contract.partner_address }}" style="display: none;"></div>
 <div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
@@ -176,16 +189,37 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if is_submission %}
 <script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const submitButton = document.getElementById('submit-button');
         const retryButton = document.getElementById('retry-button');
+        const showNextStepsButton = document.getElementById('show-next-steps');
+        const withdrawSubmitButton = document.getElementById('withdraw-submit-button');
+        const withdrawalForm = document.getElementById('withdrawal-form');
         
-        // Transaktionsdaten direkt aus Django
+        // Transaktionsdaten aus Django (nur verfügbar im is_submission Modus)
+        {% if is_submission %}
         let txData = {{ transaction|safe }};
+        {% endif %}
         
+        // Handler für das initiale Formular (wenn nicht im is_submission Modus)
+        if (withdrawSubmitButton && withdrawalForm) {
+            withdrawalForm.onsubmit = function(e) {
+                e.preventDefault();
+                
+                // Zeige Loading-Status
+                withdrawSubmitButton.disabled = true;
+                document.getElementById('initial-status').classList.remove('d-none');
+                
+                // Sende das Formular
+                this.submit();
+                return false;
+            };
+        }
+        
+        // Handler für die Blockchain-Submission (nur im is_submission Modus)
+        {% if is_submission %}
         if (submitButton) {
             submitButton.onclick = function() {
                 withdrawFunds();
@@ -199,7 +233,16 @@
                 return false;
             };
         }
+        {% endif %}
+        
+        if (showNextStepsButton) {
+            showNextStepsButton.onclick = function() {
+                showSuccessModal();
+                return false;
+            };
+        }
 
+        {% if is_submission %}
         async function withdrawFunds() {
             // Prüfe, ob MetaMask installiert ist
             if (typeof window.ethereum === 'undefined') {
@@ -233,30 +276,76 @@
                 
                 // Bereite die Transaktion für Web3.js vor
                 const web3Tx = {...txData};
+                web3Tx.from = userAddress; // Setze das "from" Feld für Web3.js
                 
                 // Transaktion mit MetaMask senden
                 web3.eth.sendTransaction(web3Tx)
                     .on('transactionHash', function(hash) {
                         // Transaktions-Hash wurde generiert
-                    })                    .on('receipt', async function(receipt) {
-                        // Erfolgs-UI anzeigen
+                    })
+                    .on('receipt', async function(receipt) {
                         document.getElementById('submission-status').classList.add('d-none');
                         document.getElementById('submission-success').classList.remove('d-none');
                         
-                        // Hash anzeigen
                         document.getElementById('transaction-hash').textContent = receipt.transactionHash;
                         
-                        // Setze den Abhebungsstatus
                         await updateWithdrawalStatus(receipt.transactionHash);
+                        
+                        showSuccessModal();
                     })
                     .on('error', function(error) {
-                        showError(error.message || 'Unbekannter Fehler bei der Abhebung der Vertragsgelder');
+                        console.error('Web3 Error Details:', error);
+                        let errorMessage = 'Unbekannter Fehler bei der Abhebung der Vertragsgelder';
+                        
+                        if (error.message) {
+                            if (error.message.includes('reverted')) {
+                                errorMessage = 'Die Transaktion wurde vom Smart Contract abgelehnt. Möglicherweise sind keine Gelder verfügbar oder Sie sind nicht berechtigt.';
+                            } else if (error.message.includes('denied')) {
+                                errorMessage = 'Transaktion wurde vom Benutzer abgebrochen.';
+                            } else if (error.message.includes('insufficient funds')) {
+                                errorMessage = 'Nicht genügend ETH für Gas-Gebühren vorhanden.';
+                            } else {
+                                errorMessage = error.message;
+                            }
+                        }
+                        
+                        showError(errorMessage);
                     });
             } catch (error) {
                 showError(error.message || 'Unbekannter Fehler');
             }
         }
-          async function updateWithdrawalStatus(txHash) {
+        {% endif %}
+        
+        function showSuccessModal() {
+            // Konfiguration für das Modal basierend auf dem Kontext
+            const modalConfig = {
+                title: 'Vertragsgelder erfolgreich abgehoben!',
+                description: 'Die Vertragsgelder wurden erfolgreich von der Blockchain abgehoben und an Ihr Wallet gesendet. Der Vertrag ist nun vollständig abgeschlossen.',
+                tip: 'Sie können den Transaktionsverlauf jederzeit in Ihrem Wallet, auf Etherscan oder im Aktivitätsverlauf einsehen.',
+                options: [
+                    {
+                        title: 'Vertrag ansehen',
+                        description: 'Zurück zur Vertragsdetailseite um den finalen Status zu sehen'
+                    },
+                    {
+                        title: 'Übersicht',
+                        description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                    }
+                ],
+                primaryButtonText: 'Vertrag ansehen',
+                primaryButtonIcon: 'bi bi-file-text',
+                secondaryButtonText: 'Zur Übersicht',
+                secondaryButtonIcon: 'bi bi-list-ul',
+                primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                secondaryButtonUrl: "{% url 'contract_list' %}"
+            };
+            
+            window.BlockchainSuccessModal.show(modalConfig);
+        }
+        
+        {% if is_submission %}
+        async function updateWithdrawalStatus(txHash) {
             try {
                 const formData = new FormData();
                 formData.append('tx_hash', txHash);
@@ -288,6 +377,7 @@
             document.getElementById('error-message').textContent = message;
             document.getElementById('submit-button').disabled = false;
         }
+        {% endif %}
         
         function getCookie(name) {
             let cookieValue = null;
@@ -305,5 +395,4 @@
         }
     });
 </script>
-{% endif %}
 {% endblock %}

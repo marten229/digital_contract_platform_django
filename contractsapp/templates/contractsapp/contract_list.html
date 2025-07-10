@@ -206,7 +206,7 @@
                                             <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
                                         </a>                                    
                                     {% elif contract.blockchain_status == 'Created' %}
-                                        <span class="badge status-pending">Partner muss signieren</span>
+                                        <span class="badge status-pending">Partner muss Vertrag bestätigen</span>
                                     {% elif contract.blockchain_status == 'AgreementFulfilled' %}
                                         <span class="badge status-completed">Erfüllung bestätigt</span>
                                     {% endif %}
@@ -224,7 +224,7 @@
                                         <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-success btn-sm">
                                             <i class="bi bi-pen-fill"></i> Vertrag auf Blockchain bestätigen
                                         </a>
-                                    {% elif contract.blockchain_status == 'Signed' %>
+                                    {% elif contract.blockchain_status == 'Signed' %}
                                         <span class="badge status-accepted">Warten auf Vertragserfüllung</span>
                                     {% elif contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'Completed' %}
                                         {% if not contract.funds_withdrawn %}
@@ -474,11 +474,11 @@
                     </div>
                 {% endif %}
 
-                <!-- ❌ PROBLEMATISCHE/ABGEBROCHENE VERTRÄGE -->
+                <!-- ❌ ABGEBROCHENE VERTRÄGE -->
                 {% if problematic_contracts %}
                 <div class="section-header">
                     <span class="section-icon">❌</span>
-                    <h2 class="section-title">Problematische Verträge</h2>
+                    <h2 class="section-title">Stornierte Verträge</h2>
                     <span class="section-count">{{ problematic_contracts.count }}</span>
                 </div>
                 
@@ -634,7 +634,7 @@
                     {% if problematic_contracts.count > 0 %}
                     <div class="stat-item">
                         <div class="d-flex justify-content-between align-items-center">
-                            <span>❌ Problematisch</span>
+                            <span>❌ Storniert</span>
                             <span class="badge status-rejected">{{ problematic_contracts.count }}</span>
                         </div>
                     </div>
