@@ -46,9 +46,18 @@ class ContractForm(forms.ModelForm):
     class Meta:
         model = Contract
         fields = ['title', 'pdf_file', 'contract_amount_eth', 'has_dhl_tracking', 'tracking_number']
+        
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # PDF-File ist standardmäßig required, wird aber dynamisch per JavaScript angepasst
+        self.fields['pdf_file'].required = True
     def clean(self):
         cleaned_data = super().clean()
         amount_eth = cleaned_data.get('contract_amount_eth')
+        pdf_file = cleaned_data.get('pdf_file')
+        
+        # Prüfe ob eine PDF-Datei erforderlich ist (nur wenn kein generierter Vertrag ausgewählt wurde)
+        # Dies wird über das request.POST.get('selected_pdf') in der View gehandhabt
         
         # Convert ETH to Wei for blockchain storage
         if amount_eth:

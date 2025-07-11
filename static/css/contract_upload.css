@@ -62,3 +62,52 @@
     border-radius: 0.25rem;
     transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
+
+/* PDF Selection Styles */
+.created-pdf-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+}
+
+.created-pdf-option:hover {
+    background-color: #e9ecef;
+    border-color: #0d6efd !important;
+}
+
+.created-pdf-option.selected {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-color: #0d6efd !important;
+    border-width: 2px !important;
+}
+
+.form-check-input:checked + .form-check-label .created-pdf-option {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-color: #0d6efd !important;
+    border-width: 2px !important;
+}
+
+/* Hide upload area initially when other PDF selected */
+#upload_area {
+    transition: all 0.3s ease;
+}
+
+/* Improved form spacing */
+.form-check {
+    margin-bottom: 0.75rem;
+}
+
+.form-check-label {
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* PDF preview button styling */
+.created-pdf-option .btn {
+    transition: all 0.2s ease;
+}
+
+.created-pdf-option .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

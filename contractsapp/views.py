@@ -4,19 +4,30 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.db.models import Q
+from django.conf import settings
+from decimal import Decimal
+import re
+import html
 
 import traceback
 import base64
 from io import BytesIO
 from PIL import Image
 from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.units import inch
 from reportlab.lib.utils import ImageReader
-from PyPDF2 import PdfReader, PdfWriter
 from django.core.files.base import ContentFile
+import io
 import json
+from datetime import datetime
+from PyPDF2 import PdfReader, PdfWriter
 
 from .forms import ContractForm
-from .models import Contract, ContractActivity
+from .models import Contract, ContractActivity, CreatedPDF
 from .blockchain import BlockchainService
 from .storage import ContractStorage
 from .dhl_tracking import DHLTrackingService
@@ -133,7 +144,7 @@ def contract_upload(request):
     """
     <summary>
      Handles the contract upload process.
-     On GET request, it displays the upload form.
+     On GET request, it displays the upload form with pre-created PDFs as options.
      On POST request, it validates the form, saves the new contract with 'uploaded' status,
      associates it with the logged-in user as the creator, calculates the PDF hash, logs the activity,
      and redirects to the contract configuration page.
@@ -143,9 +154,50 @@ def contract_upload(request):
     """
     if request.method == 'POST':
         form = ContractForm(request.POST, request.FILES)
+        selected_pdf = request.POST.get('selected_pdf')
+        
+        # Wenn ein generierter Vertrag ausgewählt wurde, ist das PDF-File nicht erforderlich
+        if selected_pdf and selected_pdf != 'upload_new':
+            form.fields['pdf_file'].required = False
+        
         if form.is_valid():
             contract = form.save(commit=False)
             contract.creator_address = request.user.ethereum_address.lower() if request.user.ethereum_address else None
+
+            # Wenn eine vorgefertigte PDF-Datei ausgewählt wurde, verwende sie
+            if selected_pdf and selected_pdf != 'upload_new':
+                try:
+                    # Hole das CreatedPDF-Objekt
+                    created_pdf = CreatedPDF.objects.get(pk=selected_pdf, creator=request.user)
+                    
+                    # Kopiere die PDF-Datei zum Vertrag
+                    from django.core.files import File
+                    with created_pdf.pdf_file.open('rb') as f:
+                        contract.pdf_file.save(created_pdf.pdf_file.name, File(f), save=False)
+                    
+                    # Setze Titel falls nicht angegeben
+                    if not contract.title:
+                        contract.title = created_pdf.title
+                        
+                except CreatedPDF.DoesNotExist:
+                    messages.error(request, 'Das ausgewählte PDF konnte nicht gefunden werden.')
+                    return render(request, 'contractsapp/contract_upload.html', {
+                        'form': form, 
+                        'created_pdfs': get_created_pdf_files_list(request.user)
+                    })
+                except Exception as e:
+                    messages.error(request, f'Fehler beim Laden der PDF-Datei: {str(e)}')
+                    return render(request, 'contractsapp/contract_upload.html', {
+                        'form': form, 
+                        'created_pdfs': get_created_pdf_files_list(request.user)
+                    })
+            elif not contract.pdf_file:
+                # Wenn kein generierter Vertrag ausgewählt wurde und keine PDF-Datei hochgeladen wurde
+                messages.error(request, 'Bitte laden Sie eine PDF-Datei hoch oder wählen Sie einen erstellten Vertrag aus.')
+                return render(request, 'contractsapp/contract_upload.html', {
+                    'form': form, 
+                    'created_pdfs': get_created_pdf_files_list(request.user)
+                })
 
             contract.status = 'uploaded'
             contract.is_configured = False
@@ -175,7 +227,15 @@ def contract_upload(request):
     else:
         form = ContractForm()
 
-    return render(request, 'contractsapp/contract_upload.html', {'form': form})
+    created_pdfs = get_created_pdf_files_list(request.user)
+    return render(request, 'contractsapp/contract_upload.html', {
+        'form': form,
+        'created_pdfs': created_pdfs
+    })
+
+def get_created_pdf_files_list(user):
+    """Helper function to get created PDF files from database"""
+    return CreatedPDF.objects.filter(creator=user).order_by('-created_at')[:10]
 
 
 @login_required
@@ -1736,3 +1796,369 @@ def prepare_set_oracle(request):
             'success': False,
             'message': f'Fehler beim Vorbereiten der Oracle-Transaktion: {str(e)}'
         })
+
+@login_required
+def pdf_editor(request):
+    """PDF-Editor für die Erstellung von Verträgen"""
+    if request.method == 'POST':
+        try:
+            # Hole die Daten aus dem POST-Request
+            title = request.POST.get('title', '')
+            content = request.POST.get('content', '')
+            contract_type = request.POST.get('contract_type', 'standard')
+            parties = json.loads(request.POST.get('parties', '{}'))
+            terms = json.loads(request.POST.get('terms', '{}'))
+            amount_eth = request.POST.get('amount_eth', '')
+            
+            # Erstelle PDF
+            pdf_file = create_contract_pdf({
+                'title': title,
+                'content': content,
+                'contract_type': contract_type,
+                'parties': parties,
+                'terms': terms,
+                'amount_eth': amount_eth,
+                'creator': request.user
+            })
+            
+            # Speichere PDF in der Datenbank
+            from django.core.files.base import ContentFile
+            
+            # Erstelle CreatedPDF-Objekt
+            created_pdf = CreatedPDF(
+                title=title,
+                creator=request.user,
+                contract_type=contract_type,
+                content_preview=content[:500] if content else '',
+            )
+            
+            # Konvertiere amount_eth zu Decimal falls vorhanden
+            if amount_eth:
+                try:
+                    from decimal import Decimal
+                    created_pdf.amount_eth = Decimal(str(amount_eth))
+                except (ValueError, TypeError):
+                    pass
+            
+            # Speichere PDF-Datei
+            from django.utils import timezone
+            filename = f"{title}_{request.user.id}_{timezone.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            filename = re.sub(r'[^\w\-_\.]', '_', filename)  # Bereinige Dateinamen
+            
+            created_pdf.pdf_file.save(filename, ContentFile(pdf_file.read()), save=False)
+            created_pdf.save()
+            
+            messages.success(request, f'PDF-Vertrag "{title}" wurde erfolgreich erstellt und gespeichert!')
+            return redirect('pdf_editor_success', pk=created_pdf.pk)
+            
+        except Exception as e:
+            messages.error(request, f'Fehler beim Erstellen des PDF-Vertrags: {str(e)}')
+            return redirect('pdf_editor')
+    
+    context = {
+        'user': request.user,
+        'contract_address': getattr(settings, 'CONTRACT_ADDRESS', ''),
+    }
+    
+    return render(request, 'contractsapp/pdf_editor.html', context)
+
+@login_required
+def pdf_editor_success(request, pk):
+    """Erfolgsseite nach PDF-Erstellung mit Datenbank"""
+    created_pdf = get_object_or_404(CreatedPDF, pk=pk, creator=request.user)
+    
+    context = {
+        'pdf': created_pdf,
+        'download_url': created_pdf.pdf_file.url,
+    }
+    
+    return render(request, 'contractsapp/pdf_editor_success.html', context)
+
+def clean_html_for_pdf(html_content):
+    """Bereinigt HTML-Content für PDF-Generierung mit ReportLab"""
+    if not html_content:
+        return ""
+    
+    # HTML entities dekodieren
+    content = html.unescape(html_content)
+    
+    # Entferne problematische HTML-Tags und ersetze sie
+    content = re.sub(r'<h1[^>]*>(.*?)</h1>', r'<para style="title">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h2[^>]*>(.*?)</h2>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h3[^>]*>(.*?)</h3>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h4[^>]*>(.*?)</h4>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h5[^>]*>(.*?)</h5>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h6[^>]*>(.*?)</h6>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    
+    # Paragraphen bereinigen
+    content = re.sub(r'<p[^>]*class="center-text"[^>]*>(.*?)</p>', r'<para style="center">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<p[^>]*>(.*?)</p>', r'<para>\1</para>', content, flags=re.DOTALL)
+    
+    # Divs mit Klassen
+    content = re.sub(r'<div[^>]*class="center-text"[^>]*>(.*?)</div>', r'<para style="center">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<div[^>]*>(.*?)</div>', r'\1', content, flags=re.DOTALL)
+    
+    # Spans bereinigen - entferne placeholder-field und signature-field Klassen
+    content = re.sub(r'<span[^>]*class="placeholder-field"[^>]*>(.*?)</span>', r'\1', content, flags=re.DOTALL)
+    content = re.sub(r'<span[^>]*class="signature-field"[^>]*>(.*?)</span>', r'__________________', content, flags=re.DOTALL)
+    content = re.sub(r'<span[^>]*>(.*?)</span>', r'\1', content, flags=re.DOTALL)
+    
+    # Formatierungen konvertieren
+    content = re.sub(r'<strong>(.*?)</strong>', r'<b>\1</b>', content, flags=re.DOTALL)
+    content = re.sub(r'<em>(.*?)</em>', r'<i>\1</i>', content, flags=re.DOTALL)
+    content = re.sub(r'<u>(.*?)</u>', r'<u>\1</u>', content, flags=re.DOTALL)
+    
+    # Zeilenumbrüche normalisieren
+    content = re.sub(r'<br\s*/?>', '<br/>', content)
+    content = re.sub(r'<br/><br/>', '<br/><br/>', content)
+    
+    # Entferne andere problematische Tags
+    content = re.sub(r'<small[^>]*>(.*?)</small>', r'\1', content, flags=re.DOTALL)
+    content = re.sub(r'&nbsp;', ' ', content)
+    
+    # Entferne style-Attribute
+    content = re.sub(r'\s*style="[^"]*"', '', content)
+    
+    # Bereinige mehrfache Leerzeichen
+    content = re.sub(r'\s+', ' ', content)
+    content = content.strip()
+    
+    return content
+
+def create_contract_pdf(contract_data):
+    """Erstellt ein PDF-Dokument aus den Vertragsdaten"""
+    buffer = io.BytesIO()
+    
+    # PDF-Dokument erstellen
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*inch)
+    story = []
+    
+    # Styles definieren
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=1,  # Center
+        textColor=colors.HexColor('#2c3e50')
+   
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=20,
+        spaceAfter=10,
+        textColor=colors.HexColor('#34495e')
+    )
+    
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=12,
+        leading=14
+    )
+    
+    # Titel hinzufügen
+    title = Paragraph(contract_data.get('title', 'Vertrag'), title_style)
+    story.append(title)
+    story.append(Spacer(1, 20))
+    
+    # Datum hinzufügen
+    date_p = Paragraph(f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')}", normal_style)
+    story.append(date_p)
+    story.append(Spacer(1, 20))
+    
+    # Vertragsinhalt hinzufügen
+    content = contract_data.get('content', '')
+    
+    # HTML für PDF bereinigen
+    content = clean_html_for_pdf(content)
+    
+    # Platzhalter ersetzen
+    parties = contract_data.get('parties', {})
+    creator = contract_data.get('creator')
+    
+    replacements = {
+        '[PARTEI1_NAME]': parties.get('party1_name', creator.get_full_name() if creator else ''),
+        '[PARTEI1_ETH_ADRESSE]': creator.ethereum_address if creator and hasattr(creator, 'ethereum_address') else '',
+        '[PARTEI2_NAME]': parties.get('party2_name', ''),
+        '[PARTEI2_ETH_ADRESSE]': parties.get('party2_address', ''),
+        '[VERKÄUFER_NAME]': parties.get('seller_name', ''),
+        '[VERKÄUFER_ADRESSE]': parties.get('seller_address', ''),
+        '[VERKÄUFER_ETH_ADRESSE]': parties.get('seller_eth_address', ''),
+        '[KÄUFER_NAME]': parties.get('buyer_name', ''),
+        '[KÄUFER_ADRESSE]': parties.get('buyer_address', ''),
+        '[KÄUFER_ETH_ADRESSE]': parties.get('buyer_eth_address', ''),
+        '[AUFTRAGGEBER_NAME]': parties.get('client_name', ''),
+        '[AUFTRAGGEBER_ADRESSE]': parties.get('client_address', ''),
+        '[AUFTRAGGEBER_ETH_ADRESSE]': parties.get('client_eth_address', ''),
+        '[AUFTRAGNEHMER_NAME]': parties.get('contractor_name', ''),
+        '[AUFTRAGNEHMER_ADRESSE]': parties.get('contractor_address', ''),
+        '[AUFTRAGNEHMER_ETH_ADRESSE]': parties.get('contractor_eth_address', ''),
+    }
+    
+    terms = contract_data.get('terms', {})
+    replacements.update({
+        '[VERTRAGSTYP]': terms.get('contract_type', ''),
+        '[WARE_BESCHREIBUNG]': terms.get('item_description', ''),
+        '[KAUFPREIS]': contract_data.get('amount_eth', terms.get('price', '')),
+        '[LIEFERADRESSE]': terms.get('delivery_address', ''),
+        '[LIEFERTERMIN]': terms.get('delivery_date', ''),
+        '[DIENSTLEISTUNG_BESCHREIBUNG]': terms.get('service_description', ''),
+        '[VERGÜTUNG]': contract_data.get('amount_eth', terms.get('payment', '')),
+        '[FRIST]': terms.get('deadline', ''),
+        '[VERTRAGSBEDINGUNGEN]': terms.get('conditions', ''),
+        '[CONTRACT_ADDRESS]': getattr(settings, 'CONTRACT_ADDRESS', ''),
+        '[BETRAG_ETH]': contract_data.get('amount_eth', ''),
+    })
+    
+    for placeholder, replacement in replacements.items():
+        content = content.replace(placeholder, str(replacement))
+    
+    # Content in Paragraphen aufteilen
+    if '<para' in content:
+        # Wenn bereits para-Tags vorhanden sind, versuche sie zu verarbeiten
+        try:
+            content_p = Paragraph(content, normal_style)
+            story.append(content_p)
+        except Exception as e:
+            # Fallback: Teile den Content in einfache Paragraphen auf
+            lines = content.replace('<para>', '').replace('</para>', '\n').split('\n')
+            for line in lines:
+                if line.strip():
+                    line = line.replace('<b>', '<b>').replace('</b>', '</b>')
+                    line = line.replace('<i>', '<i>').replace('</i>', '</i>')
+                    line = line.replace('<u>', '<u>').replace('</u>', '</u>')
+                    line = line.replace('<br/>', '<br/>')
+                    try:
+                        p = Paragraph(line.strip(), normal_style)
+                        story.append(p)
+                        story.append(Spacer(1, 6))
+                    except:
+                        # Noch einfacherer Fallback - reiner Text
+                        clean_line = re.sub(r'<[^>]+>', '', line.strip())
+                        if clean_line:
+                            p = Paragraph(clean_line, normal_style)
+                            story.append(p)
+                            story.append(Spacer(1, 6))
+    else:
+        # Einfacher Text ohne HTML-Tags
+        clean_content = re.sub(r'<[^>]+>', '', content)
+        lines = clean_content.split('\n')
+        for line in lines:
+            if line.strip():
+                p = Paragraph(line.strip(), normal_style)
+                story.append(p)
+                story.append(Spacer(1, 6))
+    
+    # Unterschriftenbereich hinzufügen
+    story.append(Spacer(1, 40))
+    
+    signature_data = [
+        ['Ersteller:', 'Partner:'],
+        ['', ''],
+        ['', ''],
+        ['_' * 30, '_' * 30],
+        ['Unterschrift', 'Unterschrift'],
+        ['', ''],
+        [f'Ethereum-Adresse:\n{creator.ethereum_address if creator and hasattr(creator, "ethereum_address") else ""}', 
+         f'Ethereum-Adresse:\n{parties.get("party2_address", "")}']
+    ]
+    
+    signature_table = Table(signature_data, colWidths=[3*inch, 3*inch])
+    signature_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 3), (-1, 3), 0),
+        ('TOPPADDING', (0, 4), (-1, 4), 5),
+    ]))
+    
+    story.append(signature_table)
+    
+    # PDF generieren
+    doc.build(story)
+    
+    # ContentFile erstellen
+    buffer.seek(0)
+    filename = f"contract_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    return ContentFile(buffer.getvalue(), name=filename)
+
+@login_required
+def pdf_editor_success_file(request, filename):
+    """Zeigt die Erfolgsseite für dateibasierte PDF-Erstellung"""
+    import os
+    
+    # Sicherheitsprüfung: Prüfe ob Datei dem aktuellen Nutzer gehört
+    if not filename.startswith(f"user_{request.user.id}_"):
+        messages.error(request, 'Sie haben keine Berechtigung, auf diese Datei zuzugreifen.')
+        return redirect('pdf_editor')
+    
+    user_pdf_dir = os.path.join(settings.MEDIA_ROOT, 'created_pdfs', str(request.user.id))
+    file_path = os.path.join(user_pdf_dir, filename)
+    
+    # Prüfe ob Datei existiert
+    if not os.path.exists(file_path):
+        messages.error(request, 'PDF-Datei wurde nicht gefunden.')
+        return redirect('pdf_editor')
+    
+    # Datei-Informationen
+    file_stats = os.stat(file_path)
+    from datetime import datetime
+    created_at = datetime.fromtimestamp(file_stats.st_ctime)
+    file_size = file_stats.st_size
+    
+    # Extrahiere Titel aus Dateinamen (entferne Benutzer-ID und Timestamp)
+    title = filename.replace('.pdf', '')
+    import re
+    title = re.sub(rf'^user_{request.user.id}_', '', title)
+    title = re.sub(r'_\d{8}_\d{6}$', '', title)
+    title = title.replace('_', ' ')
+    
+    context = {
+        'filename': filename,
+        'title': title,
+        'file_size': file_size,
+        'created_at': created_at,
+        'pdf_url': f"{settings.MEDIA_URL}created_pdfs/{request.user.id}/{filename}",
+    }
+    
+    return render(request, 'contractsapp/pdf_editor_success_file.html', context)
+
+@login_required
+def get_created_pdf_files(request):
+    """API-Endpoint um erstellte PDF-Dateien zu laden"""
+    import os
+    
+    pdf_dir = os.path.join(settings.MEDIA_ROOT, 'created_pdfs')
+    
+    if not os.path.exists(pdf_dir):
+        return JsonResponse({'pdfs': []})
+    
+    files = []
+    for filename in os.listdir(pdf_dir):
+        if filename.endswith('.pdf'):
+            file_path = os.path.join(pdf_dir, filename)
+            
+            # Extrahiere Titel aus Dateinamen
+            title = filename.replace('.pdf', '').replace('_', ' ')
+            title = re.sub(r'_\d{8}_\d{6}$', '', title)
+            
+            file_info = {
+                'filename': filename,
+                'title': title,
+                'url': f"{settings.MEDIA_URL}created_pdfs/{filename}",
+                'size': os.path.getsize(file_path),
+                'created_at': os.path.getctime(file_path)
+            }
+            files.append(file_info)
+    
+    # Sortiere nach Erstellungsdatum (neueste zuerst)
+    files.sort(key=lambda x: x['created_at'], reverse=True)
+    
+    return JsonResponse({'pdfs': files[:10]})  # Nur die letzten 10

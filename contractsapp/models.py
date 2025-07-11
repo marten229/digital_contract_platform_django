@@ -9,6 +9,25 @@ import json
 
 User = get_user_model()
 
+class CreatedPDF(models.Model):
+    """Model für im PDF-Editor erstellte PDFs"""
+    title = models.CharField(max_length=255, verbose_name="PDF-Titel")
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_pdfs', verbose_name="Ersteller")
+    pdf_file = models.FileField(upload_to='created_pdfs/', verbose_name="PDF-Datei")
+    contract_type = models.CharField(max_length=50, verbose_name="Vertragstyp", default='standard')
+    amount_eth = models.DecimalField(max_digits=18, decimal_places=6, null=True, blank=True, verbose_name="Betrag in ETH")
+    content_preview = models.TextField(blank=True, verbose_name="Inhaltsvorschau")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Erstellt am")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Aktualisiert am")
+    
+    class Meta:
+        verbose_name = "Erstelltes PDF"
+        verbose_name_plural = "Erstellte PDFs"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.title} (von {self.creator.username})"
+
 def contract_pdf_file_path(instance, filename):
     ext = filename.split('.')[-1]
     

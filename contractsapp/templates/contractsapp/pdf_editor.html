@@ -1,0 +1,530 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PDF-Vertrag erstellen - DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pdf_editor.css' %}">
+{% endblock %}
+
+{% block hero %}
+<section class="hero-section">
+    <div class="container">
+        <h1 class="hero-title"><i class="bi bi-file-earmark-text-fill me-3"></i>PDF-Vertrag erstellen</h1>
+        <p class="hero-subtitle">Erstellen Sie einfach und schnell professionelle Verträge</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-16">
+            <div class="form-container">
+                <!-- Anleitung -->
+                <div class="upload-instructions mb-4">
+                    <h4><i class="bi bi-info-circle-fill text-primary me-2"></i>So funktioniert's:</h4>
+                    <ol>
+                        <li>Wählen Sie eine Vertragsvorlage aus oder erstellen Sie einen eigenen Vertrag</li>
+                        <li>Geben Sie Ihren Vertragstitel und optional einen ETH-Betrag ein</li>
+                        <li>Bearbeiten Sie den Vertragstext nach Ihren Wünschen</li>
+                        <li>Klicken Sie auf "PDF erstellen" um das PDF zu generieren und zu speichern</li>
+                        <li>Das erstellte PDF kann dann später für den Vertragsprozess auf der Plattform verwendet werden</li>
+                    </ol>
+                </div>
+
+                <form method="post" id="contractForm">
+                    {% csrf_token %}
+                    
+                    <!-- Vertragstyp-Auswahl -->
+                    <div class="mb-4">
+                        <h4 class="section-title"><i class="bi bi-file-text me-2"></i>Vertragsvorlage wählen</h4>
+                        <div class="template-selector">
+                            <div class="template-card" data-template="kaufvertrag">
+                                <div class="template-icon">
+                                    <i class="bi bi-basket-fill"></i>
+                                </div>
+                                <h5>Kaufvertrag</h5>
+                                <p>Für den Kauf von Waren und Produkten</p>
+                            </div>
+                            <div class="template-card" data-template="standard">
+                                <div class="template-icon">
+                                    <i class="bi bi-file-earmark-text"></i>
+                                </div>
+                                <h5>Allgemeiner Vertrag</h5>
+                                <p>Universelle Vorlage für alle Vertragsarten</p>
+                            </div>
+                        </div>
+                        <input type="hidden" name="contract_type" id="contractType" value="standard">
+                    </div>
+
+                    <!-- Vertragstitel -->
+                    <div class="mb-4">
+                        <label for="title" class="form-label">Vertragstitel</label>
+                        <input type="text" class="form-control" id="title" name="title" 
+                               placeholder="z.B. Kaufvertrag für Laptop" required>
+                    </div>
+
+                    <!-- Vertragsinhalt Editor -->
+                    <div class="mb-4">
+                        <label for="content" class="form-label">Vertragstext</label>
+                        <div class="editor-help mb-2">
+                            <small class="text-muted">
+                                <i class="bi bi-lightbulb me-1"></i>
+                                Nutzen Sie die Formatierungstools um Ihren Vertrag professionell zu gestalten.
+                            </small>
+                        </div>
+                        
+                        <!-- Editor Toolbar -->
+                        <div class="editor-toolbar">
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="bold" title="Fett">
+                                    <i class="bi bi-type-bold"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="italic" title="Kursiv">
+                                    <i class="bi bi-type-italic"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="underline" title="Unterstrichen">
+                                    <i class="bi bi-type-underline"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="toolbar-separator"></div>
+                            
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="heading" title="Überschrift">
+                                    <i class="bi bi-type-h1"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="paragraph" title="Absatz">
+                                    <i class="bi bi-paragraph"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="toolbar-separator"></div>
+                            
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="list" title="Liste">
+                                    <i class="bi bi-list-ul"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="number-list" title="Nummerierte Liste">
+                                    <i class="bi bi-list-ol"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="toolbar-separator"></div>
+                            
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="center" title="Zentrieren">
+                                    <i class="bi bi-text-center"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="left" title="Linksbündig">
+                                    <i class="bi bi-text-left"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="toolbar-separator"></div>
+                            
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="placeholder" title="Platzhalter einfügen">
+                                    <i class="bi bi-plus-square"></i> Platzhalter
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="signature" title="Unterschriftsfeld">
+                                    <i class="bi bi-pen"></i> Unterschrift
+                                </button>
+                            </div>
+                            
+                            <div class="toolbar-separator"></div>
+                            
+                            <div class="toolbar-group">
+                                <button type="button" class="toolbar-btn" data-action="undo" title="Rückgängig">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                <button type="button" class="toolbar-btn" data-action="redo" title="Wiederholen">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Rich Text Editor -->
+                        <div class="editor-container">
+                            <div id="editor" class="rich-text-editor" contenteditable="true" 
+                                 placeholder="Hier können Sie Ihren Vertragstext eingeben oder eine Vorlage auswählen...">
+                            </div>
+                            <textarea id="content" name="content" style="display: none;" required></textarea>
+                        </div>
+                        
+                        <!-- Quick Insert Panel -->
+                        <div class="quick-insert-panel mt-3">
+                            <h6><i class="bi bi-lightning-fill me-2"></i>Schnell einfügen:</h6>
+                            <div class="quick-insert-buttons">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('§')">
+                                    § Paragraph
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('Datum: _______________')">
+                                    Datum
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('Unterschrift: _______________')">
+                                    Unterschrift
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('Name: _______________')">
+                                    Name
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('Adresse: _______________')">
+                                    Adresse
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertQuickText('Betrag: _______________ ETH')">
+                                    Betrag
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="insertContractAddress()">
+                                    Contract-Adresse
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Versteckte Felder für einfache Daten -->
+                    <input type="hidden" name="parties" id="partiesData" value="{}">
+                    <input type="hidden" name="terms" id="termsData" value="{}">
+
+                    <!-- Submit-Buttons -->
+                    <div class="action-buttons">
+                        <button type="button" class="btn btn-outline-primary me-3" onclick="previewContract()">
+                            <i class="bi bi-eye me-2"></i>Vorschau anzeigen
+                        </button>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-file-earmark-pdf me-2"></i>PDF erstellen und speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Vertragsvorschau</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent" class="preview-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Schließen</button>
+                <button type="button" class="btn btn-primary" onclick="submitContract()">
+                    <i class="bi bi-download me-2"></i>PDF erstellen
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden templates -->
+<div id="kaufvertrag-template" style="display: none;">
+    {% include 'contractsapp/contracts/kaufvertrag_template.html' %}
+</div>
+<div id="standard-template" style="display: none;">
+    {% include 'contractsapp/contracts/standard_template.html' %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Contract-Adresse aus dem Backend
+    const contractAddress = '{{ contract_address|default:"Contract wird automatisch erstellt" }}';
+    // Rich Text Editor Setup
+    const editor = document.getElementById('editor');
+    const hiddenTextarea = document.getElementById('content');
+    let undoStack = [];
+    let redoStack = [];
+    let currentUndoIndex = -1;
+
+    // Einfache Template-Definitionen
+    const templates = {
+        'kaufvertrag': {
+            name: 'Kaufvertrag',
+            description: 'Für den Verkauf von Waren und Produkten',
+            template: document.getElementById('kaufvertrag-template').innerHTML
+        },
+        'standard': {
+            name: 'Allgemeiner Vertrag',
+            description: 'Universelle Vorlage für alle Vertragsarten',
+            template: document.getElementById('standard-template').innerHTML
+        }
+    };
+
+    let currentTemplate = 'kaufvertrag';
+
+    // Rich Text Editor Funktionen
+    function saveToUndoStack() {
+        undoStack.push(editor.innerHTML);
+        redoStack = [];
+        if (undoStack.length > 50) {
+            undoStack.shift();
+        }
+        currentUndoIndex = undoStack.length - 1;
+    }
+
+    function updateHiddenTextarea() {
+        hiddenTextarea.value = editor.innerHTML;
+    }
+
+    // Template-Auswahl
+    document.querySelectorAll('.template-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            
+            currentTemplate = this.dataset.template;
+            document.getElementById('contractType').value = currentTemplate;
+            
+            loadTemplate(currentTemplate);
+        });
+    });
+
+    // Initiale Template-Ladung
+    loadTemplate('kaufvertrag');
+    document.querySelector('[data-template="kaufvertrag"]').classList.add('active');
+
+    function loadTemplate(templateKey) {
+        const template = templates[templateKey];
+        if (!template) return;
+
+        // Vertragsinhalt laden
+        editor.innerHTML = template.template.replace('${contractAddress}', contractAddress);
+        updateHiddenTextarea();
+        
+        // Titel vorschlagen
+        const titleField = document.getElementById('title');
+        if (!titleField.value.trim()) {
+            titleField.value = template.name;
+        }
+
+        // Undo-Stack aktualisieren
+        saveToUndoStack();
+    }
+
+    // Toolbar Event Listeners
+    document.querySelectorAll('.toolbar-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const action = this.dataset.action;
+            executeCommand(action);
+        });
+    });
+
+    function executeCommand(command) {
+        editor.focus();
+        
+        switch(command) {
+            case 'bold':
+                document.execCommand('bold', false, null);
+                break;
+            case 'italic':
+                document.execCommand('italic', false, null);
+                break;
+            case 'underline':
+                document.execCommand('underline', false, null);
+                break;
+            case 'heading':
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const selectedText = range.toString();
+                    if (selectedText) {
+                        range.deleteContents();
+                        const h3 = document.createElement('h3');
+                        h3.textContent = selectedText;
+                        range.insertNode(h3);
+                        selection.removeAllRanges();
+                    }
+                }
+                break;
+            case 'paragraph':
+                document.execCommand('formatBlock', false, 'p');
+                break;
+            case 'list':
+                document.execCommand('insertUnorderedList', false, null);
+                break;
+            case 'number-list':
+                document.execCommand('insertOrderedList', false, null);
+                break;
+            case 'center':
+                const centerDiv = document.createElement('div');
+                centerDiv.className = 'center-text';
+                document.execCommand('insertHTML', false, centerDiv.outerHTML);
+                break;
+            case 'left':
+                const leftDiv = document.createElement('div');
+                leftDiv.className = 'left-text';
+                document.execCommand('insertHTML', false, leftDiv.outerHTML);
+                break;
+            case 'placeholder':
+                const placeholder = prompt('Platzhalter-Text eingeben:');
+                if (placeholder) {
+                    const span = `<span class="placeholder-field">${placeholder}</span>`;
+                    document.execCommand('insertHTML', false, span);
+                }
+                break;
+            case 'signature':
+                const span = '<span class="signature-field"></span>';
+                document.execCommand('insertHTML', false, span);
+                break;
+            case 'undo':
+                if (currentUndoIndex > 0) {
+                    currentUndoIndex--;
+                    editor.innerHTML = undoStack[currentUndoIndex];
+                    updateHiddenTextarea();
+                }
+                break;
+            case 'redo':
+                if (currentUndoIndex < undoStack.length - 1) {
+                    currentUndoIndex++;
+                    editor.innerHTML = undoStack[currentUndoIndex];
+                    updateHiddenTextarea();
+                }
+                break;
+        }
+        
+        updateHiddenTextarea();
+        updateToolbarState();
+        
+        // Speichere Zustand für Undo/Redo (außer bei Undo/Redo selbst)
+        if (command !== 'undo' && command !== 'redo') {
+            saveToUndoStack();
+        }
+    }
+
+    function updateToolbarState() {
+        // Update active states für Format-Buttons
+        document.querySelector('[data-action="bold"]').classList.toggle('active', document.queryCommandState('bold'));
+        document.querySelector('[data-action="italic"]').classList.toggle('active', document.queryCommandState('italic'));
+        document.querySelector('[data-action="underline"]').classList.toggle('active', document.queryCommandState('underline'));
+    }
+
+    // Quick Insert Funktionen
+    window.insertQuickText = function(text) {
+        editor.focus();
+        document.execCommand('insertHTML', false, text);
+        updateHiddenTextarea();
+        saveToUndoStack();
+    };
+
+    // Contract-Adresse einfügen
+    window.insertContractAddress = function() {
+        editor.focus();
+        const contractText = `<span class="placeholder-field">${contractAddress}</span>`;
+        document.execCommand('insertHTML', false, contractText);
+        updateHiddenTextarea();
+        saveToUndoStack();
+    };
+
+    // Editor Event Listeners
+    editor.addEventListener('input', function() {
+        updateHiddenTextarea();
+        saveToUndoStack();
+    });
+
+    editor.addEventListener('keyup', updateToolbarState);
+    editor.addEventListener('mouseup', updateToolbarState);
+
+    // Keyboard Shortcuts
+    editor.addEventListener('keydown', function(e) {
+        if (e.ctrlKey) {
+            switch(e.key) {
+                case 'b':
+                    e.preventDefault();
+                    executeCommand('bold');
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    executeCommand('italic');
+                    break;
+                case 'u':
+                    e.preventDefault();
+                    executeCommand('underline');
+                    break;
+                case 'z':
+                    e.preventDefault();
+                    executeCommand('undo');
+                    break;
+                case 'y':
+                    e.preventDefault();
+                    executeCommand('redo');
+                    break;
+            }
+        }
+    });
+
+    // Form-Submission
+    document.getElementById('contractForm').addEventListener('submit', function(e) {
+        const submitBtn = this.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>PDF wird erstellt...';
+        submitBtn.disabled = true;
+        
+        // Validierung
+        const title = document.getElementById('title').value.trim();
+        const content = editor.innerHTML.trim();
+        
+        if (!title || !content || content === '<br>' || content === '') {
+            e.preventDefault();
+            alert('Bitte füllen Sie den Titel und den Vertragstext aus.');
+            submitBtn.innerHTML = '<i class="bi bi-file-earmark-pdf me-2"></i>PDF erstellen und speichern';
+            submitBtn.disabled = false;
+            return;
+        }
+
+        // Final update der versteckten Textarea
+        updateHiddenTextarea();
+    });
+
+    // Vorschau-Funktion
+    window.previewContract = function() {
+        const title = document.getElementById('title').value.trim();
+        const content = editor.innerHTML.trim();
+
+        if (!title) {
+            alert('Bitte geben Sie einen Vertragstitel ein.');
+            return;
+        }
+
+        if (!content || content === '<br>' || content === '') {
+            alert('Bitte geben Sie Vertragsinhalt ein.');
+            return;
+        }
+
+        document.getElementById('previewContent').innerHTML = `
+            <h2 style="text-align: center; margin-bottom: 2rem; color: #0d6efd;">${title}</h2>
+            <hr style="border-color: #0d6efd; margin-bottom: 2rem;">
+            <div style="font-family: serif; line-height: 1.6;">${content}</div>
+        `;
+
+        new bootstrap.Modal(document.getElementById('previewModal')).show();
+    };
+
+    window.submitContract = function() {
+        bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide();
+        document.getElementById('contractForm').submit();
+    };
+
+    // Platzhalter-Felder klickbar machen
+    editor.addEventListener('click', function(e) {
+        if (e.target.classList.contains('placeholder-field')) {
+            const newText = prompt('Neuen Text eingeben:', e.target.textContent);
+            if (newText !== null) {
+                e.target.textContent = newText;
+                updateHiddenTextarea();
+                saveToUndoStack();
+            }
+        }
+    });
+
+    // Initiale Undo-Stack Einrichtung
+    saveToUndoStack();
+});
+</script>
+{% endblock %}

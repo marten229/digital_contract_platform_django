@@ -3,6 +3,9 @@ from . import views
 
 urlpatterns = [
     path('', views.contract_upload, name='contract_upload'),
+    path('pdf-editor/', views.pdf_editor, name='pdf_editor'),
+    path('pdf-editor/success/<int:pk>/', views.pdf_editor_success, name='pdf_editor_success'),
+    path('api/created-pdfs/', views.get_created_pdf_files, name='get_created_pdf_files'),
     path('list/', views.contract_list, name='contract_list'),
     path('contract/<int:pk>/', views.contract_detail, name='contract_detail'),
     path('contract/<int:pk>/sign/', views.contract_signing, name='contract_signing'),
