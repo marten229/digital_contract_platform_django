@@ -144,3 +144,7 @@ GitHub.sublime-settings
 # Oracle-spezifische temporäre Dateien
 oracle_temp/
 temp_keys/
+
+# Sensitive key files
+keys/*.json
+
