@@ -52,11 +52,18 @@ class DHLTrackingService:
         try:
             headers = {
                 'DHL-API-Key': self.api_key,
-                'Content-Type': 'application/json'
+                'Accept': 'application/json'
             }
             
-            url = f"{self.base_url}/track/{tracking_number}"
-            response = requests.get(url, headers=headers, timeout=30)
+            url = f"{self.base_url}/track/shipments"
+            params = {
+                'trackingNumber': tracking_number,
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            logger.info(f"DHL API Request: {response.url}")
+            logger.info(f"Response Status: {response.status_code}")
             
             if response.status_code == 200:
                 data = response.json()
@@ -66,7 +73,8 @@ class DHLTrackingService:
                 return {
                     'status': 'error',
                     'message': f'DHL API Error: {response.status_code}',
-                    'tracking_number': tracking_number
+                    'tracking_number': tracking_number,
+                    'details': response.text if response.text else 'Keine Details verfügbar'
                 }
                 
         except requests.exceptions.RequestException as e:
@@ -109,15 +117,67 @@ class DHLTrackingService:
         """
         Parst die DHL API-Antwort in ein standardisiertes Format
         """
-        # Dies hängt vom tatsächlichen DHL API-Antwortformat ab
-        # Placeholder-Implementierung
-        return {            'tracking_number': data.get('trackingNumber', ''),
-            'status': data.get('status', 'unknown').lower(),
-            'last_update': data.get('lastUpdate', ''),
-            'location': data.get('location', ''),
-            'estimated_delivery': data.get('estimatedDelivery', ''),
-            'events': data.get('events', [])
-        }
+        try:
+            shipments = data.get('shipments', [])
+            if not shipments:
+                return {
+                    'status': 'not_found',
+                    'message': 'Keine Sendung gefunden',
+                    'tracking_number': data.get('trackingNumber', ''),
+                    'events': []
+                }
+            
+            shipment = shipments[0]
+            
+            events = shipment.get('events', [])
+            latest_event = events[0] if events else {}
+            
+            status_mapping = {
+                'delivered': 'delivered',
+                'pre-transit': 'in_transit',
+                'transit': 'in_transit',
+                'out-for-delivery': 'out_for_delivery',
+                'delivery-attempted': 'delivery_attempted',
+                'exception': 'exception'
+            }
+            
+            raw_status = latest_event.get('statusCode', 'unknown').lower()
+            mapped_status = status_mapping.get(raw_status, 'unknown')
+            
+            formatted_events = []
+            for event in events:
+                formatted_events.append({
+                    'timestamp': event.get('timestamp', ''),
+                    'status': event.get('statusCode', ''),
+                    'location': event.get('location', {}).get('address', {}).get('addressLocality', ''),
+                    'description': event.get('description', '')
+                })
+            
+            return {
+                'tracking_number': shipment.get('id', ''),
+                'status': mapped_status,
+                'last_update': latest_event.get('timestamp', ''),
+                'location': latest_event.get('location', {}).get('address', {}).get('addressLocality', ''),
+                'estimated_delivery': shipment.get('estimatedTimeOfDelivery', ''),
+                'events': formatted_events
+            }
+            
+        except KeyError as e:
+            logger.error(f"Fehler beim Parsen der DHL Response - fehlender Key: {str(e)}")
+            return {
+                'status': 'error',
+                'message': f'Parsing-Fehler: {str(e)}',
+                'tracking_number': data.get('trackingNumber', ''),
+                'raw_data': data
+            }
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler beim Parsen der DHL Response: {str(e)}")
+            return {
+                'status': 'error',
+                'message': f'Parsing-Fehler: {str(e)}',
+                'tracking_number': data.get('trackingNumber', ''),
+                'raw_data': data
+            }
     
     def generate_tracking_hash(self, tracking_number: str, contract_id: int) -> str:
         """
@@ -135,7 +195,6 @@ class DHLTrackingService:
         try:
             from web3 import Web3
             
-            # Tracking-Nummer normalisieren (Leerzeichen entfernen)
             tracking_number = tracking_number.strip() if tracking_number else ""
             
             if not tracking_number:
@@ -143,10 +202,8 @@ class DHLTrackingService:
             
             logger.info(f"Hash-Generierung: contract_id={contract_id}, tracking_number='{tracking_number}'")
             
-            # Create Web3 instance for keccak calculation
             web3_instance = Web3()
             
-            # Calculate keccak256 hash of tracking number
             tracking_bytes = tracking_number.encode('utf-8')
             hash_value = web3_instance.keccak(tracking_bytes)
             
@@ -155,14 +212,12 @@ class DHLTrackingService:
             
         except ImportError:
             logger.error("web3 nicht verfügbar - verwende SHA256 Fallback")
-            # Fallback für den Fall, dass web3 nicht verfügbar ist
             tracking_number = tracking_number.strip() if tracking_number else ""
             combined = f"{contract_id}:{tracking_number}"
             hash_value = hashlib.sha256(combined.encode()).hexdigest()
             return '0x' + hash_value
         except Exception as e:
             logger.error(f"Fehler beim Generieren des Tracking-Hash: {str(e)}")
-            # Fallback
             tracking_number = tracking_number.strip() if tracking_number else ""
             combined = f"{contract_id}:{tracking_number}"
             hash_value = hashlib.sha256(combined.encode()).hexdigest()
@@ -196,14 +251,11 @@ class DHLTrackingService:
         if not tracking_number or len(tracking_number.strip()) == 0:
             return False
         
-        # Einfache Validierung - in Realität würde man das DHL-Format prüfen
         tracking_number = tracking_number.strip()
         
-        # DHL-Tracking-Nummern sind typischerweise 10-12 Zeichen
         if len(tracking_number) < 8 or len(tracking_number) > 20:
             return False
         
-        # Sollte alphanumerisch sein
         if not tracking_number.replace('-', '').replace(' ', '').isalnum():
             return False
         
