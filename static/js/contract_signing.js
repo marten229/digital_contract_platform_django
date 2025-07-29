@@ -446,7 +446,12 @@ function saveSignature(url, csrfToken) {
         return;
     }
     
+    // Show loading overlay immediately
     showLoading('Unterschrift wird gespeichert...');
+    
+    // Disable all buttons to prevent multiple submissions
+    const allButtons = document.querySelectorAll('button');
+    allButtons.forEach(btn => btn.disabled = true);
     
     // Convert canvas coordinates to PDF coordinates
     const pdfCoords = canvasToPdfCoordinates(
@@ -455,6 +460,14 @@ function saveSignature(url, csrfToken) {
         signatureRect.width, 
         signatureRect.height
     );
+    
+    console.log('Sending signature data:', {
+        x: pdfCoords.x,
+        y: pdfCoords.y,
+        width: pdfCoords.width,
+        height: pdfCoords.height,
+        page: currentPage
+    });
     
     // Sende die Unterschrift und Koordinaten per POST an den Django-View
     fetch(url, {
@@ -474,12 +487,19 @@ function saveSignature(url, csrfToken) {
         })
     })
     .then(response => {
+        console.log('Response received:', response.status);
+        
         if (!response.ok) {
-            throw new Error("Fehler beim Hinzufügen der Unterschrift");
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json(); // Changed from blob to json
     })
     .then(data => {
+        console.log('Response data:', data);
+        
+        // Update loading message to show success
+        showLoading('Unterschrift erfolgreich gespeichert! Weiterleitung...');
+        
         // UI zurücksetzen
         previewMode = false;
         previewControls.style.display = 'none';
@@ -488,20 +508,25 @@ function saveSignature(url, csrfToken) {
         signatureDataURL = null;
         overlayCanvas.style.cursor = 'default';
         
-        hideLoading();
+        // Update workflow to final step
+        updateWorkflowStep(4);
         
-        // Redirect to contract list after a short delay
+        // Redirect to contract list after a delay to show success message
         setTimeout(() => {
             if (data.redirect_url) {
                 window.location.href = data.redirect_url;  // Use the redirect URL from the server
             } else {
                 window.location.href = '/contracts/';  // Fallback
             }
-        }, 1000);
+        }, 2000); // Increased delay to 2 seconds to show success message
     })
     .catch(error => {
-        console.error("Fehler:", error);
+        console.error("Fehler beim Speichern der Unterschrift:", error);
         hideLoading();
+        
+        // Re-enable buttons on error
+        allButtons.forEach(btn => btn.disabled = false);
+        
         alert("Beim Speichern der Unterschrift ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.");
     });
 }
