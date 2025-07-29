@@ -34,10 +34,19 @@ def setup_logging(config: OracleConfig = None):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     
-    # Console Handler
+    # Console Handler mit UTF-8 Encoding
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(formatter)
+    
+    # Für Windows: UTF-8 Encoding setzen um Unicode-Zeichen zu unterstützen
+    import sys
+    if hasattr(console_handler.stream, 'reconfigure'):
+        try:
+            console_handler.stream.reconfigure(encoding='utf-8')
+        except:
+            pass  # Fallback falls reconfigure nicht verfügbar
+    
     root_logger.addHandler(console_handler)
       # File Handler mit Rotation
     if config.LOG_FILE:
@@ -57,11 +66,12 @@ def setup_logging(config: OracleConfig = None):
             log_file_path = os.path.join(current_dir, config.LOG_FILE)
         else:
             log_file_path = config.LOG_FILE
-          # Rotating File Handler (max 10MB, 5 Backups)
+          # Rotating File Handler (max 10MB, 5 Backups) mit UTF-8 Encoding
         file_handler = logging.handlers.RotatingFileHandler(
             log_file_path,
             maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            backupCount=5,
+            encoding='utf-8'  # UTF-8 für Unicode-Unterstützung
         )
         file_handler.setLevel(getattr(logging, config.LOG_LEVEL.upper(), logging.INFO))
         file_handler.setFormatter(formatter)

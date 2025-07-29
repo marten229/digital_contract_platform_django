@@ -48,8 +48,8 @@ class DHLTrackingService:
         tracking_bytes = tracking_number.encode('utf-8')
         hash_value = web3_instance.keccak(tracking_bytes)
         
-        # Return as 0x-prefixed hex string
-        return hash_value
+        # Return as 0x-prefixed hex string (66 characters: 0x + 64 hex chars)
+        return hash_value.hex()
     
     def confirm_delivery(self, contract, confirmed=True, notes=None):
         """

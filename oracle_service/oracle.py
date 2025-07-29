@@ -120,7 +120,7 @@ class OracleService:
                     # Tracking-Nummer aus Datenbank lesen und analysieren
                     tracking_number = contract.tracking_number
                     
-                    logger.info(f"🔍 TRACKING DEBUG für Contract {contract.id}:")
+                    logger.info(f"TRACKING DEBUG für Contract {contract.id}:")
                     logger.info(f"  - Database Contract ID: {contract.id}")
                     logger.info(f"  - Blockchain Contract ID: {contract.blockchain_contract_id}")
                     logger.info(f"  - Tracking Number (raw): '{tracking_number}'")

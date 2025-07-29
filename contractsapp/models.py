@@ -94,7 +94,7 @@ class Contract(models.Model):
     delivery_confirmation = models.BooleanField(default=False, verbose_name="Lieferung bestätigt")
     delivery_notes = models.TextField(null=True, blank=True, verbose_name="Lieferhinweise")
     delivery_oracle_confirmed = models.BooleanField(default=False, verbose_name="Von Oracle bestätigt")
-    tracking_hash = models.CharField(max_length=70, null=True, blank=True, verbose_name="Tracking-Hash")
+    tracking_hash = models.CharField(max_length=100, null=True, blank=True, verbose_name="Tracking-Hash")
     
     def __str__(self):
         return self.title
@@ -225,7 +225,7 @@ class Contract(models.Model):
                         
                         tracking_hash_value = contract_details.get('deliveryTrackingHash', None)
                         if tracking_hash_value:
-                            if len(str(tracking_hash_value)) <= 70:
+                            if len(str(tracking_hash_value)) <= 100:
                                 self.tracking_hash = tracking_hash_value
                             else:
                                 print(f"Warning: Tracking hash too long ({len(str(tracking_hash_value))} chars): {tracking_hash_value}")
