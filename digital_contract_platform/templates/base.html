@@ -141,35 +141,7 @@
     
     <!-- Common JavaScript -->
     {% block base_js %}
-    <script>
-        // Show toasts on page load with a fade-in effect
-        document.addEventListener('DOMContentLoaded', function() {
-        const toasts = document.querySelectorAll('.toast');
-        
-        toasts.forEach((toast) => {
-            // Create Bootstrap Toast instance
-            const bsToast = new bootstrap.Toast(toast, {
-                animation: true,
-                autohide: true,
-                delay: 5000
-            });
-            
-            // Show the toast
-            bsToast.show();
-        });
-        
-        // Navbar scroll effect
-        const navbar = document.querySelector('.navbar');
-        
-        window.addEventListener('scroll', function() {
-            if (window.scrollY > 50) {
-                navbar.classList.add('navbar-scrolled');
-            } else {
-                navbar.classList.remove('navbar-scrolled');
-            }
-        });
-    });
-    </script>
+    <script src="{% static 'js/base.js' %}"></script>
     {% endblock %}
     
     <!-- Page specific JavaScript -->

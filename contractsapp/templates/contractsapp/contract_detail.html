@@ -209,9 +209,9 @@
 <!-- Contract Detail JS -->
 <script src="{% static 'js/contract_detail.js' %}"></script>
 <script>
-    // Initialize the contract detail functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        initContractViewer('{{ contract.pdf_file.url }}');
-    });
+    window.contractDetailConfig = {
+        pdfUrl: '{{ contract.pdf_file.url }}'
+    };
 </script>
+<script src="{% static 'js/contract_detail_init.js' %}"></script>
 {% endblock %}

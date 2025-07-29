@@ -204,32 +204,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 <!-- Contract Configuration JS -->
 <script src="{% static 'js/contract_configuration.js' %}"></script>
-<!--<script src="{% static 'js/pdf.js' %}"></script>-->
-<!--<script src="{% static 'js/pdf.worker.js' %}"></script>-->
-
 <script>
-    // DHL Tracking functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        const dhlCheckbox = document.getElementById('hasDhlTracking');
-        const dhlFields = document.getElementById('dhlTrackingFields');
-        
-        if (dhlCheckbox && dhlFields) {
-            dhlCheckbox.addEventListener('change', function() {
-                if (this.checked) {
-                    dhlFields.style.display = 'block';
-                } else {
-                    dhlFields.style.display = 'none';
-                }
-            });
-        }
-    });
-
-    // Initialize the contract configuration functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        initContractConfiguration(
-            '{{ contract.pdf_file.url }}',
-            "{{ csrf_token }}"
-        );
-    });
+    window.contractConfig = {
+        pdfUrl: '{{ contract.pdf_file.url }}',
+        csrfToken: '{{ csrf_token }}'
+    };
 </script>
+<script src="{% static 'js/contract_configuration_init.js' %}"></script>
 {% endblock %}
