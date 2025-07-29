@@ -37,6 +37,19 @@
             <div id="pdfContainer">
                 <canvas id="pdfViewer"></canvas>
                 <canvas id="overlayCanvas"></canvas>
+                
+                <!-- Selection preview rectangle -->
+                <div id="selectionPreview" class="selection-preview"></div>
+                
+                <!-- Signature controls -->
+                <div id="signatureControls" class="signature-controls">
+                    <div class="signature-control-btn confirm" id="confirmSelection" title="Bereich bestätigen">
+                        ✓
+                    </div>
+                    <div class="signature-control-btn cancel" id="cancelSelection" title="Auswahl abbrechen">
+                        ✕
+                    </div>
+                </div>
             </div>
             
             <!-- Page Navigation -->
