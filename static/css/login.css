@@ -1,0 +1,75 @@
+/* Login page specific styles */
+.login-container {
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    padding: 2.5rem;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    margin: 2rem auto;
+}
+
+.metamask-logo {
+    width: 80px;
+    height: auto;
+    margin-bottom: 1.5rem;
+}
+
+/* Override btn-metamask for the login context */
+.login-container .btn-metamask {
+    display: flex;
+    margin: 1.5rem auto;
+}
+
+.error-message {
+    color: #dc3545;
+    margin: 1rem 0;
+    display: none;
+}
+
+.success-message {
+    color: #28a745;
+    margin: 1rem 0;
+    display: none;
+}
+
+.account-selection {
+    margin: 1.5rem 0;
+    text-align: left;
+}
+
+.accounts-list {
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.account-item {
+    padding: 0.8rem;
+    border-bottom: 1px solid #e9ecef;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.account-item:hover {
+    background-color: #f1f3f5;
+}
+
+.account-item:last-child {
+    border-bottom: none;
+}
+
+.account-item input[type="radio"] {
+    margin-right: 10px;
+}
+
+.account-item label {
+    margin-bottom: 0;
+    cursor: pointer;
+    flex-grow: 1;
+}

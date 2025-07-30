@@ -1,0 +1,24 @@
+# Requirements für den Oracle Service
+# Diese Datei definiert alle Python-Abhängigkeiten für den eigenständigen Oracle Service
+
+# Web3 und Ethereum-Integration
+web3==6.15.1
+eth-account==0.10.0
+eth-abi==4.2.1
+eth-utils==3.0.0
+
+# Datenbankzugriff
+SQLAlchemy==2.0.25
+psycopg2-binary==2.9.9
+
+# HTTP-Requests für DHL API
+requests==2.31.0
+
+# Konfiguration über .env-Dateien
+python-dotenv==1.0.0
+
+# Logging mit erweiterten Features
+colorlog==6.8.0
+
+# Utility-Bibliotheken
+click==8.1.7

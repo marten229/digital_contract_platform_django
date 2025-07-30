@@ -1,0 +1,412 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Vertrag an Blockchain übermitteln | DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+        </a>
+        <h1 class="mb-0">Vertrag an Blockchain übermitteln</h1>
+    </div>
+    
+    
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        Ihr Vertrag wurde von allen Parteien unterschrieben und ist bereit für die Blockchain-Registrierung.
+        Dies erhöht die Sicherheit und Nachweisbarkeit des Vertrags und ermöglicht die Hinterlegung von Vertragsgeldern.
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="blockchain-submit-section">
+                <h3 class="mb-4">Vertragsdetails</h3>
+                
+                <div class="contract-detail">
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragstitel:</strong></div>
+                        <div class="col-sm-8">{{ contract.title }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Ersteller:</strong></div>
+                        <div class="col-sm-8">{{ contract.creator_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Partner:</strong></div>
+                        <div class="col-sm-8">{{ contract.partner_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.get_status_display_german }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragsbetrag:</strong></div>
+                        <div class="col-sm-8">{{ contract.eth_amount|floatformat:4 }} ETH</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>PDF-Hash:</strong></div>
+                        <div class="col-sm-8">
+                            <div class="contract-hash">{{ contract.pdf_hash }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if is_submission %}
+                <div id="blockchain-submission-area">
+                    <h4 class="mb-3">Blockchain-Registrierung</h4>
+                    <div class="alert alert-info mb-4">
+                        <p class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Ihr Vertrag ist bereit für die Blockchain-Registrierung mit einem Betrag von 
+                            <strong>{{ contract.eth_amount|floatformat:4 }} ETH</strong>.
+                            Klicken Sie auf den Button, um die Transaktion mit MetaMask zu bestätigen.
+                        </p>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mb-4">
+                        <button id="submit-button" class="btn btn-primary btn-lg">
+                            <i class="bi bi-link-45deg me-2"></i>
+                            Auf der Blockchain registrieren
+                        </button>
+                    </div>
+                    
+                    <div id="submission-status" class="alert alert-info d-none">
+                        <div class="status-info">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Wird übermittelt...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading">Transaktion wird verarbeitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während der Vertrag an die Blockchain übermittelt wird.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-success" class="alert alert-success d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Vertrag erfolgreich registriert!
+                        </h5>
+                        <p>Der Vertrag wurde erfolgreich auf der Ethereum-Blockchain registriert.</p>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>Transaktions-Hash:</strong> 
+                            <span id="transaction-hash" class="d-block mt-2 contract-hash"></span>
+                        </p>
+                        <p class="mb-0 mt-2">
+                            <strong>Vertrags-ID:</strong> 
+                            <span id="contract-id"></span>
+                        </p>
+                        <div class="mt-3">
+                            <button id="show-next-steps-btn" class="btn btn-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-error" class="alert alert-danger d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Fehler bei der Übermittlung
+                        </h5>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Übermittlung an die Blockchain.</p>
+                        <div class="mt-3">
+                            <button id="retry-button" class="btn btn-outline-danger">
+                                Erneut versuchen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <strong>Fehler:</strong> Für diesen Vertrag wurde kein Betrag festgelegt. Bitte kontaktieren Sie den Support.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Informationen zur Blockchain-Übermittlung</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3">Warum auf der Blockchain registrieren?</h6>
+                    <ul class="mb-4">
+                        <li>Erhöhte Sicherheit und Unveränderlichkeit</li>
+                        <li>Sichere Hinterlegung von Vertragsgeldern</li>
+                        <li>Zeitstempel auf der Blockchain</li>
+                        <li>Automatische Auszahlung bei Vertragserfüllung</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Was geschieht mit Ihrem Vertrag?</h6>
+                    <p>Ihr Vertrag selbst (die PDF-Datei) bleibt auf unserem Server gespeichert. Auf der Blockchain wird nur der Hash (ein digitaler Fingerabdruck) Ihres Vertrags gespeichert, der dessen Integrität und Unveränderlichkeit garantiert.</p>
+                    
+                    <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
+                    <p>Für die Registrierung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
+<div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
+<div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+
+<!-- Modal for next steps after blockchain registration -->
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
+{% endblock %}
+
+{% block extra_js %}
+{% if is_submission %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitButton = document.getElementById('submit-button');
+        const retryButton = document.getElementById('retry-button');
+        
+        // Transaktionsdaten direkt aus Django
+        let txData = {{ transaction|safe }};
+        
+        if (submitButton) {
+            submitButton.onclick = function() {
+                submitToBlockchain();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                submitToBlockchain();
+                return false;
+            };
+        }
+
+        async function submitToBlockchain() {
+            // Prüfe, ob MetaMask installiert ist
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            // Überprüfen, ob die Transaktionsdaten vorhanden sind
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
+                return;
+            }
+            
+            try {
+                // UI-Status aktualisieren
+                document.getElementById('submit-button').disabled = true;
+                document.getElementById('submission-status').classList.remove('d-none');
+                
+                // Mit MetaMask verbinden
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Überprüfen, ob die aktuelle Adresse mit der Ersteller-Adresse übereinstimmt
+                const userAddress = accounts[0];
+                const creatorAddress = "{{ contract.creator_address }}";
+                
+                if (userAddress.toLowerCase() !== creatorAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragserstellers (${creatorAddress})`);
+                    return;
+                }
+                
+                // Bereite die Transaktion für Web3.js vor
+                const web3Tx = {...txData};
+                if (web3Tx.contract_id) delete web3Tx.contract_id;
+                
+                // Transaktion mit MetaMask senden
+                web3.eth.sendTransaction(web3Tx)
+                    .on('transactionHash', function(hash) {
+                        // Transaktions-Hash wurde generiert
+                    })
+                    .on('receipt', async function(receipt) {
+                        // Erfolgs-UI anzeigen
+                        document.getElementById('submission-status').classList.add('d-none');
+                        document.getElementById('submission-success').classList.remove('d-none');
+                        
+                        // Hash und Contract-ID anzeigen
+                        document.getElementById('transaction-hash').textContent = receipt.transactionHash;
+                        
+                        // Contract-ID aus Events extrahieren
+                        let contractId = null;
+                        
+                        // Suche nach ContractCreated Event in den Receipt Logs
+                        if (receipt.logs && receipt.logs.length > 0) {
+                            for (let log of receipt.logs) {
+                                // ContractCreated Event hat 3 topics: event signature + contractId + creator + counterparty
+                                if (log.topics && log.topics.length >= 2) {
+                                    // Das zweite Topic ist die contractId (als hex)
+                                    const contractIdHex = log.topics[1];
+                                    contractId = parseInt(contractIdHex, 16);
+                                    console.log('Contract ID aus Event extrahiert:', contractId);
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (contractId) {
+                            document.getElementById('contract-id').textContent = contractId;
+                            await updateBlockchainStatus(receipt.transactionHash, contractId);
+                            
+                            // Show the next steps modal after successful registration
+                            showNextStepsModal();
+                        } else {
+                            document.getElementById('contract-id').textContent = "Event nicht gefunden";
+                            console.warn('Kein ContractCreated Event in Receipt gefunden');
+                            await updateBlockchainStatus(receipt.transactionHash, null);
+                            
+                            // Show the next steps modal even if contract ID wasn't found
+                            showNextStepsModal();
+                        }
+                    })
+                    .on('error', function(error) {
+                        showError(error.message || 'Unbekannter Fehler bei der Übermittlung des Vertrags');
+                    });
+            } catch (error) {
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        async function updateBlockchainStatus(txHash, contractId) {
+            try {
+                const formData = new FormData();
+                formData.append('tx_hash', txHash);
+                if (contractId !== null) {
+                    formData.append('contract_id', contractId);
+                }
+                
+                const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
+                
+                const response = await fetch(updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Fehler beim Aktualisieren des Blockchain-Status:', data.message);
+                }
+            } catch (error) {
+                console.error('Fehler bei der Kommunikation mit dem Server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('submission-status').classList.add('d-none');
+            document.getElementById('submission-error').classList.remove('d-none');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('submit-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Function to show the next steps modal
+        function showNextStepsModal() {
+            // Check if this contract has DHL tracking enabled
+            const hasDhlTracking = {{ contract.has_dhl_tracking|yesno:"true,false" }};
+            
+            if (hasDhlTracking) {
+                // DHL tracking contract - explain that partner will need to add tracking number after signing
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Registrierung erfolgreich!',
+                    description: 'Der Vertrag wurde erfolgreich auf der Blockchain registriert. Da es sich um einen Liefervertrag handelt, muss Ihr Partner zuerst den Vertrag bestätigen und dann die DHL-Tracking-Nummer hinzufügen.',
+                    tip: 'Nach der Partnersignatur kann der Partner die Tracking-Nummer hinterlegen und das Paket wird automatisch verfolgt.',
+                    options: [
+                        {
+                            title: 'Vertrag verfolgen',
+                            description: 'Überwachen Sie den Status und warten Sie auf die Partnersignatur'
+                        },
+                        {
+                            title: 'Übersicht',
+                            description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                        }
+                    ],
+                    primaryButtonText: 'Vertrag verfolgen',
+                    primaryButtonIcon: 'bi bi-eye',
+                    primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            } else {
+                // Normal contract without delivery
+                window.BlockchainSuccessModal.show({
+                    title: 'Blockchain-Registrierung erfolgreich!',
+                    description: 'Der Vertrag wurde erfolgreich auf der Blockchain registriert. Jetzt muss Ihr Vertragspartner den Vertrag auf der Blockchain bestätigen, um den Prozess abzuschließen.',
+                    tip: 'Ihr Partner wird automatisch benachrichtigt und kann den Vertrag über seine Vertragsübersicht signieren.',
+                    options: [
+                        {
+                            title: 'Vertrag verfolgen',
+                            description: 'Überwachen Sie den Status und warten Sie auf die Partnersignatur'
+                        },
+                        {
+                            title: 'Übersicht',
+                            description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                        }
+                    ],
+                    primaryButtonText: 'Vertrag verfolgen',
+                    primaryButtonIcon: 'bi bi-eye',
+                    primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                    secondaryButtonText: 'Zur Übersicht',
+                    secondaryButtonIcon: 'bi bi-list-ul',
+                    secondaryButtonUrl: "{% url 'contract_list' %}"
+                });
+            }
+        }
+        
+        // Handle the "Nächste Schritte anzeigen" button click
+        const showNextStepsBtn = document.getElementById('show-next-steps-btn');
+        if (showNextStepsBtn) {
+            showNextStepsBtn.addEventListener('click', function() {
+                showNextStepsModal();
+            });
+        }
+        
+        // Handle modal button clicks (old implementation, now handled by reusable component)
+        const goToOverviewBtn = document.getElementById('goToOverviewBtn');
+        const trackContractBtn = document.getElementById('trackContractBtn');
+        
+        if (goToOverviewBtn) {
+            goToOverviewBtn.addEventListener('click', function() {
+                window.location.href = "{% url 'contract_list' %}";
+            });
+        }
+        
+        if (trackContractBtn) {
+            trackContractBtn.addEventListener('click', function() {
+                window.location.href = "{% url 'contract_detail' contract.pk %}";
+            });
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,55 @@
+/* Homepage specific styles */
+.cta-section {
+    background-color: white;
+    padding: 4rem 0;
+    text-align: center;
+    margin-top: 2rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Homepage card styling */
+.card-body {
+    padding: 1.5rem;
+}
+
+.card-title {
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+/* ========== UNIFIED ACTIVITY STYLES ========== */
+.activity-list {
+    margin-top: 1.5rem;
+}
+
+.activity-item {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 12px 0;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-content {
+    margin-top: 8px;
+}
+
+.activity-content a {
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.activity-content a:hover {
+    text-decoration: underline;
+}
+
+.activity-time {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* User role colors - unified with contract list */
+.user-role-creator { color: #28a745; font-weight: 500; }
+.user-role-partner { color: #17a2b8; font-weight: 500; }
+.user-role-system { color: #6c757d; font-weight: 500; }

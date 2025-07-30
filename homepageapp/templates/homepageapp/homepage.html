@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/homepage.css' %}">
+{% endblock %}
+
+{% block hero %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <h1 class="hero-title">DigiContract</h1>
+        <p class="hero-subtitle">Verwalten, signieren und teilen Sie Ihre Verträge sicher mit Smart Contracts!</p>
+        {% if user.is_authenticated %}
+        <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-speedometer2"></i> Zu ihrem Dashboard!
+        </a>
+        {% else %}
+        <a href="{% url 'login_page' %}" class="btn-metamask btn-lg">
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 30px; height: 30px;">
+            Mit MetaMask anmelden
+        </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<!-- Main Content -->
+<div class="container">
+    <!-- User is not logged in -->
+    <h2 class="text-center mb-5">Unsere Vorteile</h2>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-shield-lock"></i>
+                </div>
+                <h3>Sichere Authentifizierung</h3>
+                <p>Melden Sie sich sicher mit Ihrerm MetaMask-Wallet an. Keine Passwörter, die vergessen oder gestohlen werden können.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-pen"></i>
+                </div>
+                <h3>Digitale Signierung</h3>
+                <p>Signieren Sie Ihre Dokumente digital und behalten Sie die volle Kontrolle über Ihre Unterschrift.</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-share"></i>
+                </div>
+                <h3>Einfaches Teilen</h3>
+                <p>Teilen Sie Ihre Verträge sicher mit Geschäftspartnern und verfolgen Sie den Status.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action Section -->
+<section class="cta-section">
+    <div class="container">
+        <h2 class="mb-4">Bereit, loszulegen?</h2>
+        {% if user.is_authenticated %}
+        <p class="mb-4">Legen sie noch heute ihren Vertrag auf der Blockchain an und erleben Sie die Zukunft der digitalen Vertragsunterzeichnung!</p>
+        <a href="{% url 'contract_list' %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-file-earmark-plus"></i> Meine Verträge
+        </a>
+        {% else %}
+        <p class="mb-4">Registrieren Sie sich noch heute und erleben Sie die Zukunft der digitalen Vertragsunterzeichnung.</p>
+        <a href="{% url 'login_page' %}" class="btn-metamask">
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 30px; height: 30px;">
+            Mit MetaMask anmelden
+        </a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

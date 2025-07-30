@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/homepage.css' %}">
+{% endblock %}
+
+{% block hero %}
+<!-- Hero Section -->
+<section class="hero-section hero-section-small">
+    <div class="container">
+        <h1 class="hero-title">Dashboard</h1>
+        <p class="hero-subtitle">Verwalten Sie Ihre Verträge sicher mit Smart Contracts</p>
+        <a href="{% url 'contract_upload' %}" class="btn btn-light btn-lg mt-3">
+            <i class="bi bi-file-earmark-plus"></i> Vertrag hochladen
+        </a>
+    </div>
+</section>
+{% endblock %}
+
+{% block content %}
+<!-- Main Content -->
+<div class="container">
+    <!-- User is logged in -->
+    <div class="user-info">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h4>Willkommen zurück!</h4>
+                <p class="mb-0">
+                    <strong>Ethereum Adresse:</strong> 
+                    <span class="text-monospace">{{ user.ethereum_address|slice:":6" }}...{{ user.ethereum_address|slice:"-4:" }}</span>
+                </p>
+            </div>
+            <div class="col-md-4 text-md-end">
+                <form id="logoutForm" method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <a href="#" class="logout-btn" onclick="document.getElementById('logoutForm').submit();">
+                        <i class="bi bi-box-arrow-right"></i> Abmelden
+                    </a>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Vertrag hochladen</h5>
+                    <p class="card-text">Laden Sie neue Verträge hoch, um sie zu signieren oder mit anderen zu teilen.</p>
+                    <a href="{% url 'contract_upload' %}" class="btn btn-primary">
+                        <i class="bi bi-upload"></i> Vertrag hochladen
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Meine Verträge</h5>
+                    <p class="card-text">Sehen Sie alle Ihre Verträge und deren Status ein.</p>
+                    <a href="{% url 'contract_list' %}" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-text"></i> Verträge anzeigen
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Letzte Aktivitäten</h5>
+                </div>
+                <div class="card-body">
+                    {% if has_activities %}
+                        <div class="activity-list">
+                            {% for activity in recent_activities %}
+                                <div class="activity-item">                                    <div class="d-flex justify-content-between">
+                                        <span class="user-role-{{ activity.user_role }}">
+                                            {% if activity.user_role == 'creator' %}
+                                                {% if activity.contract.creator_address == user.ethereum_address %}
+                                                    <i class="bi bi-person-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-person-fill"></i> Ersteller
+                                                {% endif %}
+                                            {% elif activity.user_role == 'partner' %}
+                                                {% if activity.contract.partner_address == user.ethereum_address %}
+                                                    <i class="bi bi-people-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-people-fill"></i> Partner
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-gear-fill"></i> System
+                                            {% endif %}
+                                        </span>
+                                        <span class="activity-time">{{ activity.timestamp|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    <div class="activity-content">
+                                        <a href="{% url 'contract_detail' activity.contract.pk %}">
+                                            <strong>{{ activity.contract.title|truncatechars:35 }}</strong>
+                                        </a>
+                                        <div>{{ activity.get_action_display }}</div>
+                                        {% if activity.details %}
+                                            <small>{{ activity.details|truncatechars:60 }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="mt-3 text-end">
+                            <a href="{% url 'contract_list' %}" class="btn btn-outline-primary btn-sm">
+                                Alle Verträge anzeigen <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    {% else %}
+                        <p>Noch keine Aktivitäten vorhanden. Laden Sie Ihren ersten Vertrag hoch!</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

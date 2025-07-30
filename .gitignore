@@ -136,3 +136,15 @@ GitHub.sublime-settings
 !.vscode/launch.json 
 !.vscode/extensions.json 
 .history
+
+
+#PlantUML
+*.puml
+
+# Oracle-spezifische temporäre Dateien
+oracle_temp/
+temp_keys/
+
+# Sensitive key files
+keys/*.json
+

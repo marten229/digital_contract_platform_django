@@ -1,0 +1,175 @@
+/* Contract detail page specific styles */
+
+.contract-header {
+    background-color: #fff;
+    padding: 1.5rem;
+    border-bottom: 1px solid #dee2e6;
+    margin-bottom: 2rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.document-heading {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: #e9f5ff;
+    border-radius: 8px;
+}
+
+#pdfContainer {
+    position: relative;
+    margin: 0 auto;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+    max-width: 100%;
+}
+
+#pdfViewer {
+    display: block;
+    max-width: 100%;
+}
+
+.document-controls {
+    margin: 1.5rem 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+#pageNavigation {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin: 1rem 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#pageInfo {
+    margin: 0 1rem;
+    font-weight: 600;
+}
+
+.loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255,255,255,0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .document-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn {
+        width: 100%;
+    }
+}
+
+/* ========== UNIFIED STATUS BADGES ========== */
+.status-badge {
+    display: inline-block;
+    padding: 0.35em 0.65em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+/* Status badge colors - unified with contract list */
+.status-pending { background-color: #ffc107; color: #212529; }
+.status-accepted { background-color: #0d6efd; color: #fff; }
+.status-completed { background-color: #198754; color: #fff; }
+.status-rejected { background-color: #dc3545; color: #fff; }
+.status-draft { background-color: #6c757d; color: #fff; }
+.status-uploaded { background-color: #0dcaf0; color: #fff; }
+.status-configured { background-color: #ffc107; color: #212529; }
+.status-invitation { background-color: #6610f2; color: #fff; }
+.status-viewed { background-color: #20c997; color: #fff; }
+.status-verified { background-color: #198754; color: #fff; }
+.status-signed-creator { background-color: #0d6efd; color: #fff; }
+.status-signed-partner { background-color: #6f42c1; color: #fff; }
+.status-blockchain { background-color: #fd7e14; color: #fff; font-weight: 600; }
+.status-package-shipped { background-color: #fd7e14; color: #fff; }
+.status-package-delivered { background-color: #20c997; color: #fff; }
+.status-delivery-confirmed { background-color: #0dcaf0; color: #fff; }
+.status-delivery-approved { background-color: #198754; color: #fff; }
+.status-agreement-fulfilled { background-color: #6f42c1; color: #fff; }
+
+/* ========== UNIFIED ACTIVITY TIMELINE ========== */
+.activity-timeline {
+    margin-top: 2rem;
+    border-left: 2px solid #ccc;
+    padding-left: 1.5rem;
+}
+
+.activity-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #f0f0f0;
+    padding-bottom: 12px;
+}
+
+.activity-item:last-child {
+    border-bottom: none;
+}
+
+.activity-item:before {
+    content: "";
+    position: absolute;
+    left: -1.75rem;
+    top: 0.4rem;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #0d6efd;
+}
+
+.activity-time {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+.activity-content {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.activity-content a {
+    text-decoration: none;
+    color: #2c3e50;
+}
+
+.activity-content a:hover {
+    text-decoration: underline;
+}
+
+/* User role colors - unified with contract list */
+.user-role-creator { color: #28a745; font-weight: 500; }
+.user-role-partner { color: #17a2b8; font-weight: 500; }
+.user-role-system { color: #6c757d; font-weight: 500; }

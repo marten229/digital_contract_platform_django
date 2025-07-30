@@ -1,0 +1,654 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Meine Verträge{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_list.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>📄 Meine Verträge</h1>
+            <p class="text-muted">Übersicht Ihrer Verträge</p>
+        </div>
+        <div class="col-auto">
+            <a href="{% url 'contract_upload' %}" class="btn btn-primary upload-btn">
+                <i class="bi bi-plus-circle"></i> Neuen Vertrag hochladen
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            {% if all_contracts %}
+                
+                <!-- 🔄 AKTIVE VERTRÄGE (In Bearbeitung) -->
+                <div class="section-header">
+                    <span class="section-icon">🔄</span>
+                    <h2 class="section-title">Aktive Verträge</h2>
+                    <span class="section-count">{{ active_contracts.count }}</span>
+                </div>
+                
+                {% if active_contracts %}
+                    {% for contract in active_contracts %}
+                        <div class="contract-unified-card {% if contract.creator_address == user.ethereum_address %}creator-contract{% else %}partner-contract{% endif %}">
+                            <div class="contract-header">
+                                <h3 class="contract-title">{{ contract.title }}</h3>
+                                <div class="status-badges">
+                                    <span class="badge primary-status {{ contract.get_status_class }}">
+                                        {{ contract.get_status_display_german }}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="contract-info-grid">
+                                <div class="info-section">
+                                    <div class="info-item">
+                                        <i class="bi bi-person info-icon"></i>
+                                        <span class="info-label">
+                                            {% if contract.creator_address == user.ethereum_address %}Partner:{% else %}Ersteller:{% endif %}
+                                        </span>
+                                        <span class="info-value">
+                                            {% if contract.creator_address == user.ethereum_address %}
+                                                {{ contract.partner.username|default:contract.partner_address|truncatechars:20 }}
+                                            {% else %}
+                                                {{ contract.creator_address|truncatechars:15 }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="info-item">
+                                        <i class="bi bi-calendar info-icon"></i>
+                                        <span class="info-label">Erstellt:</span>
+                                        <span class="info-value">{{ contract.uploaded_at|date:"d.m.Y" }}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="info-section">
+                                    <div class="info-item">
+                                        <i class="bi bi-clock info-icon"></i>
+                                        <span class="info-label">Aktualisiert:</span>
+                                        <span class="info-value">{{ contract.last_updated|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    
+                                    {% if contract.has_dhl_tracking %}
+                                    <div class="info-item">
+                                        <i class="bi bi-truck info-icon"></i>
+                                        <span class="info-label">Lieferung:</span>
+                                        <span class="info-value">DHL Tracking aktiviert</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                              <div class="contract-actions">
+                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                                
+                                {% if contract.creator_address == user.ethereum_address %}
+                                    <!-- Creator Actions -->
+                                    {% if contract.status == 'uploaded' and not contract.is_configured %}
+                                        <a href="{% url 'contract_configuration' contract.pk %}" class="btn btn-outline-secondary btn-sm">
+                                            <i class="bi bi-gear"></i> Konfigurieren
+                                        </a>
+                                    {% elif contract.status == 'configured' or contract.status == 'invitation_sent' %}
+                                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                            <i class="bi bi-pen"></i> Jetzt Signieren
+                                        </a>
+                                    {% elif contract.status == 'signed_by_partner' %}
+                                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-success btn-sm">
+                                            <i class="bi bi-pen-fill"></i> Jetzt signieren
+                                        </a>
+                                    {% elif contract.status == 'completed' %}
+                                        <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
+                                        </a>
+                                    {% endif %}
+                                {% else %}
+                                    <!-- Partner Actions -->
+                                    {% if contract.status == 'invitation_sent' or contract.status == 'viewed_by_partner' %}
+                                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                            <i class="bi bi-pen"></i> Signieren
+                                        </a>
+                                    {% elif contract.status == 'signed_by_creator' %}
+                                        <a href="{% url 'contract_signing' contract.pk %}" class="btn btn-success btn-sm">
+                                            <i class="bi bi-pen-fill"></i> Jetzt signieren
+                                        </a>                                    
+                                    {% elif contract.status == 'partner_verified' %}
+                                        <span class="badge status-pending">Warten auf Creator-Signatur</span>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-section">
+                        <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3 mb-0">Keine aktiven Verträge in Bearbeitung</p>
+                    </div>
+                {% endif %}
+
+                <!-- 📝 ERFÜLLUNGSPHASE - Reine Vertragserfüllung -->
+                <div class="section-header">
+                    <span class="section-icon">📝</span>
+                    <h2 class="section-title">Reine Vertragserfüllung</h2>
+                    <span class="section-count">{{ digital_execution_contracts.count }}</span>
+                </div>
+                
+                {% if digital_execution_contracts %}
+                    {% for contract in digital_execution_contracts %}
+                        <div class="contract-unified-card {% if contract.creator_address == user.ethereum_address %}creator-contract{% else %}partner-contract{% endif %}">
+                            <div class="contract-header">
+                                <h3 class="contract-title">{{ contract.title }}</h3>
+                                <div class="status-badges">
+                                    <span class="badge primary-status {{ contract.get_status_class }}">
+                                        {{ contract.get_status_display_german }}
+                                    </span>                                    
+                                    {% if contract.blockchain_status %}
+                                        <span class="badge sub-status status-blockchain">{{ contract.blockchain_status }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="contract-info-grid">
+                                <div class="info-section">
+                                    <div class="info-item">
+                                        <i class="bi bi-person info-icon"></i>
+                                        <span class="info-label">
+                                            {% if contract.creator_address == user.ethereum_address %}Partner:{% else %}Ersteller:{% endif %}
+                                        </span>
+                                        <span class="info-value">
+                                            {% if contract.creator_address == user.ethereum_address %}
+                                                {{ contract.partner.username|default:contract.partner_address|truncatechars:20 }}
+                                            {% else %}
+                                                {{ contract.creator_address|truncatechars:15 }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    
+                                    {% if contract.blockchain_contract_id %}
+                                    <div class="info-item">
+                                        <i class="bi bi-link-45deg info-icon"></i>
+                                        <span class="info-label">Vertrags ID:</span>
+                                        <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="info-section">
+                                    {% if contract.contract_value %}
+                                    <div class="info-item">
+                                        <i class="bi bi-currency-bitcoin info-icon"></i>
+                                        <span class="info-label">Wert:</span>
+                                        <span class="info-value">{{ contract.contract_value }} ETH</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="info-item">
+                                        <i class="bi bi-clock info-icon"></i>
+                                        <span class="info-label">Aktualisiert:</span>
+                                        <span class="info-value">{{ contract.last_updated|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                              <div class="contract-actions">
+                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                                
+                                {% if contract.creator_address == user.ethereum_address %}
+                                    <!-- Creator Actions for Digital Contracts -->
+                                    {% if contract.blockchain_status == 'Signed' %}
+                                        <a href="{% url 'confirm_contract_completion' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                            <i class="bi bi-check-circle"></i> Vertragserfüllung bestätigen
+                                        </a>                                    
+                                    {% elif contract.blockchain_status == 'Created' %}
+                                        <span class="badge status-pending">Partner muss Vertrag bestätigen</span>
+                                    {% elif contract.blockchain_status == 'AgreementFulfilled' %}
+                                        <span class="badge status-completed">Erfüllung bestätigt</span>
+                                    {% endif %}
+                                    
+                                    <!-- Nichtig machen Button für Creator -->
+                                    {% if contract.creator_address == user.ethereum_address and contract.blockchain_contract_id and contract.blockchain_status == 'Completed' and contract.blockchain_status != 'Cancelled' and not contract.funds_withdrawn %}
+                                        <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-x-circle"></i> Nichtig machen
+                                        </a>
+                                    {% endif %}
+                                    
+                                {% else %}
+                                    <!-- Partner Actions for Digital Contracts -->
+                                    {% if contract.blockchain_status == 'Created' %}
+                                        <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-success btn-sm">
+                                            <i class="bi bi-pen-fill"></i> Vertrag auf Blockchain bestätigen
+                                        </a>
+                                    {% elif contract.blockchain_status == 'Signed' %}
+                                        <span class="badge status-accepted">Warten auf Vertragserfüllung</span>
+                                    {% elif contract.blockchain_status == 'AgreementFulfilled' or contract.blockchain_status == 'Completed' %}
+                                        {% if not contract.funds_withdrawn %}
+                                            <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                <i class="bi bi-cash-coin"></i> Geld abheben
+                                            </a>
+                                        {% else %}
+                                            <span class="badge status-completed">Gelder abgehoben</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-section">
+                        <i class="bi bi-file-text" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3 mb-0">Keine Verträge mit reiner Vertragserfüllung</p>
+                    </div>
+                {% endif %}
+
+                <!-- 📦 ERFÜLLUNGSPHASE - Verträge mit Lieferung -->
+                <div class="section-header">
+                    <span class="section-icon">📦</span>
+                    <h2 class="section-title">Verträge mit Lieferung</h2>
+                    <span class="section-count">{{ delivery_contracts.count }}</span>
+                </div>
+                
+                {% if delivery_contracts %}
+                    {% for contract in delivery_contracts %}
+                        <div class="contract-unified-card {% if contract.creator_address == user.ethereum_address %}creator-contract{% else %}partner-contract{% endif %}">
+                            <div class="contract-header">
+                                <h3 class="contract-title">{{ contract.title }}</h3>
+                                <div class="status-badges">
+                                    <span class="badge primary-status {{ contract.get_status_class }}">
+                                        {{ contract.get_status_display_german }}
+                                    </span>                                    {% if contract.package_status %}
+                                        {% if contract.package_status == 'delivered' %}
+                                            <span class="badge sub-status status-package-delivered">📦 Geliefert</span>
+                                        {% elif contract.package_status == 'in_transit' %}
+                                            <span class="badge sub-status status-package-shipped">🚛 Unterwegs</span>
+                                        {% elif contract.package_status == 'out_for_delivery' %}
+                                            <span class="badge sub-status status-configured">🚚 Wird zugestellt</span>
+                                        {% elif contract.package_status == 'failed' %}
+                                            <span class="badge sub-status status-rejected">❌ Lieferproblem</span>
+                                        {% endif %}
+                                    {% endif %}
+                                    
+                                    {% if contract.blockchain_status %}
+                                        <span class="badge sub-status status-blockchain">⛓️ {{ contract.blockchain_status }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="contract-info-grid">
+                                <div class="info-section">
+                                    <div class="info-item">
+                                        <i class="bi bi-person info-icon"></i>
+                                        <span class="info-label">
+                                            {% if contract.creator_address == user.ethereum_address %}Partner:{% else %}Ersteller:{% endif %}
+                                        </span>
+                                        <span class="info-value">
+                                            {% if contract.creator_address == user.ethereum_address %}
+                                                {{ contract.partner.username|default:contract.partner_address|truncatechars:20 }}
+                                            {% else %}
+                                                {{ contract.creator_address|truncatechars:15 }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    
+                                    {% if contract.tracking_number %}
+                                    <div class="info-item">
+                                        <i class="bi bi-truck info-icon"></i>
+                                        <span class="info-label">Tracking:</span>
+                                        <span class="info-value">{{ contract.tracking_number }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="info-section">
+                                    {% if contract.blockchain_contract_id %}
+                                    <div class="info-item">
+                                        <i class="bi bi-link-45deg info-icon"></i>
+                                        <span class="info-label">Vertrags ID:</span>
+                                        <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="info-item">
+                                        <i class="bi bi-clock info-icon"></i>
+                                        <span class="info-label">Aktualisiert:</span>
+                                        <span class="info-value">
+                                            {% if contract.last_tracking_update %}
+                                                {{ contract.last_tracking_update|date:"d.m.Y H:i" }}
+                                            {% else %}
+                                                {{ contract.last_updated|date:"d.m.Y H:i" }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                              <div class="contract-actions">
+                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                                
+                                {% if contract.creator_address == user.ethereum_address %}
+                                    <!-- Creator Actions for Delivery Contracts -->
+                                    {% if contract.status == 'package_delivered' and not contract.delivery_confirmation %}
+                                        <a href="{% url 'confirm_delivery' contract.pk %}" class="btn btn-success btn-sm">
+                                            <i class="bi bi-check-circle-fill"></i> Lieferung bestätigen
+                                        </a>
+                                    {% elif contract.status == 'delivery_confirmed' and not contract.blockchain_contract_id %}
+                                        <a href="{% url 'submit_to_blockchain' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                            <i class="bi bi-link-45deg"></i> Zur Blockchain übermitteln
+                                        </a>
+                                    {% elif contract.blockchain_status == 'Signed' %>
+                                        <span class="badge status-accepted">Warten auf Versand</span>
+                                    {% elif contract.blockchain_status == 'DeliveryApproved' %}
+                                        <span class="badge status-delivery-approved">Lieferung genehmigt</span>
+                                    {% endif %}
+                                    
+                                    <!-- Nichtig machen Button für Creator -->
+                                    {% if contract.creator_address == user.ethereum_address and contract.blockchain_contract_id and contract.blockchain_status == 'Completed' and contract.blockchain_status != 'Cancelled' and not contract.funds_withdrawn %}
+                                        <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-outline-danger btn-sm">
+                                            <i class="bi bi-x-circle"></i> Nichtig machen
+                                        </a>
+                                    {% endif %}
+                                    
+                                {% else %}
+                                    <!-- Partner Actions for Delivery Contracts -->
+                                    {% if contract.blockchain_status == 'Created' %}
+                                        <a href="{% url 'sign_blockchain_contract' contract.pk %}" class="btn btn-success btn-sm">
+                                            <i class="bi bi-pen-fill"></i> Vertrag auf Blockchain bestätigen
+                                        </a>
+                                    {% elif contract.blockchain_status == 'Signed' and not contract.tracking_number and contract.has_dhl_tracking %}
+                                        <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-info btn-sm">
+                                            <i class="bi bi-truck"></i> Sendungsnummer hinzufügen
+                                        </a>
+                                    {% endif %}
+                                    
+                                    {% if contract.blockchain_status == 'DeliveryApproved' or contract.blockchain_status == 'Completed' %}
+                                        {% if not contract.funds_withdrawn %}
+                                            <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                                <i class="bi bi-cash-coin"></i> Geld abheben
+                                            </a>
+                                        {% else %}
+                                            <span class="badge status-completed">Gelder abgehoben</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-section">
+                        <i class="bi bi-truck" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3 mb-0">Keine Verträge mit Lieferung in Ausführung</p>
+                    </div>
+                {% endif %}
+
+                <!-- ✅ ABGESCHLOSSENE VERTRÄGE -->
+                <div class="section-header">
+                    <span class="section-icon">✅</span>
+                    <h2 class="section-title">Abgeschlossene Verträge</h2>
+                    <span class="section-count">{{ completed_contracts.count }}</span>
+                </div>
+                
+                {% if completed_contracts %}
+                    {% for contract in completed_contracts %}
+                        <div class="contract-unified-card {% if contract.creator_address == user.ethereum_address %}creator-contract{% else %}partner-contract{% endif %}">
+                            <div class="contract-header">
+                                <h3 class="contract-title">{{ contract.title }}</h3>
+                                <div class="status-badges">
+                                    <span class="badge primary-status status-completed">✅ Abgeschlossen</span>
+                                    {% if contract.funds_withdrawn %}
+                                        <span class="badge sub-status status-completed">💰 Gelder abgehoben</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="contract-info-grid">
+                                <div class="info-section">
+                                    <div class="info-item">
+                                        <i class="bi bi-person info-icon"></i>
+                                        <span class="info-label">
+                                            {% if contract.creator_address == user.ethereum_address %}Partner:{% else %}Ersteller:{% endif %}
+                                        </span>
+                                        <span class="info-value">
+                                            {% if contract.creator_address == user.ethereum_address %}
+                                                {{ contract.partner.username|default:contract.partner_address|truncatechars:20 }}
+                                            {% else %}
+                                                {{ contract.creator_address|truncatechars:15 }}
+                                            {% endif %}
+                                        </span>
+                                    </div>
+                                    
+                                    {% if contract.blockchain_contract_id %}
+                                    <div class="info-item">
+                                        <i class="bi bi-link-45deg info-icon"></i>
+                                        <span class="info-label">Vertrags ID:</span>
+                                        <span class="info-value">#{{ contract.blockchain_contract_id }}</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                
+                                <div class="info-section">
+                                    {% if contract.contract_value %}
+                                    <div class="info-item">
+                                        <i class="bi bi-currency-bitcoin info-icon"></i>
+                                        <span class="info-label">Wert:</span>
+                                        <span class="info-value">{{ contract.contract_value }} ETH</span>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div class="info-item">
+                                        <i class="bi bi-calendar-check info-icon"></i>
+                                        <span class="info-label">Abgeschlossen:</span>
+                                        <span class="info-value">{{ contract.last_updated|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="contract-actions">
+                                <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> Details
+                                </a>
+                                
+                                {% if not contract.funds_withdrawn and contract.partner_address == user.ethereum_address %}
+                                    <a href="{% url 'withdraw_contract_funds' contract.pk %}" class="btn btn-outline-success btn-sm">
+                                        <i class="bi bi-cash-coin"></i> Geld abheben
+                                    </a>
+                                {% endif %}
+                                
+                                {% if contract.creator_address == user.ethereum_address and contract.blockchain_contract_id and contract.blockchain_status == 'Completed' %}
+                                    <a href="{% url 'void_blockchain_contract' contract.pk %}" class="btn btn-outline-danger btn-sm">
+                                        <i class="bi bi-x-circle"></i> Nichtig machen
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-section">
+                        <i class="bi bi-check-circle" style="font-size: 3rem; opacity: 0.3;"></i>
+                        <p class="mt-3 mb-0">Keine abgeschlossenen Verträge</p>
+                    </div>
+                {% endif %}
+
+                <!-- ❌ ABGEBROCHENE VERTRÄGE -->
+                {% if problematic_contracts %}
+                <div class="section-header">
+                    <span class="section-icon">❌</span>
+                    <h2 class="section-title">Stornierte Verträge</h2>
+                    <span class="section-count">{{ problematic_contracts.count }}</span>
+                </div>
+                
+                {% for contract in problematic_contracts %}
+                    <div class="contract-unified-card {% if contract.creator_address == user.ethereum_address %}creator-contract{% else %}partner-contract{% endif %}">
+                        <div class="contract-header">
+                            <h3 class="contract-title">{{ contract.title }}</h3>
+                            <div class="status-badges">
+                                {% if contract.status == 'rejected' %}
+                                    <span class="badge primary-status status-rejected">❌ Abgelehnt</span>
+                                {% elif contract.package_status == 'failed' %}
+                                    <span class="badge primary-status status-rejected">📦 Lieferproblem</span>
+                                {% elif contract.blockchain_status == 'Cancelled' %}
+                                    <span class="badge primary-status status-draft">⛓️ Storniert</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="contract-info-grid">
+                            <div class="info-section">
+                                <div class="info-item">
+                                    <i class="bi bi-person info-icon"></i>
+                                    <span class="info-label">
+                                        {% if contract.creator_address == user.ethereum_address %}Partner:{% else %}Ersteller:{% endif %}
+                                    </span>
+                                    <span class="info-value">
+                                        {% if contract.creator_address == user.ethereum_address %}
+                                            {{ contract.partner.username|default:contract.partner_address|truncatechars:20 }}
+                                        {% else %}
+                                            {{ contract.creator_address|truncatechars:15 }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                                
+                                {% if contract.tracking_number %}
+                                <div class="info-item">
+                                    <i class="bi bi-truck info-icon"></i>
+                                    <span class="info-label">Tracking:</span>
+                                    <span class="info-value">{{ contract.tracking_number }}</span>
+                                </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="info-section">
+                                <div class="info-item">
+                                    <i class="bi bi-clock info-icon"></i>
+                                    <span class="info-label">Letzte Änderung:</span>
+                                    <span class="info-value">{{ contract.last_updated|date:"d.m.Y H:i" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="contract-actions">
+                            <a href="{% url 'contract_detail' contract.pk %}" class="btn btn-outline-primary btn-sm">
+                                <i class="bi bi-eye"></i> Details
+                            </a>
+                        </div>
+                    </div>
+                {% endfor %}
+                {% endif %}
+
+            {% else %}
+                <div class="empty-section mt-5">
+                    <i class="bi bi-inbox" style="font-size: 4rem; opacity: 0.3;"></i>
+                    <h3 class="mt-3">Keine Verträge gefunden</h3>
+                    <p>Sie haben bisher keine Verträge erstellt. Klicken Sie auf "Neuen Vertrag hochladen", um Ihren ersten Vertrag zu erstellen.</p>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-activity"></i> Letzte Aktivitäten
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_activities %}
+                        <div class="activity-list">
+                            {% for activity in recent_activities %}
+                                <div class="activity-item">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="user-role-{{ activity.user_role }}">
+                                            {% if activity.user_role == 'creator' %}
+                                                {% if activity.contract.creator_address == user.ethereum_address %}
+                                                    <i class="bi bi-person-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-person-fill"></i> Ersteller
+                                                {% endif %}
+                                            {% elif activity.user_role == 'partner' %}
+                                                {% if activity.contract.partner_address == user.ethereum_address %}
+                                                    <i class="bi bi-people-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-people-fill"></i> Partner
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-gear-fill"></i> System
+                                            {% endif %}
+                                        </span>
+                                        <span class="activity-time">{{ activity.timestamp|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    <div class="activity-content">
+                                        <a href="{% url 'contract_detail' activity.contract.pk %}">
+                                            <strong>{{ activity.contract.title|truncatechars:35 }}</strong>
+                                        </a>
+                                        <div>{{ activity.get_action_display }}</div>
+                                        {% if activity.details %}
+                                            <small>{{ activity.details|truncatechars:60 }}</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">Keine Aktivitäten vorhanden.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Statistik-Widget -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart"></i> Übersicht
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>🔄 Aktive Verträge</span>
+                            <span class="badge status-pending">{{ active_contracts.count }}</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>📝 Reine Erfüllung</span>
+                            <span class="badge status-accepted">{{ digital_execution_contracts.count }}</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>📦 Mit Lieferung</span>
+                            <span class="badge status-configured">{{ delivery_contracts.count }}</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>✅ Abgeschlossen</span>
+                            <span class="badge status-completed">{{ completed_contracts.count }}</span>
+                        </div>
+                    </div>
+                    {% if problematic_contracts.count > 0 %}
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>❌ Storniert</span>
+                            <span class="badge status-rejected">{{ problematic_contracts.count }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                    <hr class="my-3">
+                    <div class="stat-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <strong>Alle Verträge</strong>
+                            <strong class="badge status-draft">{{ all_contracts.count }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

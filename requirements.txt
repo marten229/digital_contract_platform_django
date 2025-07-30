@@ -1,0 +1,36 @@
+# Requirements für die Digital Contract Platform
+# Diese Datei definiert alle Python-Abhängigkeiten für das komplette Django-Projekt
+
+# ===== DJANGO CORE =====
+Django==5.0.6
+djangorestframework==3.15.1
+
+# ===== DATENBANK =====
+psycopg2-binary==2.9.9
+
+# ===== WEB3 UND BLOCKCHAIN =====
+web3==6.15.1
+eth-account==0.10.0
+eth-abi==4.2.1
+eth-utils==3.0.0
+
+# ===== PDF-VERARBEITUNG =====
+reportlab==4.0.9
+PyPDF2==3.0.1
+Pillow==10.2.0
+
+# ===== HTTP-REQUESTS =====
+requests==2.31.0
+
+# ===== DJANGO EXTENSIONS =====
+django-widget-tweaks==1.5.0
+
+# ===== UMGEBUNGSVARIABLEN =====
+python-dotenv==1.0.0
+
+# ===== ORACLE SERVICE ABHÄNGIGKEITEN =====
+# (Für den eigenständigen Oracle Service)
+SQLAlchemy==2.0.25
+colorlog==6.8.0
+click==8.1.7
+

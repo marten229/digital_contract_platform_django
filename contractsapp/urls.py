@@ -1,8 +1,28 @@
 from django.urls import path
-from .views import contract_upload, contract_detail, add_signature
+from . import views
 
 urlpatterns = [
-    path('', contract_upload, name='contract_upload'),
-    path('contract/<int:pk>/', contract_detail, name='contract_detail'),
-    path('contract/<int:pk>/add_signature/', add_signature, name='add_signature'),
+    path('', views.contract_upload, name='contract_upload'),
+    path('pdf-editor/', views.pdf_editor, name='pdf_editor'),
+    path('pdf-editor/success/<int:pk>/', views.pdf_editor_success, name='pdf_editor_success'),
+    path('api/created-pdfs/', views.get_created_pdf_files, name='get_created_pdf_files'),
+    path('list/', views.contract_list, name='contract_list'),
+    path('contract/<int:pk>/', views.contract_detail, name='contract_detail'),
+    path('contract/<int:pk>/sign/', views.contract_signing, name='contract_signing'),
+    path('contract/<int:pk>/success/', views.contract_signing_success, name='contract_signing_success'),
+    path('contract/<int:pk>/verify/', views.verify_partner, name='verify_partner'),
+    path('contract/<int:pk>/add_signature/', views.add_signature, name='add_signature'),
+    path('contract/<int:pk>/configure/', views.contract_configuration, name='contract_configuration'),
+    path('contract/<int:pk>/finish_configuration/', views.finish_contract_configuration, name='finish_contract_configuration'),    path('contract/<int:pk>/submit_to_blockchain/', views.submit_to_blockchain, name='submit_to_blockchain'),
+    path('contract/<int:pk>/sign_blockchain/', views.sign_blockchain_contract, name='sign_blockchain_contract'),
+    path('contract/<int:pk>/confirm_completion/', views.confirm_contract_completion, name='confirm_contract_completion'),
+    path('contract/<int:pk>/withdraw_funds/', views.withdraw_contract_funds, name='withdraw_contract_funds'),
+    path('contract/<int:pk>/void_contract/', views.void_blockchain_contract, name='void_blockchain_contract'),
+    path('update-blockchain-status/<int:pk>/', views.update_blockchain_status, name='update_blockchain_status'),
+    path('deploy-contract/', views.deploy_contract, name='deploy_contract'),
+    path('update-contract-address/', views.update_contract_address, name='update_contract_address'),
+    
+    path('contract/<int:pk>/confirm_delivery/', views.confirm_delivery, name='confirm_delivery'),
+    path('contract/<int:pk>/add_tracking/', views.add_tracking_number, name='add_tracking_number'),
+    path('prepare-set-oracle/', views.prepare_set_oracle, name='prepare_set_oracle'),
 ]

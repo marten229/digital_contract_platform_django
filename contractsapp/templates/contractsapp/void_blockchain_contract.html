@@ -1,0 +1,418 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Vertrag nichtig machen | DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/submit_to_blockchain.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+        </a>
+        <h1 class="mb-0">Vertrag für nichtig erklären</h1>
+    </div>
+    
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Achtung:</strong> Das Nichtigerklären eines Vertrags auf der Blockchain kann nicht rückgängig gemacht werden.
+        Der Vertrag wird als "Cancelled" markiert und kann nicht mehr verwendet werden.
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="blockchain-submit-section">
+                <h3 class="mb-4">Vertragsdetails</h3>
+                
+                <div class="contract-detail">
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragstitel:</strong></div>
+                        <div class="col-sm-8">{{ contract.title }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Ersteller:</strong></div>
+                        <div class="col-sm-8">{{ contract.creator_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Partner:</strong></div>
+                        <div class="col-sm-8">{{ contract.partner_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.get_status_display_german }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Blockchain-Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_status }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Blockchain-ID:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>PDF-Hash:</strong></div>
+                        <div class="col-sm-8">
+                            <div class="contract-hash">{{ contract.pdf_hash }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                {% if is_submission %}
+                <div id="blockchain-submission-area">
+                    <h4 class="mb-3">Vertrag auf der Blockchain für nichtig erklären</h4>
+                    <p>
+                        Durch das Nichtigerklären wird der Vertrag auf der Blockchain als "Cancelled" markiert.
+                        Dies kann nicht rückgängig gemacht werden.
+                    </p>
+                    
+                    <div class="d-grid gap-2 mb-4">
+                        <button id="submit-button" class="btn btn-danger btn-lg">
+                            <i class="bi bi-x-circle me-2"></i>
+                            Vertrag für nichtig erklären
+                        </button>
+                    </div>
+                    
+                    <div id="submission-status" class="alert alert-info d-none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border text-primary me-3" role="status">
+                                <span class="visually-hidden">Wird verarbeitet...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading mb-1">Transaktion wird verarbeitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während die Nichtigerklärung an die Blockchain übermittelt wird.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-success" class="alert alert-success d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Vertrag erfolgreich für nichtig erklärt!
+                        </h5>
+                        <p>Der Vertrag wurde erfolgreich auf der Ethereum-Blockchain für nichtig erklärt.</p>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>Transaktions-Hash:</strong> 
+                            <span id="transaction-hash" class="d-block mt-2 contract-hash"></span>
+                        </p>
+                        <div class="mt-3">
+                            <button id="show-next-steps" class="btn btn-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-error" class="alert alert-danger d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Fehler bei der Nichtigerklärung
+                        </h5>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Annullierung des Vertrags.</p>
+                        <div class="mt-3">
+                            <button id="retry-button" class="btn btn-outline-danger me-2">
+                                Erneut versuchen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <!-- Streamlined void contract form -->
+                <div id="void-form-area">
+                    <h4 class="mb-3">Vertrag für nichtig erklären</h4>
+                    <p>
+                        Durch das Nichtigerklären wird der Vertrag auf der Blockchain als "Cancelled" markiert.
+                        Dies kann nicht rückgängig gemacht werden.
+                    </p>
+                    <div class="alert alert-danger">
+                        <p class="mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Warnung: Diese Aktion ist endgültig und kann nicht rückgängig gemacht werden.
+                        </p>
+                    </div>
+                    
+                    <form method="post" action="{% url 'void_blockchain_contract' contract.pk %}">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 mb-4">
+                            <button type="submit" class="btn btn-danger btn-lg">
+                                <i class="bi bi-x-circle me-2"></i>
+                                Vertrag für nichtig erklären
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div id="initial-status" class="alert alert-info d-none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border text-primary me-3" role="status">
+                                <span class="visually-hidden">Wird verarbeitet...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading mb-1">Transaktion wird vorbereitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während die Nichtigerklärung vorbereitet wird.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="initial-error" class="alert alert-danger d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Fehler bei der Nichtigerklärung
+                        </h5>
+                        <p id="initial-error-message">Ein Fehler ist aufgetreten.</p>
+                        <div class="mt-3">
+                            <button id="initial-retry-button" class="btn btn-outline-danger me-2">
+                                Erneut versuchen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">Informationen zur Vertragsannullierung</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-subtitle mb-3">Was bedeutet "Vertrag für nichtig erklären"?</h6>
+                    <ul class="mb-4">
+                        <li>Der Vertrag wird auf der Blockchain als "Cancelled" markiert</li>
+                        <li>Keine weiteren Aktionen können mit diesem Vertrag durchgeführt werden</li>
+                        <li>Diese Aktion ist unwiderruflich</li>
+                        <li>Der Vertrag kann nicht mehr erfüllt oder abgeschlossen werden</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Wann sollte ein Vertrag für nichtig erklärt werden?</h6>
+                    <p>Ein Vertrag sollte nur für nichtig erklärt werden, wenn:</p>
+                    <ul class="mb-4">
+                        <li>Beide Parteien zustimmen, den Vertrag zu beenden</li>
+                        <li>Der Vertrag enthält Fehler oder falsche Informationen</li>
+                        <li>Der Vertrag muss aus rechtlichen Gründen annulliert werden</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
+                    <p>Für die Nichtigerklärung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. 
+                       Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
+
+<div id="creator-address" data-address="{{ contract.creator_address }}" style="display: none;"></div>
+<div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
+<div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+{% if is_submission %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitButton = document.getElementById('submit-button');
+        const retryButton = document.getElementById('retry-button');
+        const showNextStepsButton = document.getElementById('show-next-steps');
+        
+        // Transaktionsdaten aus Django
+        let txData = {{ transaction|safe }};
+        
+        if (submitButton) {
+            submitButton.onclick = function() {
+                voidContract();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                voidContract();
+                return false;
+            };
+        }
+        
+        if (showNextStepsButton) {
+            showNextStepsButton.onclick = function() {
+                showSuccessModal();
+                return false;
+            };
+        }
+
+        async function voidContract() {
+            console.log('voidContract() gestartet');
+            
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
+                return;
+            }
+            
+            try {
+                document.getElementById('submit-button').disabled = true;
+                document.getElementById('submission-status').classList.remove('d-none');
+                document.getElementById('submission-error').classList.add('d-none');
+                
+                console.log('MetaMask-Verbindung wird angefordert...');
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                const userAddress = accounts[0];
+                const creatorAddress = "{{ contract.creator_address }}";
+                
+                console.log('User Address:', userAddress);
+                console.log('Creator Address:', creatorAddress);
+                
+                if (userAddress.toLowerCase() !== creatorAddress.toLowerCase()) {
+                    document.getElementById('submit-button').disabled = false;
+                    document.getElementById('submission-status').classList.add('d-none');
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragserstellers (${creatorAddress})`);
+                    return;
+                }
+                
+                const web3Tx = {...txData};
+                web3Tx.from = userAddress;
+                
+                console.log('Transaktion wird gesendet:', web3Tx);
+                
+                web3.eth.sendTransaction(web3Tx)
+                    .on('receipt', async function(receipt) {
+                        console.log('Transaktion erfolgreich:', receipt.transactionHash);
+                        
+                        // UI aktualisieren
+                        const statusElement = document.getElementById('submission-status');
+                        const successElement = document.getElementById('submission-success');
+                        const hashElement = document.getElementById('transaction-hash');
+                        
+                        if (statusElement) statusElement.classList.add('d-none');
+                        if (successElement) successElement.classList.remove('d-none');
+                        if (hashElement) hashElement.textContent = receipt.transactionHash;
+                        
+                        // Server über erfolgreiche Transaktion informieren
+                        await updateBlockchainStatus(receipt.transactionHash);
+                        showSuccessModal();
+                    })
+                    .on('error', function(error) {
+                        console.log('Transaktion-Fehler:', error);
+                        let errorMessage = 'Unbekannter Fehler bei der Nichtigerklärung des Vertrags';
+                        
+                        if (error.message) {
+                            if (error.message.includes('reverted')) {
+                                errorMessage = 'Die Transaktion wurde vom Smart Contract abgelehnt.';
+                            } else if (error.message.includes('denied')) {
+                                errorMessage = 'Transaktion wurde vom Benutzer abgebrochen.';
+                            } else if (error.message.includes('insufficient funds')) {
+                                errorMessage = 'Nicht genügend ETH für Gas-Gebühren vorhanden.';
+                            } else {
+                                errorMessage = error.message;
+                            }
+                        }
+                        
+                        showError(errorMessage);
+                    });
+            } catch (error) {
+                console.log('Allgemeiner Fehler:', error);
+                let errorMessage = 'Unbekannter Fehler';
+                
+                if (error.message) {
+                    if (error.message.includes('User denied')) {
+                        errorMessage = 'MetaMask-Verbindung wurde vom Benutzer abgelehnt.';
+                    } else if (error.message.includes('No provider')) {
+                        errorMessage = 'Kein Ethereum-Provider gefunden. Bitte installieren Sie MetaMask.';
+                    } else {
+                        errorMessage = error.message;
+                    }
+                }
+                
+                showError(errorMessage);
+            }
+        }
+        
+        async function updateBlockchainStatus(txHash) {
+            try {
+                const formData = new FormData();
+                formData.append('tx_hash', txHash);
+                
+                const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
+                
+                const response = await fetch(updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Status erfolgreich aktualisiert
+                    console.log('Blockchain-Status erfolgreich aktualisiert');
+                } else {
+                    console.log('Fehler beim Aktualisieren des Blockchain-Status:', data.error);
+                }
+            } catch (error) {
+                console.log('Fehler bei der Kommunikation mit dem Server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('submission-error').classList.remove('d-none');
+            document.getElementById('submission-status').classList.add('d-none');
+            document.getElementById('submit-button').disabled = false;
+        }
+        
+        function showSuccessModal() {
+            const modalConfig = {
+                title: 'Vertrag erfolgreich für nichtig erklärt!',
+                description: 'Der Vertrag wurde erfolgreich auf der Blockchain als "Cancelled" markiert.',
+                tip: 'Der Vertrag kann nun nicht mehr erfüllt oder abgeschlossen werden.',
+                options: [
+                    {
+                        title: 'Vertrag ansehen',
+                        description: 'Zurück zur Vertragsdetailseite um den finalen Status zu sehen'
+                    },
+                    {
+                        title: 'Übersicht',
+                        description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                    }
+                ],
+                primaryButtonText: 'Vertrag ansehen',
+                primaryButtonIcon: 'bi bi-file-text',
+                secondaryButtonText: 'Zur Übersicht',
+                secondaryButtonIcon: 'bi bi-list-ul',
+                primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                secondaryButtonUrl: "{% url 'contract_list' %}"
+            };
+            
+            window.BlockchainSuccessModal.show(modalConfig);
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

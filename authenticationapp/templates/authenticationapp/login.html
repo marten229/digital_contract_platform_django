@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}MetaMask Login{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/login.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo">
+    <h2 class="mb-4">Login mit MetaMask</h2>
+    <p class="text-muted mb-4">Melden Sie sich sicher mit Ihrer MetaMask-Wallet an, um auf Ihre Verträge zuzugreifen.</p>
+    
+    <button id="connectButton" class="btn-metamask">
+        <span style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <img src="{% static 'img/MetaMask_Fox.svg' %}" alt="MetaMask Logo" class="metamask-logo" style="width: 20px; height: 20px; margin: 0;">
+            Mit MetaMask verbinden
+        </span>
+    </button>
+    
+    <div id="accountSelectionContainer" style="display: none;" class="account-selection">
+        <p class="mb-2"><strong>Wählen Sie eine Wallet aus:</strong></p>
+        <div id="accountsList" class="accounts-list">
+        </div>
+    </div>
+    
+    <div id="loginButton" style="display: none;" class="btn-metamask">
+        Mit MetaMask anmelden
+    </div>
+    
+    <div id="errorMessage" class="error-message">
+        MetaMask konnte nicht gefunden werden. Bitte installieren Sie die MetaMask-Erweiterung.
+    </div>
+    
+    <div id="successMessage" class="success-message">
+        Erfolgreich angemeldet! Sie werden weitergeleitet...
+    </div>
+    
+    <div id="walletInfo" class="mt-4" style="display: none;">
+        <p class="mb-1"><strong>Verbundene Wallet:</strong></p>
+        <p id="walletAddress" class="text-muted"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.0/dist/web3.min.js"></script>
+<script src="{% static 'js/login.js' %}"></script>
+{% endblock %}

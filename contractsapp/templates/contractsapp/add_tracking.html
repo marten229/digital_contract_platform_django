@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Tracking-Nummer hinzufügen - {{ contract.title }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_configuration.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+        <div class="d-flex align-items-center mb-4">
+        <a href="{% url 'contract_list' %}" class="btn btn-outline-secondary me-3">
+            <i class="bi bi-arrow-left"></i> Zurück zur Übersicht
+        </a>
+        <h1 class="mb-0">DHL Tracking-Nummer hinzufügen</h1>
+    </div>
+    
+    
+    <div class="alert alert-success">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        Durch Eingabe einer DHL Tracking-Nummer wird das Paket für diesen Vertrag automatisch überwacht. 
+        Aus DSGVO-Gründen wird nur ein Hash der Tracking-Nummer auf der Blockchain hinterlegt, nicht die Nummer selbst.
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="blockchain-submit-section">
+                <h3 class="mb-4">Vertragsdetails</h3>
+                <div class="contract-detail">
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertragstitel:</strong></div>
+                        <div class="col-sm-8">{{ contract.title }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Ersteller:</strong></div>
+                        <div class="col-sm-8">{{ contract.creator_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Partner:</strong></div>
+                        <div class="col-sm-8">{{ contract.partner_address }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.get_status_display_german }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Blockchain-Status:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_status }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Vertrags-ID:</strong></div>
+                        <div class="col-sm-8">{{ contract.blockchain_contract_id }}</div>
+                    </div>
+                    {% if contract.contract_amount %}
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Hinterlegter Betrag:</strong></div>
+                        <div class="col-sm-8">{{ contract.eth_amount|floatformat:4 }} ETH</div>
+                    </div>
+                    {% endif %}
+                    {% if tracking_number %}
+                    <div class="row mb-2">
+                        <div class="col-sm-4"><strong>Tracking-Nummer:</strong></div>
+                        <div class="col-sm-8">{{ tracking_number }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if not is_submission %}
+                <!-- Initial form to enter tracking number -->
+                <div id="tracking-form-area">
+                    <h4 class="mb-3 mt-4">Tracking-Nummer eingeben</h4>
+                    
+                    <form method="post" action="{% url 'add_tracking_number' contract.pk %}">
+                        {% csrf_token %}
+                        <div class="form-group mb-3">
+                            <label for="tracking_number" class="form-label">DHL Tracking-Nummer:</label>
+                            <input type="text" class="form-control" id="tracking_number" name="tracking_number" 
+                                   placeholder="z.B. JJD000390011419121622" required>
+                            <small class="text-muted">Geben Sie die DHL Tracking-Nummer ein, die Sie vom Versanddienstleister erhalten haben.</small>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mb-4">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-link-45deg me-2"></i>
+                                Tracking-Nummer auf Blockchain hinterlegen
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                {% endif %}
+                
+                {% if is_submission %}                
+                <div id="blockchain-submission-area">
+                    <h4 class="mb-3 mt-4">Tracking-Nummer auf der Blockchain hinterlegen</h4>
+                    <p>
+                        Die Tracking-Nummer <strong>{{ tracking_number }}</strong> wird jetzt gehashed und auf der Blockchain hinterlegt. 
+                        Bitte verwenden Sie Ihre MetaMask-Wallet, um die Transaktion zu bestätigen.
+                    </p>
+                    
+                    <div class="d-grid gap-2 mb-4">
+                        <button id="submit-button" class="btn btn-primary btn-lg">
+                            <i class="bi bi-link-45deg me-2"></i>
+                            Tracking-Nummer auf Blockchain hinterlegen
+                        </button>
+                    </div>
+                    
+                    <div id="submission-status" class="alert alert-info d-none">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border text-primary me-3" role="status">
+                                <span class="visually-hidden">Wird übermittelt...</span>
+                            </div>
+                            <div>
+                                <h5 class="alert-heading mb-1">Transaktion wird verarbeitet...</h5>
+                                <p class="mb-0">Bitte warten Sie, während die Tracking-Nummer an die Blockchain übermittelt wird.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-success" class="alert alert-success d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-check-circle-fill me-2"></i>
+                            Tracking-Hash erfolgreich hinterlegt!
+                        </h5>
+                        <p>Der Hash der Tracking-Nummer wurde erfolgreich auf der Ethereum-Blockchain hinterlegt.</p>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>Transaktions-Hash:</strong> 
+                            <span id="transaction-hash" class="d-block mt-2 contract-hash" style="background: #ffffff; padding: 8px; border-radius: 4px; border-left: 4px solid #007bff; word-break: break-all; font-family: monospace;"></span>
+                        </p>
+                        <div class="mt-3">
+                            <button id="show-next-steps" class="btn btn-primary">
+                                <i class="bi bi-arrow-right me-2"></i>
+                                Nächste Schritte anzeigen
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="submission-error" class="alert alert-danger d-none">
+                        <h5 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            Fehler bei der Übermittlung
+                        </h5>
+                        <p id="error-message">Ein Fehler ist aufgetreten bei der Übermittlung an die Blockchain.</p>
+                        <div class="mt-3">
+                            <button id="retry-button" class="btn btn-outline-danger">
+                                Erneut versuchen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Informationen zum DHL Tracking</h5>
+                </div>
+                <div class="card-body">                    
+                    <h6 class="card-subtitle mb-3">Was passiert mit der Tracking-Nummer?</h6>
+                    <ul class="mb-4">
+                        <li>Die Tracking-Nummer wird aus DSGVO-Gründen gehashed</li>
+                        <li>Nur der Hash wird verschlüsselt auf der Blockchain gespeichert</li>
+                        <li>Automatische Überwachung des Versandstatus</li>
+                        <li>Unveränderliche Dokumentation der Lieferung</li>
+                        <li>Maximaler Schutz der Privatsphäre</li>
+                    </ul>
+                    
+                    <h6 class="card-subtitle mb-3">Automatische Statusaktualisierung</h6>
+                    <p>Das System prüft regelmäßig den DHL-Status und aktualisiert den Vertragsstatus automatisch, wenn das Paket zugestellt wurde.</p>
+                    
+                    <h6 class="card-subtitle mb-3">Gas-Kosten</h6>
+                    <p>Für die Speicherung auf der Blockchain fallen Ethereum-Transaktionsgebühren (Gas) an. Die Höhe dieser Gebühren hängt vom aktuellen Netzwerkzustand ab.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% include 'contractsapp/components/blockchain_success_modal.html' %}
+
+<div id="partner-address" data-address="{{ contract.partner_address }}" style="display: none;"></div>
+<div id="update-url" data-url="{% url 'update_blockchain_status' contract.pk %}" style="display: none;"></div>
+<div id="contract-address" data-contract-address="{{ blockchain_service.contract_address }}" style="display: none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+{% if is_submission %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitButton = document.getElementById('submit-button');
+        const retryButton = document.getElementById('retry-button');
+        const showNextStepsButton = document.getElementById('show-next-steps');
+        
+        // Transaktionsdaten direkt aus Django
+        let txData = {{ transaction|safe }};
+        
+        if (submitButton) {
+            submitButton.onclick = function() {
+                submitTrackingToBlockchain();
+                return false;
+            };
+        }
+        
+        if (retryButton) {
+            retryButton.onclick = function() {
+                submitTrackingToBlockchain();
+                return false;
+            };
+        }
+        
+        if (showNextStepsButton) {
+            showNextStepsButton.onclick = function() {
+                showSuccessModal();
+                return false;
+            };
+        }
+
+        async function submitTrackingToBlockchain() {
+            // Prüfe, ob MetaMask installiert ist
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            // Überprüfen, ob die Transaktionsdaten vorhanden sind
+            if (!txData) {
+                showError('Keine Transaktionsdaten vorhanden. Bitte laden Sie die Seite neu.');
+                return;
+            }
+            
+            try {
+                // UI-Status aktualisieren
+                document.getElementById('submit-button').disabled = true;
+                document.getElementById('submission-status').classList.remove('d-none');
+                
+                // Mit MetaMask verbinden
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Überprüfen, ob die aktuelle Adresse mit der Partner-Adresse übereinstimmt
+                const userAddress = accounts[0];
+                const partnerAddress = "{{ contract.partner_address }}";
+                
+                if (userAddress.toLowerCase() !== partnerAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse des Vertragspartners (${partnerAddress})`);
+                    return;
+                }
+                
+                // Bereite die Transaktion für Web3.js vor
+                const web3Tx = {...txData};
+                web3Tx.from = userAddress;
+                
+                // Transaktion mit MetaMask senden
+                web3.eth.sendTransaction(web3Tx)
+                    .on('transactionHash', function(hash) {
+                        // Transaktions-Hash wurde generiert
+                    })
+                    .on('receipt', async function(receipt) {
+                        // Erfolgs-UI anzeigen
+                        document.getElementById('submission-status').classList.add('d-none');
+                        document.getElementById('submission-success').classList.remove('d-none');
+                        
+                        // Hash anzeigen
+                        document.getElementById('transaction-hash').textContent = receipt.transactionHash;
+                        
+                        await updateBlockchainStatus(receipt.transactionHash);
+                        
+                        showSuccessModal();
+                    })
+                    .on('error', function(error) {
+                        console.error('Web3 Error Details:', error);
+                        let errorMessage = 'Unbekannter Fehler bei der Übermittlung der Tracking-Nummer';
+                        
+                        if (error.message) {
+                            if (error.message.includes('reverted')) {
+                                errorMessage = 'Die Transaktion wurde vom Smart Contract abgelehnt. Mögliche Gründe: Contract-ID ungültig, Tracking bereits gesetzt, oder Sie sind nicht autorisiert.';
+                            } else if (error.message.includes('denied')) {
+                                errorMessage = 'Transaktion wurde vom Benutzer abgebrochen.';
+                            } else if (error.message.includes('insufficient funds')) {
+                                errorMessage = 'Nicht genügend ETH für Gas-Gebühren vorhanden.';
+                            } else {
+                                errorMessage = error.message;
+                            }
+                        }
+                        
+                        showError(errorMessage);
+                    });
+            } catch (error) {
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        function showSuccessModal() {
+            // Konfiguration für das Modal basierend auf dem Kontext
+            const modalConfig = {
+                title: 'Tracking-Nummer erfolgreich hinterlegt!',
+                description: 'Der Hash der Tracking-Nummer wurde erfolgreich auf der Blockchain gespeichert. Das Paket wird nun automatisch überwacht.',
+                tip: 'Sie können den Lieferstatus jederzeit in der Vertragsübersicht verfolgen.',
+                options: [
+                    {
+                        title: 'Vertrag verfolgen',
+                        description: 'Überwachen Sie den Lieferstatus und weitere Entwicklungen des Vertrags'
+                    },
+                    {
+                        title: 'Übersicht',
+                        description: 'Zurück zur Vertragsübersicht um andere Verträge zu bearbeiten'
+                    }
+                ],
+                primaryButtonText: 'Vertrag verfolgen',
+                primaryButtonIcon: 'bi bi-truck',
+                secondaryButtonText: 'Zur Übersicht',
+                secondaryButtonIcon: 'bi bi-list-ul',
+                primaryButtonUrl: "{% url 'contract_detail' contract.pk %}",
+                secondaryButtonUrl: "{% url 'contract_list' %}"
+            };
+            
+            window.BlockchainSuccessModal.show(modalConfig);
+        }
+        
+        async function updateBlockchainStatus(txHash) {
+            try {
+                const formData = new FormData();
+                formData.append('tx_hash', txHash);
+                formData.append('tracking_set', 'true');
+                formData.append('tracking_number', '{{ tracking_number }}'); 
+                
+                const updateUrl = "{% url 'update_blockchain_status' contract.pk %}";
+                
+                const response = await fetch(updateUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Fehler beim Aktualisieren des Tracking-Status:', data.message);
+                }
+            } catch (error) {
+                console.error('Fehler bei der Kommunikation mit dem Server:', error);
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('submission-status').classList.add('d-none');
+            document.getElementById('submission-error').classList.remove('d-none');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('submit-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

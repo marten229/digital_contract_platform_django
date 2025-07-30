@@ -1,0 +1,337 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Smart Contract bereitstellen | DigiContract{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/deploy_contract.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="mb-4">Smart Contract bereitstellen</h1>
+    
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle-fill me-2"></i>
+        Auf dieser Seite können Sie den Smart Contract auf der Blockchain bereitstellen, der für die Verwaltung von Verträgen auf dieser Plattform verwendet wird.
+        Nach der Bereitstellung wird die Vertragsadresse automatisch für alle zukünftigen Blockchain-Transaktionen verwendet.
+    </div>
+    
+    {% if current_address %}
+    <div class="contract-deploy-section">
+        <h3>Aktueller Smart Contract</h3>
+        <p>Der Smart Contract ist bereits auf der Blockchain bereitgestellt:</p>
+        <div class="contract-address mb-3">
+            {{ current_address }}
+        </div>
+        <p>Sie können bei Bedarf einen neuen Smart Contract bereitstellen, zum Beispiel nach einem Upgrade des Vertragscodes.</p>
+    </div>
+    {% endif %}
+    
+    <div class="contract-deploy-section">
+        <h3>Neuen Smart Contract bereitstellen</h3>
+        
+        {% if transaction %}
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Der Smart Contract ist bereit zur Bereitstellung. Bitte verwenden Sie Ihre Ethereum Wallet (z.B. MetaMask), um die folgende Transaktion zu signieren und zu senden.
+        </div>
+        
+        <div id="deployment-area">
+            <p>Adresse des Bereitstellers: <strong>{{ deployer_address }}</strong></p>
+            <button id="deploy-button" class="btn btn-primary btn-lg mb-3">
+                <i class="bi bi-send-fill me-2"></i>Smart Contract bereitstellen
+            </button>
+            
+            <div id="deployment-status" class="alert alert-info" style="display: none;">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-3" role="status">
+                        <span class="visually-hidden">Wird bereitgestellt...</span>
+                    </div>
+                    <div>
+                        <h5 class="alert-heading">Bereitstellung läuft...</h5>
+                        <p class="mb-0">Bitte warten Sie, während der Smart Contract auf der Blockchain bereitgestellt wird.</p>
+                    </div>
+                </div>
+            </div>
+              <div id="deployment-success" class="alert alert-success" style="display: none;">
+                <i class="bi bi-check-circle-fill me-2"></i>
+                <h5 class="alert-heading">Bereitstellung erfolgreich!</h5>
+                <p>Der Smart Contract wurde erfolgreich bereitgestellt unter:</p>
+                <div class="contract-address" id="new-contract-address"></div>
+                
+                <!-- Oracle Setup Section -->
+                <div id="oracle-setup-section" class="mt-4 p-3 border rounded bg-light">
+                    <h6 class="mb-3">
+                        <i class="bi bi-shield-check me-2"></i>Oracle-Adresse setzen
+                    </h6>
+                    <p class="small mb-3">
+                        Setzen Sie jetzt die Oracle-Adresse für den Smart Contract. Das Oracle wird für die Bestätigung von Lieferungen verwendet.
+                    </p>
+                    
+                    <div class="mb-3">
+                        <label for="oracle-address" class="form-label">Oracle Ethereum-Adresse</label>
+                        <input type="text" class="form-control" id="oracle-address" 
+                               placeholder="0x..." pattern="0x[a-fA-F0-9]{40}">
+                        <div class="form-text">Die Ethereum-Adresse des Oracle-Services.</div>
+                    </div>
+                    
+                    <button id="set-oracle-button" class="btn btn-warning btn-sm">
+                        <i class="bi bi-shield-plus me-2"></i>Oracle setzen
+                    </button>
+                    
+                    <div id="oracle-status" class="alert alert-info mt-3" style="display: none;">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                                <span class="visually-hidden">Oracle wird gesetzt...</span>
+                            </div>
+                            <div>
+                                <span>Oracle-Adresse wird gesetzt...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="oracle-success" class="alert alert-success mt-3" style="display: none;">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        <strong>Oracle erfolgreich gesetzt!</strong>
+                        <p class="mb-0 mt-2">Der Smart Contract ist jetzt vollständig konfiguriert und einsatzbereit.</p>
+                    </div>
+                    
+                    <div id="oracle-error" class="alert alert-danger mt-3" style="display: none;">
+                        <i class="bi bi-x-circle-fill me-2"></i>
+                        <strong>Fehler beim Setzen des Oracles</strong>
+                        <p id="oracle-error-message" class="mb-0 mt-2"></p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="deployment-error" class="alert alert-danger" style="display: none;">
+                <i class="bi bi-x-circle-fill me-2"></i>
+                <h5 class="alert-heading">Fehler bei der Bereitstellung</h5>
+                <p id="error-message">Ein Fehler ist aufgetreten.</p>
+            </div>
+        </div>
+        {% else %}
+        <form method="post" class="needs-validation" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="deployer_address" class="form-label">Ihre Ethereum-Adresse</label>
+                <input type="text" class="form-control" id="deployer_address" name="deployer_address" 
+                       placeholder="0x..." required pattern="0x[a-fA-F0-9]{40}">
+                <div class="form-text">Geben Sie die Ethereum-Adresse ein, die für die Bereitstellung des Smart Contracts verwendet werden soll.</div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-file-earmark-code me-2"></i>Bereitstellung vorbereiten
+            </button>
+        </form>
+        
+        <div class="mt-5">
+            <h4>Bereitstellungsanleitung</h4>
+            <ol class="deployment-steps">
+                <li>
+                    <p><strong>Vorbereitung:</strong> Geben Sie Ihre Ethereum-Adresse ein und klicken Sie auf "Bereitstellung vorbereiten".</p>
+                </li>
+                <li>
+                    <p><strong>MetaMask verbinden:</strong> Stellen Sie sicher, dass Ihre MetaMask-Wallet mit der gleichen Adresse verbunden ist und über ausreichend ETH verfügt.</p>
+                </li>
+                <li>
+                    <p><strong>Transaktion signieren:</strong> Klicken Sie auf "Smart Contract bereitstellen" und bestätigen Sie die Transaktion in Ihrer Wallet.</p>
+                </li>
+                <li>
+                    <p><strong>Bestätigung abwarten:</strong> Warten Sie auf die Bestätigung der Transaktion in der Blockchain.</p>
+                </li>                <li>
+                    <p><strong>Adresse speichern:</strong> Nach erfolgreicher Bereitstellung wird die Vertragsadresse automatisch für Ihre Plattform konfiguriert.</p>
+                </li>
+                <li>
+                    <p><strong>Oracle konfigurieren:</strong> Setzen Sie optional eine Oracle-Adresse für die automatische Lieferungsbestätigung.</p>
+                </li>
+            </ol>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if transaction %}
+<script src="https://cdn.jsdelivr.net/npm/web3@1.7.4/dist/web3.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Speichere die Transaktionsdaten
+        const txData = {{ transaction|safe }};
+        const deployerAddress = "{{ deployer_address }}";
+        
+        async function deployContract() {
+            if (typeof window.ethereum === 'undefined') {
+                showError('MetaMask ist nicht installiert. Bitte installieren Sie MetaMask, um fortzufahren.');
+                return;
+            }
+            
+            try {
+                // Status anzeigen
+                document.getElementById('deploy-button').disabled = true;
+                document.getElementById('deployment-status').style.display = 'block';
+                
+                // Mit MetaMask verbinden
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const web3 = new Web3(window.ethereum);
+                
+                // Netzwerk-ID überprüfen
+                const networkId = await web3.eth.net.getId();
+                console.log(`Aktuelles Netzwerk: ${networkId}`);
+                
+                // Überprüfen, ob die aktuelle Adresse mit der Bereitsteller-Adresse übereinstimmt
+                const accounts = await web3.eth.getAccounts();
+                if (accounts[0].toLowerCase() !== deployerAddress.toLowerCase()) {
+                    showError(`Bitte wechseln Sie in MetaMask zur Adresse ${deployerAddress}`);
+                    return;
+                }
+                
+                // Transaktion senden
+                web3.eth.sendTransaction(txData)
+                    .on('transactionHash', (hash) => {
+                        console.log(`Transaktions-Hash: ${hash}`);
+                    })
+                    .on('receipt', async (receipt) => {
+                        console.log('Vertrag bereitgestellt:', receipt);
+                        // Erfolg anzeigen
+                        document.getElementById('deployment-status').style.display = 'none';
+                        document.getElementById('deployment-success').style.display = 'block';
+                        
+                        // Vertragsadresse anzeigen
+                        const contractAddress = receipt.contractAddress;
+                        document.getElementById('new-contract-address').textContent = contractAddress;
+                          // Adresse an den Server senden
+                        await updateContractAddress(contractAddress);
+                        
+                        // Oracle-Setup aktivieren
+                        setupOracleHandlers(contractAddress);
+                    })
+                    .on('error', (error) => {
+                        console.error('Fehler bei der Bereitstellung:', error);
+                        showError(error.message || 'Unbekannter Fehler bei der Bereitstellung des Vertrags');
+                    });
+            } catch (error) {
+                console.error('Fehler:', error);
+                showError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        async function updateContractAddress(address) {
+            try {
+                const response = await fetch('{% url "update_contract_address" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `contract_address=${address}`
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    console.error('Fehler beim Aktualisieren der Adresse:', data.message);
+                }
+            } catch (error) {
+                console.error('Fehler beim Senden der Adresse an den Server:', error);
+            }
+        }        
+        function setupOracleHandlers(contractAddress) {
+            // Oracle-Setup-Button aktivieren
+            const setOracleButton = document.getElementById('set-oracle-button');
+            setOracleButton.addEventListener('click', () => setOracle(contractAddress));
+        }
+        
+        async function setOracle(contractAddress) {
+            const oracleAddress = document.getElementById('oracle-address').value;
+            
+            if (!oracleAddress || !oracleAddress.match(/^0x[a-fA-F0-9]{40}$/)) {
+                showOracleError('Bitte geben Sie eine gültige Oracle Ethereum-Adresse ein.');
+                return;
+            }
+            
+            try {
+                // UI-Status aktualisieren
+                document.getElementById('set-oracle-button').disabled = true;
+                document.getElementById('oracle-status').style.display = 'block';
+                
+                // Oracle-Setup-Transaktion vorbereiten
+                const response = await fetch('{% url "prepare_set_oracle" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: `deployer_address=${deployerAddress}&oracle_address=${oracleAddress}&contract_address=${contractAddress}`
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    showOracleError(data.message || 'Fehler beim Vorbereiten der Oracle-Transaktion');
+                    return;
+                }
+                
+                // Transaktion mit MetaMask senden
+                const web3 = new Web3(window.ethereum);
+                const txData = JSON.parse(data.transaction);
+                
+                web3.eth.sendTransaction(txData)
+                    .on('transactionHash', (hash) => {
+                        console.log(`Oracle-Setup Transaktions-Hash: ${hash}`);
+                    })
+                    .on('receipt', (receipt) => {
+                        console.log('Oracle gesetzt:', receipt);
+                        // Erfolg anzeigen
+                        document.getElementById('oracle-status').style.display = 'none';
+                        document.getElementById('oracle-success').style.display = 'block';
+                    })
+                    .on('error', (error) => {
+                        console.error('Fehler beim Setzen des Oracles:', error);
+                        showOracleError(error.message || 'Unbekannter Fehler beim Setzen des Oracles');
+                    });
+                    
+            } catch (error) {
+                console.error('Fehler:', error);
+                showOracleError(error.message || 'Unbekannter Fehler');
+            }
+        }
+        
+        function showOracleError(message) {
+            document.getElementById('oracle-status').style.display = 'none';
+            document.getElementById('oracle-error').style.display = 'block';
+            document.getElementById('oracle-error-message').textContent = message;
+            document.getElementById('set-oracle-button').disabled = false;
+        }
+        
+        function showError(message) {
+            document.getElementById('deployment-status').style.display = 'none';
+            document.getElementById('deployment-error').style.display = 'block';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('deploy-button').disabled = false;
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Event-Listener für den Deploy-Button
+        document.getElementById('deploy-button').addEventListener('click', deployContract);
+    });
+</script>
+{% endif %}
+{% endblock %}

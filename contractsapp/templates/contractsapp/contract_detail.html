@@ -1,97 +1,217 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ contract.title }}</title>
-    <style>
-        /* Einfaches Styling */
-        #signatureContainer { margin-top: 20px; }
-        #signaturePad { border: 1px solid #000; }
-    </style>
-</head>
-<body>
-    <h1>{{ contract.title }}</h1>
-    <p>Hochgeladen am: {{ contract.uploaded_at }}</p>
-    <!-- PDF im Browser anzeigen -->
-    <embed src="{{ contract.pdf_file.url }}" width="800" height="600" type="application/pdf">
-    <p><a href="{{ contract.pdf_file.url }}">PDF herunterladen</a></p>
+{% extends 'base.html' %}
+{% load static %}
 
-    <!-- Button zum Unterschrift hinzufügen -->
-    <button id="openSignature">Unterschrift hinzufügen</button>
+{% block title %}{{ contract.title }}{% endblock %}
 
-    <!-- Container für den Signature Pad -->
-    <div id="signatureContainer" style="display:none;">
-        <canvas id="signaturePad" width="400" height="200"></canvas>
-        <br>
-        <button id="clearSignature">Löschen</button>
-        <button id="saveSignature">Unterschrift speichern und PDF herunterladen</button>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_detail.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="contract-header">
+    <div class="container">
+        <h1 class="h3">{{ contract.title }}</h1>
+        <p class="text-muted">Hochgeladen am: {{ contract.uploaded_at|date:"d.m.Y H:i" }}</p>
+        <div class="status-badge {{ contract.get_status_class }}">
+            Status: {{ contract.get_status_display_german }}
+        </div>
     </div>
+</div>
 
-    <!-- Einbinden der Signature Pad Bibliothek (über CDN) -->
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <script>
-        // Elemente holen
-        const openBtn = document.getElementById('openSignature');
-        const signatureContainer = document.getElementById('signatureContainer');
-        const clearBtn = document.getElementById('clearSignature');
-        const saveBtn = document.getElementById('saveSignature');
-        const canvas = document.getElementById('signaturePad');
+<div class="container">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Simplified viewing workflow -->
+            <div class="document-heading">
+                <h4>Vertragsdetails</h4>
+            </div>
 
-        // Signature Pad initialisieren
-        const signaturePad = new SignaturePad(canvas);
+            <!-- PDF Container -->
+            <div id="pdfContainer">
+                <canvas id="pdfViewer"></canvas>
+            </div>
+            
+            <!-- Page Navigation -->
+            <div id="pageNavigation" class="mt-3">
+                <button id="prevPage" class="btn btn-outline-primary">
+                    <i class="bi bi-chevron-left"></i> Vorherige Seite
+                </button>
+                <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+                <button id="nextPage" class="btn btn-outline-primary">
+                    Nächste Seite <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div class="document-controls" id="documentControls">
+                <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-download"></i> PDF herunterladen
+                </a>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Vertragsaktivitäten</h5>
+                </div>
+                <div class="card-body">
+                    {% if activities %}
+                        <div class="activity-timeline">
+                            {% for activity in activities %}
+                                <div class="activity-item">
+                                    <div class="d-flex align-items-center">                                        
+                                        <span class="user-role-{{ activity.user_role }}">
+                                            {% if activity.user_role == 'creator' %}
+                                                {% if contract.creator_address == user.ethereum_address %}
+                                                    <i class="bi bi-person-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-person-fill"></i> Ersteller
+                                                {% endif %}
+                                            {% elif activity.user_role == 'partner' %}
+                                                {% if contract.partner_address == user.ethereum_address %}
+                                                    <i class="bi bi-people-fill"></i> Sie
+                                                {% else %}
+                                                    <i class="bi bi-people-fill"></i> Partner
+                                                {% endif %}
+                                            {% else %}
+                                                <i class="bi bi-gear-fill"></i> System
+                                            {% endif %}
+                                        </span>
+                                        <span class="activity-time ms-auto">{{ activity.timestamp|date:"d.m.Y H:i" }}</span>
+                                    </div>
+                                    <div class="activity-content">
+                                        <strong>{{ activity.get_action_display }}</strong>
+                                        {% if activity.details %}
+                                            <p class="mb-0 mt-1">{{ activity.details }}</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted text-center">Keine Aktivitäten vorhanden.</p>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Vertragsinformationen</h5>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Ersteller:</dt>
+                        <dd class="col-sm-7">{{ contract.creator_address }}</dd>
+                        
+                        {% if contract.partner_address %}
+                            <dt class="col-sm-5">Partner:</dt>
+                            <dd class="col-sm-7">{{ contract.partner_address }}</dd>
+                        {% endif %}
+                        
+                        <dt class="col-sm-5">Letzte Änderung:</dt>
+                        <dd class="col-sm-7">{{ contract.last_updated|date:"d.m.Y H:i" }}</dd>
+                    </dl>
+                </div>
+            </div>
+            
+            <!-- DHL Tracking Panel -->
+            {% if contract.has_dhl_tracking %}
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-truck"></i> DHL Tracking</h5>
+                </div>
+                <div class="card-body">
+                    {% if contract.tracking_number %}
+                        <dl class="row mb-2">
+                            <dt class="col-sm-5">Tracking-Nr.:</dt>
+                            <dd class="col-sm-7">{{ contract.tracking_number }}</dd>
+                            
+                            <dt class="col-sm-5">Status:</dt>
+                            <dd class="col-sm-7">
+                                {% if contract.package_status %}
+                                    {{ contract.package_status }}
+                                {% else %}
+                                    <span class="text-muted">Noch kein Status</span>
+                                {% endif %}
+                            </dd>
+                            
+                            <dt class="col-sm-5">Letzte Aktualisierung:</dt>
+                            <dd class="col-sm-7">
+                                {% if contract.last_tracking_update %}
+                                    {{ contract.last_tracking_update|date:"d.m.Y H:i" }}
+                                {% else %}
+                                    <span class="text-muted">--</span>
+                                {% endif %}
+                            </dd>
+                        </dl>
+                        
+                        <!-- Tracking Actions -->
+                        {% if is_creator %}
+                            <div class="mt-3">
+                                {% if contract.status == 'package_delivered' and not contract.delivery_confirmation %}
+                                    <a href="{% url 'confirm_delivery' contract.pk %}" class="btn btn-success btn-sm w-100 mb-2">
+                                        <i class="bi bi-check-circle"></i> Lieferung bestätigen
+                                    </a>
+                                {% endif %}
+                            </div>
+                        {% endif %}                    {% else %}
+                        <p class="text-muted mb-2">Keine Tracking-Nummer hinterlegt.</p>
+                          {% if contract.blockchain_contract_id %}
+                            {% if is_partner %}
+                                <a href="{% url 'add_tracking_number' contract.pk %}" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="bi bi-plus-circle"></i> Tracking-Nummer hinzufügen
+                                </a>
+                            {% elif is_creator %}
+                                <div class="alert alert-info small mb-0">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Nur der Vertragspartner kann die Tracking-Nummer hinzufügen.
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="alert alert-info small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Die Tracking-Nummer kann erst eingegeben werden, wenn der Vertrag auf der Blockchain ist.
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>            
+            {% elif is_creator and contract.status == 'completed' %}
+            <div class="card mt-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">DHL Tracking</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        DHL Tracking kann nur während der Vertragskonfiguration aktiviert werden. Falls aktiviert, kann ausschließlich der Vertragspartner die Tracking-Nummer hinzufügen, sobald der Vertrag auf der Blockchain ist.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="card mt-3">
+        </div>
+    </div>
+</div>
 
-        // Container einblenden, wenn Button geklickt wird
-        openBtn.addEventListener('click', function() {
-            signatureContainer.style.display = 'block';
-        });
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border text-primary loading-spinner" role="status"></div>
+    <p id="loadingMessage">Wird geladen...</p>
+</div>
 
-        // Canvas leeren
-        clearBtn.addEventListener('click', function() {
-            signaturePad.clear();
-        });
+{% endblock %}
 
-        // Unterschrift speichern und an den Server senden
-        saveBtn.addEventListener('click', function() {
-            if (signaturePad.isEmpty()) {
-                alert("Bitte zuerst unterschreiben!");
-                return;
-            }
-            // Unterschrift als DataURL (Base64) erhalten
-            const dataURL = signaturePad.toDataURL();
-
-            // Sende die Unterschrift per POST an den Django-View
-            fetch("{% url 'add_signature' pk=contract.pk %}", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "X-CSRFToken": "{{ csrf_token }}"
-                },
-                body: new URLSearchParams({
-                    'signature': dataURL
-                })
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("Fehler beim Hinzufügen der Unterschrift");
-                }
-                return response.blob();
-            })
-            .then(blob => {
-                // Erstelle einen Downloadlink für die signierte PDF
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = 'signed_contract.pdf';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
-            })
-            .catch(error => {
-                console.error("Fehler:", error);
-                alert("Beim Speichern der Unterschrift ist ein Fehler aufgetreten.");
-            });
-        });
-    </script>
-</body>
-</html>
+{% block extra_js %}
+<!-- PDF.js Bibliothek -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<!-- Contract Detail JS -->
+<script src="{% static 'js/contract_detail.js' %}"></script>
+<script>
+    // Initialize the contract detail functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        initContractViewer('{{ contract.pdf_file.url }}');
+    });
+</script>
+{% endblock %}

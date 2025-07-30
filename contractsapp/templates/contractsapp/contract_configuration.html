@@ -1,0 +1,235 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ contract.title }} - Konfiguration{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/contract_signing.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="contract-header">
+    <div class="container">
+        <h1 class="h3">{{ contract.title }} - Vertragskonfiguration</h1>
+        <p class="text-muted">Hochgeladen am: {{ contract.uploaded_at|date:"d.m.Y H:i" }}</p>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Workflow indicator -->
+    <div class="workflow-steps" id="workflowSteps">
+        <div class="workflow-step active" id="step1">1. Dokument ansehen</div>
+        <div class="workflow-step" id="step2">2. Unterschriftsbereiche festlegen</div>
+        <div class="workflow-step" id="step3">3. Vertrag finalisieren</div>
+    </div>
+
+    <!-- User instructions -->
+    <div class="alert alert-info mb-4">
+        <h5><i class="bi bi-info-circle-fill me-2"></i>Hinweis zur Vertragskonfiguration</h5>
+        <p class="mb-0">Bevor der Vertrag an den Partner gesendet wird, legen Sie bitte fest, wo die Unterschriften platziert werden sollen. Wählen Sie nacheinander die Bereiche für Ihre eigene Unterschrift und die Ihres Partners aus.</p>
+    </div>
+
+    <!-- Two-column layout -->
+    <div class="row">
+        <!-- Left column - PDF display -->
+        <div class="col-md-8">
+            <!-- PDF Container mit Canvas-Overlay -->
+            <div id="pdfContainer">
+                <canvas id="pdfViewer"></canvas>
+                <canvas id="overlayCanvas"></canvas>
+                
+                <!-- Selection preview rectangle -->
+                <div id="selectionPreview" class="selection-preview"></div>
+                
+                <!-- Signature controls -->
+                <div id="signatureControls" class="signature-controls">
+                    <div class="signature-control-btn confirm" id="confirmSelection" title="Bereich bestätigen">
+                        ✓
+                    </div>
+                    <div class="signature-control-btn cancel" id="cancelSelection" title="Auswahl abbrechen">
+                        ✕
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Page Navigation -->
+            <div id="pageNavigation" class="mt-3">
+                <button id="prevPage" class="btn btn-outline-primary">
+                    <i class="bi bi-chevron-left"></i> Vorherige Seite
+                </button>
+                <span id="pageInfo">Seite <span id="currentPageNum">1</span> von <span id="totalPages">1</span></span>
+                <button id="nextPage" class="btn btn-outline-primary">
+                    Nächste Seite <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+            
+            <div id="selectionHint" class="signature-selection-hint d-none mt-3">
+                <p class="mb-1"><strong><span id="currentSignatureTypeText">Ihre</span> Unterschrift:</strong></p>
+                <p class="mb-0">Klicken und ziehen Sie mit der Maus, um den Bereich für die Unterschrift festzulegen</p>
+            </div>
+        </div>
+        
+        <!-- Right column - Controls -->
+        <div class="col-md-4">
+            <div class="controls-sidebar">
+                <!-- Signature type toggle -->
+                <div class="signature-type-toggle mb-4">
+                    <h5 class="mb-3">Unterschriftstyp auswählen:</h5>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="signatureType" id="creatorSignature" value="creator" checked>
+                        <label class="form-check-label" for="creatorSignature">Ihre Unterschrift</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="signatureType" id="partnerSignature" value="partner">
+                        <label class="form-check-label" for="partnerSignature">Unterschrift des Partners</label>
+                    </div>
+                </div>
+                
+                <!-- Action button -->
+                <div class="mb-4">
+                    <button id="selectSignatureArea" class="btn btn-primary w-100">
+                        <i class="bi bi-pencil-square"></i> Unterschriftsbereich festlegen
+                    </button>
+                    <a href="{{ contract.pdf_file.url }}" class="btn btn-outline-secondary w-100 mt-2">
+                        <i class="bi bi-download"></i> PDF herunterladen
+                    </a>
+                </div>
+                
+                <!-- Signature status -->
+                <div class="mb-4">
+                    <h5>Unterschriftsstatus:</h5>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-person-fill me-2"></i>Ihre Unterschrift</h6>
+                            <p class="card-text" id="creatorSignatureStatus">Noch nicht festgelegt</p>
+                            <button id="resetCreatorSignature" class="btn btn-sm btn-outline-secondary d-none">
+                                <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title"><i class="bi bi-person me-2"></i>Unterschrift des Partners</h6>
+                            <p class="card-text" id="partnerSignatureStatus">Noch nicht festgelegt</p>
+                            <button id="resetPartnerSignature" class="btn btn-sm btn-outline-secondary d-none">
+                                <i class="bi bi-arrow-counterclockwise"></i> Zurücksetzen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Final action -->
+                <div class="mt-4">
+                    <form id="configurationForm" method="post" action="{% url 'finish_contract_configuration' pk=contract.pk %}">
+                        {% csrf_token %}
+                        <input type="hidden" id="creatorSignatureX" name="creator_signature_x">
+                        <input type="hidden" id="creatorSignatureY" name="creator_signature_y">
+                        <input type="hidden" id="creatorSignatureWidth" name="creator_signature_width">
+                        <input type="hidden" id="creatorSignatureHeight" name="creator_signature_height">
+                        <input type="hidden" id="creatorSignaturePage" name="creator_signature_page">
+                        
+                        <input type="hidden" id="partnerSignatureX" name="partner_signature_x">
+                        <input type="hidden" id="partnerSignatureY" name="partner_signature_y">
+                        <input type="hidden" id="partnerSignatureWidth" name="partner_signature_width">
+                        <input type="hidden" id="partnerSignatureHeight" name="partner_signature_height">
+                        <input type="hidden" id="partnerSignaturePage" name="partner_signature_page">
+                        
+                        <!-- DHL Tracking Option -->
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h6 class="card-title">
+                                    <i class="bi bi-truck me-2"></i>DHL Paketversand
+                                </h6>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" 
+                                           id="hasDhlTracking" name="has_dhl_tracking">
+                                    <label class="form-check-label" for="hasDhlTracking">
+                                        DHL Tracking aktivieren
+                                    </label>
+                                </div>
+                                <small class="text-muted mt-2 d-block">
+                                    Bei aktiviertem DHL Tracking wird der Vertrag automatisch als erfüllt markiert, 
+                                    sobald das Paket geliefert wurde. Der Verkäufer muss die Lieferung anschließend bestätigen.
+                                </small>                                <div class="mt-3 dhl-tracking-fields" id="dhlTrackingFields" style="display: none;">
+                                    <div class="alert alert-info mb-2">
+                                        <strong>Hinweis:</strong> Die DHL-Tracking-Nummer kann erst hinzugefügt werden, wenn der Vertrag auf der Blockchain veröffentlicht wurde.
+                                    </div>
+                                    <small class="text-muted">
+                                        Nach der Veröffentlichung auf der Blockchain können sowohl Sie als auch der Vertragspartner die Tracking-Nummer hinterlegen.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" id="finishConfigurationBtn" class="btn btn-success w-100" disabled>
+                            <i class="bi bi-check-circle"></i> Konfiguration abschließen und Vertrag freigeben
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for asking if the creator wants to sign the contract -->
+<div class="modal fade" id="creatorSigningModal" tabindex="-1" aria-labelledby="creatorSigningModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="creatorSigningModalLabel">Vertrag unterschreiben?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Schließen"></button>
+            </div>
+            <div class="modal-body">
+                <p>Der Vertrag wurde erfolgreich konfiguriert. Möchten Sie den Vertrag jetzt direkt unterschreiben?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="skipSigningBtn">Später unterschreiben</button>
+                <button type="button" class="btn btn-primary" id="signNowBtn">
+                    <i class="bi bi-pen"></i> Jetzt unterschreiben
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border text-primary loading-spinner" role="status"></div>
+    <p id="loadingMessage">Wird geladen...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- PDF.js Bibliothek -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<!-- Contract Configuration JS -->
+<script src="{% static 'js/contract_configuration.js' %}"></script>
+<!--<script src="{% static 'js/pdf.js' %}"></script>-->
+<!--<script src="{% static 'js/pdf.worker.js' %}"></script>-->
+
+<script>
+    // DHL Tracking functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const dhlCheckbox = document.getElementById('hasDhlTracking');
+        const dhlFields = document.getElementById('dhlTrackingFields');
+        
+        if (dhlCheckbox && dhlFields) {
+            dhlCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    dhlFields.style.display = 'block';
+                } else {
+                    dhlFields.style.display = 'none';
+                }
+            });
+        }
+    });
+
+    // Initialize the contract configuration functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        initContractConfiguration(
+            '{{ contract.pdf_file.url }}',
+            "{{ csrf_token }}"
+        );
+    });
+</script>
+{% endblock %}

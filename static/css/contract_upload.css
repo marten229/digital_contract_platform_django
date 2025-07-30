@@ -1,0 +1,113 @@
+.contract-form {
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.upload-instructions {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-radius: 8px;
+    padding: 20px;
+    border-left: 4px solid #0d6efd;
+}
+
+.upload-instructions ol {
+    padding-left: 20px;
+    margin-top: 10px;
+    margin-bottom: 0;
+}
+
+.upload-instructions li {
+    margin-bottom: 8px;
+}
+
+.upload-instructions li:last-child {
+    margin-bottom: 0;
+}
+
+.eth-address-input {
+    font-family: monospace;
+}
+
+.pdf-upload-container {
+    border: 2px dashed #ced4da;
+    border-radius: 5px;
+    padding: 15px;
+    text-align: center;
+    background-color: #f8f9fa;
+    transition: border-color 0.3s, background-color 0.3s;
+}
+
+.pdf-upload-container:hover {
+    border-color: #0d6efd;
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* For error styling */
+.is-invalid {
+    border-color: #dc3545;
+}
+
+/* Fix for the template tag issue */
+[id^="id_"] {
+    display: block;
+    width: 100%;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+    font-weight: 400;
+    line-height: 1.5;
+    color: #212529;
+    background-color: #fff;
+    background-clip: padding-box;
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+/* PDF Selection Styles */
+.created-pdf-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+}
+
+.created-pdf-option:hover {
+    background-color: #e9ecef;
+    border-color: #0d6efd !important;
+}
+
+.created-pdf-option.selected {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-color: #0d6efd !important;
+    border-width: 2px !important;
+}
+
+.form-check-input:checked + .form-check-label .created-pdf-option {
+    background-color: rgba(13, 110, 253, 0.1);
+    border-color: #0d6efd !important;
+    border-width: 2px !important;
+}
+
+/* Hide upload area initially when other PDF selected */
+#upload_area {
+    transition: all 0.3s ease;
+}
+
+/* Improved form spacing */
+.form-check {
+    margin-bottom: 0.75rem;
+}
+
+.form-check-label {
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* PDF preview button styling */
+.created-pdf-option .btn {
+    transition: all 0.2s ease;
+}
+
+.created-pdf-option .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}

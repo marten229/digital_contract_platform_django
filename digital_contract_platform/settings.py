@@ -12,6 +12,10 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+# Lade Umgebungsvariablen aus .env
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-%aa!7s6&(j7#47x83_^jjs^-wk!n!n4*!27_*rv0**48a*vsp8'
+SECRET_KEY = os.environ.get('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -39,6 +43,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'contractsapp',
+    'rest_framework',
+    'authenticationapp',
+    'homepageapp',
+    'widget_tweaks',
 ]
 
 MIDDLEWARE = [
@@ -56,7 +64,7 @@ ROOT_URLCONF = 'digital_contract_platform.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'digital_contract_platform' / 'templates'],  # Add this path
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -77,8 +85,12 @@ WSGI_APPLICATION = 'digital_contract_platform.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME'),
+        'USER': os.environ.get('DB_USER'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),
+        'PORT': os.environ.get('DB_PORT'),
     }
 }
 
@@ -117,7 +129,10 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
@@ -127,6 +142,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-DEBUG = True
 
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+AUTH_USER_MODEL = 'authenticationapp.Web3User'
+
+# Blockchain settings
+ETHEREUM_NODE_URL = os.environ.get('ETHEREUM_NODE_URL', '')
+CONTRACT_ADDRESS = os.environ.get('CONTRACT_ADDRESS', '')
+CONTRACT_ABI_PATH = os.path.join(BASE_DIR, 'contractsapp', 'static', 'contracts', 'DigitalContractPlatform.json')
+
+# Oracle settings
+ORACLE_KEY_PATH = os.environ.get('ORACLE_KEY_PATH', os.path.join(BASE_DIR, 'keys', 'oracle_oracle_service.json'))
