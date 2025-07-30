@@ -299,6 +299,7 @@
                         
                         // Server über erfolgreiche Transaktion informieren
                         await updateBlockchainStatus(receipt.transactionHash);
+                        showSuccessModal();
                     })
                     .on('error', function(error) {
                         console.log('Transaktion-Fehler:', error);

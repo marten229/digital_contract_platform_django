@@ -454,7 +454,6 @@
     margin-bottom: 1rem;
     font-weight: bold;
     color: #0d6efd;
-    text-align: center;
 }
 
 .rich-text-editor h1 {
@@ -462,16 +461,23 @@
     border-bottom: 3px solid #0d6efd;
     padding-bottom: 0.5rem;
     margin-bottom: 2rem;
+    text-align: center;
 }
 
 .rich-text-editor h2 {
     font-size: 1.5rem;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 2px solid #0d6efd;
     padding-bottom: 0.3rem;
+    margin-bottom: 1.5rem;
+    color: #0d6efd;
 }
 
 .rich-text-editor h3 {
     font-size: 1.3rem;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.2rem;
+    margin-bottom: 1rem;
+    color: #495057;
 }
 
 .rich-text-editor p {
@@ -526,10 +532,30 @@
 
 .rich-text-editor .center-text {
     text-align: center;
+    margin-bottom: 1rem;
+    width: 100%;
+    display: block;
 }
 
 .rich-text-editor .left-text {
     text-align: left;
+    margin-bottom: 1rem;
+    width: 100%;
+    display: block;
+}
+
+.rich-text-editor .right-text {
+    text-align: right;
+    margin-bottom: 1rem;
+    width: 100%;
+    display: block;
+}
+
+.rich-text-editor .justify-text {
+    text-align: justify;
+    margin-bottom: 1rem;
+    width: 100%;
+    display: block;
 }
 
 /* Quick Insert Panel */

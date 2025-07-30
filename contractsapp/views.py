@@ -1882,10 +1882,10 @@ def clean_html_for_pdf(html_content):
     # HTML entities dekodieren
     content = html.unescape(html_content)
     
-    # Entferne problematische HTML-Tags und ersetze sie
-    content = re.sub(r'<h1[^>]*>(.*?)</h1>', r'<para style="title">\1</para>', content, flags=re.DOTALL)
-    content = re.sub(r'<h2[^>]*>(.*?)</h2>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
-    content = re.sub(r'<h3[^>]*>(.*?)</h3>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
+    # Entferne problematische HTML-Tags und ersetze sie mit korrekten para-styles
+    content = re.sub(r'<h1[^>]*>(.*?)</h1>', r'<para style="h1">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h2[^>]*>(.*?)</h2>', r'<para style="h2">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<h3[^>]*>(.*?)</h3>', r'<para style="h3">\1</para>', content, flags=re.DOTALL)
     content = re.sub(r'<h4[^>]*>(.*?)</h4>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
     content = re.sub(r'<h5[^>]*>(.*?)</h5>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
     content = re.sub(r'<h6[^>]*>(.*?)</h6>', r'<para style="heading">\1</para>', content, flags=re.DOTALL)
@@ -1894,8 +1894,9 @@ def clean_html_for_pdf(html_content):
     content = re.sub(r'<p[^>]*class="center-text"[^>]*>(.*?)</p>', r'<para style="center">\1</para>', content, flags=re.DOTALL)
     content = re.sub(r'<p[^>]*>(.*?)</p>', r'<para>\1</para>', content, flags=re.DOTALL)
     
-    # Divs mit Klassen
-    content = re.sub(r'<div[^>]*class="center-text"[^>]*>(.*?)</div>', r'<para style="center">\1</para>', content, flags=re.DOTALL)
+    # Divs mit Klassen und Inline-Styles
+    content = re.sub(r'<div[^>]*(?:class="center-text"|style="[^"]*text-align:\s*center[^"]*")[^>]*>(.*?)</div>', r'<para style="center">\1</para>', content, flags=re.DOTALL)
+    content = re.sub(r'<div[^>]*class="left-text"[^>]*>(.*?)</div>', r'<para>\1</para>', content, flags=re.DOTALL)
     content = re.sub(r'<div[^>]*>(.*?)</div>', r'\1', content, flags=re.DOTALL)
     
     # Spans bereinigen - entferne placeholder-field und signature-field Klassen
@@ -1916,8 +1917,19 @@ def clean_html_for_pdf(html_content):
     content = re.sub(r'<small[^>]*>(.*?)</small>', r'\1', content, flags=re.DOTALL)
     content = re.sub(r'&nbsp;', ' ', content)
     
-    # Entferne style-Attribute
-    content = re.sub(r'\s*style="[^"]*"', '', content)
+    # Entferne style-Attribute (aber bewahre para-style-Attribute)
+    # Einfachere Lösung: Entferne alle style-Attribute außer bei para-Tags
+    lines = content.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        if '<para' in line and 'style=' in line:
+            # Behalte para-Tags mit style-Attributen
+            cleaned_lines.append(line)
+        else:
+            # Entferne style-Attribute aus anderen Tags
+            cleaned_line = re.sub(r'\s*style="[^"]*"', '', line)
+            cleaned_lines.append(cleaned_line)
+    content = '\n'.join(cleaned_lines)
     
     # Bereinige mehrfache Leerzeichen
     content = re.sub(r'\s+', ' ', content)
@@ -1945,6 +1957,42 @@ def create_contract_pdf(contract_data):
    
     )
     
+    # H1 Style
+    h1_style = ParagraphStyle(
+        'H1Style',
+        parent=styles['Heading1'],
+        fontSize=16,
+        spaceBefore=20,
+        spaceAfter=15,
+        alignment=1,  # Center
+        textColor=colors.HexColor('#0d6efd'),
+        borderWidth=0,
+        borderColor=colors.HexColor('#0d6efd'),
+        borderPadding=5
+    )
+    
+    # H2 Style
+    h2_style = ParagraphStyle(
+        'H2Style',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=15,
+        spaceAfter=10,
+        textColor=colors.HexColor('#0d6efd'),
+        fontName='Helvetica-Bold'
+    )
+    
+    # H3 Style
+    h3_style = ParagraphStyle(
+        'H3Style',
+        parent=styles['Heading3'],
+        fontSize=12,
+        spaceBefore=12,
+        spaceAfter=8,
+        textColor=colors.HexColor('#495057'),
+        fontName='Helvetica-Bold'
+    )
+    
     heading_style = ParagraphStyle(
         'CustomHeading',
         parent=styles['Heading2'],
@@ -1960,6 +2008,16 @@ def create_contract_pdf(contract_data):
         fontSize=11,
         spaceAfter=12,
         leading=14
+    )
+    
+    # Center Style
+    center_style = ParagraphStyle(
+        'CenterStyle',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=12,
+        leading=14,
+        alignment=1  # Center
     )
     
     # Titel hinzufügen
@@ -2021,28 +2079,74 @@ def create_contract_pdf(contract_data):
     
     # Content in Paragraphen aufteilen
     if '<para' in content:
-        # Wenn bereits para-Tags vorhanden sind, versuche sie zu verarbeiten
-        try:
-            content_p = Paragraph(content, normal_style)
-            story.append(content_p)
-        except Exception as e:
-            # Fallback: Teile den Content in einfache Paragraphen auf
-            lines = content.replace('<para>', '').replace('</para>', '\n').split('\n')
-            for line in lines:
-                if line.strip():
-                    line = line.replace('<b>', '<b>').replace('</b>', '</b>')
-                    line = line.replace('<i>', '<i>').replace('</i>', '</i>')
-                    line = line.replace('<u>', '<u>').replace('</u>', '</u>')
-                    line = line.replace('<br/>', '<br/>')
+        # Parse para tags mit verschiedenen Styles
+        import re
+        
+        # Teile Content nach para-Tags auf
+        parts = re.split(r'(<para[^>]*>.*?</para>)', content, flags=re.DOTALL)
+        
+        for part in parts:
+            if not part.strip():
+                continue
+                
+            # Prüfe ob es ein para-Tag ist
+            para_match = re.match(r'<para\s*(?:style="([^"]*)")?[^>]*>(.*?)</para>', part, re.DOTALL)
+            if para_match:
+                style_attr = para_match.group(1)
+                text_content = para_match.group(2).strip()
+                
+                if not text_content:
+                    continue
+                
+                # Wähle Style basierend auf Attribut
+                if style_attr == 'title' or style_attr == 'h1':
+                    selected_style = h1_style
+                elif style_attr == 'h2':
+                    selected_style = h2_style
+                elif style_attr == 'h3':
+                    selected_style = h3_style
+                elif style_attr == 'heading':
+                    selected_style = heading_style
+                elif style_attr == 'center':
+                    selected_style = center_style
+                else:
+                    selected_style = normal_style
+                
+                try:
+                    # Bereinige Text-Inhalt für ReportLab
+                    text_content = text_content.replace('<b>', '<b>').replace('</b>', '</b>')
+                    text_content = text_content.replace('<i>', '<i>').replace('</i>', '</i>')
+                    text_content = text_content.replace('<u>', '<u>').replace('</u>', '</u>')
+                    text_content = text_content.replace('<br/>', '<br/>')
+                    
+                    # Erstelle Paragraph mit ausgewähltem Style
+                    p = Paragraph(text_content, selected_style)
+                    story.append(p)
+                    
+                    # Füge Spacer hinzu nur bei normalen Paragraphen
+                    if selected_style == normal_style:
+                        story.append(Spacer(1, 6))
+                        
+                except Exception as e:
+                    # Fallback: Verwende reinen Text mit normal_style
+                    clean_text = re.sub(r'<[^>]+>', '', text_content)
+                    if clean_text.strip():
+                        p = Paragraph(clean_text.strip(), normal_style)
+                        story.append(p)
+                        story.append(Spacer(1, 6))
+            else:
+                # Normaler Text ohne para-Tags
+                clean_part = part.strip()
+                if clean_part and not clean_part.startswith('<'):
                     try:
-                        p = Paragraph(line.strip(), normal_style)
+                        p = Paragraph(clean_part, normal_style)
                         story.append(p)
                         story.append(Spacer(1, 6))
                     except:
-                        # Noch einfacherer Fallback - reiner Text
-                        clean_line = re.sub(r'<[^>]+>', '', line.strip())
-                        if clean_line:
-                            p = Paragraph(clean_line, normal_style)
+                        # Fallback für problematischen Text
+                        clean_text = re.sub(r'<[^>]+>', '', clean_part)
+                        if clean_text.strip():
+                            p = Paragraph(clean_text.strip(), normal_style)
                             story.append(p)
                             story.append(Spacer(1, 6))
     else:
